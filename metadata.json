@@ -1,0 +1,6 @@
+{
+  "name": "Model United Nations · Details TBA",
+  "description": "Youth-led Model United Nations conference. Name, dates, venue, committees, and applications to be announced.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

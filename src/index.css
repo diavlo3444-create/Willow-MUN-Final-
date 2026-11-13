@@ -1,0 +1,61 @@
+@import "tailwindcss";
+
+@theme {
+  --color-olive: #363c20;
+  --color-olive-dark: #232814;
+  --color-moss: #6b7547;
+  --color-moss-light: #96a16e;
+  --color-cream: #ede6ca;
+  --color-cream-muted: #c9c2a4;
+
+  --font-serif: "Cormorant Garamond", Georgia, "Times New Roman", serif;
+  --font-sans: "Instrument Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    background-color: #232814;
+    color: #ede6ca;
+    font-family: var(--font-sans);
+    overflow-x: clip;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    background-color: #232814;
+    color: #ede6ca;
+    overflow-x: clip;
+  }
+
+  :focus-visible {
+    outline: 2px solid #ede6ca;
+    outline-offset: 3px;
+  }
+}
+
+/* Translucent dark-olive panel used for all sections below the hero */
+.mun-panel {
+  background-color: rgba(30, 35, 17, 0.78);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(237, 230, 202, 0.16);
+  border-radius: 6px;
+}
+
+/* Top navigation bar with subtle vertical fade into the background video */
+.mun-nav-fade {
+  background: linear-gradient(
+    to bottom,
+    rgba(24, 28, 13, 0.96) 0%,
+    rgba(24, 28, 13, 0.84) 68%,
+    rgba(24, 28, 13, 0) 100%
+  );
+}
