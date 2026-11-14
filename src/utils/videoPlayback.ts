@@ -1,57 +1,70 @@
 /**
- * Pure helper functions for background video autoplay state and scroll-driven scrim opacity.
+ * Pure helper functions for background video autoplay state and scroll-driven effects.
  */
 
-export const HERO_SCRIM_OPACITY = 0.22;
-export const SCROLLED_SCRIM_OPACITY = 0.56;
+export const HERO_SCRIM_OPACITY = 0.4;
+export const SCROLLED_SCRIM_OPACITY = 0.75;
+export const VIDEO_BASE_SCALE = 1.0;
+export const VIDEO_MAX_SCALE = 1.08;
 
 export interface AutoplayRetryContext {
   pausedByUser: boolean;
-  prefersReducedMotion: boolean;
   isVideoPaused: boolean;
   isDocumentHidden: boolean;
 }
 
 /**
- * Determines whether the background video should begin paused on load.
- * Respects prefers-reduced-motion accessibility preference.
- */
-export function getInitialVideoPaused(prefersReducedMotion: boolean): boolean {
-  return prefersReducedMotion;
-}
-
-/**
  * Determines whether an interaction or visibility event should attempt to start/resume playback.
+ * Never disables background video for prefers-reduced-motion per site specification.
  */
 export function shouldRetryAutoplay(ctx: AutoplayRetryContext): boolean {
-  if (ctx.pausedByUser || ctx.prefersReducedMotion || ctx.isDocumentHidden) {
+  if (ctx.pausedByUser || ctx.isDocumentHidden) {
     return false;
   }
   return ctx.isVideoPaused;
 }
 
 /**
- * Computes the dark olive scrim opacity over the fixed background video.
- * Stays very light in the hero so the willow logo in the video remains clearly visible,
- * then darkens smoothly once the user scrolls past the hero.
+ * Computes the dark olive scrim (#14180a) opacity over the fixed background video:
+ * 0.40 at the very top, rising smoothly to 0.75 after one screen of scrolling, then staying there.
  */
-export function computeOverlayOpacity(scrollY: number, heroHeight: number): number {
-  if (heroHeight <= 0) {
+export function computeOverlayOpacity(scrollY: number, viewportHeight: number): number {
+  if (viewportHeight <= 0) {
     return SCROLLED_SCRIM_OPACITY;
   }
 
-  const startFade = heroHeight * 0.15;
-  const endFade = heroHeight * 0.85;
-
-  if (scrollY <= startFade) {
+  if (scrollY <= 0) {
     return HERO_SCRIM_OPACITY;
   }
-  if (scrollY >= endFade) {
+  if (scrollY >= viewportHeight) {
     return SCROLLED_SCRIM_OPACITY;
   }
 
-  const progress = (scrollY - startFade) / (endFade - startFade);
+  const progress = scrollY / viewportHeight;
   return Number(
     (HERO_SCRIM_OPACITY + progress * (SCROLLED_SCRIM_OPACITY - HERO_SCRIM_OPACITY)).toFixed(4),
   );
+}
+
+/**
+ * Computes normalized page scroll progress (0..1) and video scale (1.0..1.08).
+ */
+export function computeScrollMetrics(
+  scrollY: number,
+  viewportHeight: number,
+  documentHeight: number,
+): { progress: number; videoScale: number; scrimOpacity: number } {
+  const maxScroll = Math.max(0, documentHeight - viewportHeight);
+  const progress =
+    maxScroll > 0 ? Math.min(1, Math.max(0, scrollY / maxScroll)) : 0;
+  const videoScale = Number(
+    (VIDEO_BASE_SCALE + progress * (VIDEO_MAX_SCALE - VIDEO_BASE_SCALE)).toFixed(5),
+  );
+  const scrimOpacity = computeOverlayOpacity(scrollY, viewportHeight);
+
+  return {
+    progress: Number(progress.toFixed(5)),
+    videoScale,
+    scrimOpacity,
+  };
 }

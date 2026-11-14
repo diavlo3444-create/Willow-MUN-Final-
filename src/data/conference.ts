@@ -1,122 +1,165 @@
 /**
- * Central conference configuration.
- * Replace "TBA" values here with confirmed details when ready.
+ * Central Willow MUN conference configuration.
+ * All unannounced conference details are intentionally marked "TBA".
  */
 
-export interface CommitteePlaceholder {
+export interface CommitteeItem {
   id: string;
+  chamber: string;
   name: string;
-  agenda: string;
-  chairs: string;
+  details: string;
 }
 
-export interface ExecutiveRole {
+export interface TeamDepartment {
   id: string;
+  name: string;
   role: string;
   holder: string;
 }
 
+export interface TeamGroup {
+  id: string;
+  title: string;
+  departments: TeamDepartment[];
+}
+
 export interface UpdateEntry {
   id: string;
-  date: string;
+  badge: string;
   title: string;
   summary: string;
 }
 
-export interface ContactItem {
-  id: string;
-  label: string;
-  value: string;
-}
-
 export const CONFERENCE_DATA = {
   brand: {
-    shortTitle: 'MUN',
-    fullTitle: 'Model United Nations',
+    name: 'Willow MUN',
+    fullName: 'Willow Model United Nations',
+    year: '2026',
     logoSrc: '/assets/logo-transparent.png',
     videoSrc: '/assets/aistudio/WhatsApp_Video_2026-11-13_at_2.42.17_PM_4c81d0c1.mp4',
     posterSrc: '/assets/video-poster.jpg',
   },
 
   navLinks: [
-    { href: '#about', label: 'About' },
-    { href: '#committees', label: 'Committees' },
-    { href: '#executive-board', label: 'Executive Board' },
-    { href: '#updates', label: 'Updates' },
     { href: '#apply', label: 'Apply' },
+    { href: '#committees', label: 'Committees' },
+    { href: '#about', label: 'About' },
+    { href: '#executive-board', label: 'EB' },
+    { href: '#updates', label: 'Updates' },
   ],
 
   hero: {
-    headlinePrefix: 'Model United Nations,',
-    headlineItalic: 'details to come.',
-    chips: [
-      { label: 'Dates', value: 'TBA' },
-      { label: 'Venue', value: 'TBA' },
-      { label: 'Committees', value: 'TBA' },
-    ],
-    ctaLabel: 'Applications',
+    stackTop: 'WIL',
+    stackBottom: 'LOW',
+    subBrand: 'MUN',
+    fullTitle: 'Willow Model United Nations',
+    ctaLabel: 'Apply to Willow MUN',
     ctaHref: '#apply',
   },
 
   about: {
-    heading: 'About the conference',
+    label: 'Conference identity',
     paragraphs: [
-      'A youth-led Model United Nations conference bringing delegates together to debate pressing international questions, negotiate across perspectives, and build lasting coalitions.',
-      'The official conference name, guiding theme, and full mission statement are currently TBA and will be shared ahead of the opening of applications.',
+      'Willow MUN is a youth-led Model United Nations conference dedicated to thoughtful debate, diplomatic negotiation, and principled coalition-building across borders.',
+    ],
+  },
+
+  globalStage: {
+    label: 'The Global Stage',
+    description:
+      'Delegates convene to examine pressing international questions, draft nuanced resolutions, and engage in multilateral diplomacy across diverse committees.',
+    stats: [
+      { id: 'committees', label: 'Committees', value: 'TBA', isTba: true },
+      { id: 'year', label: 'Conference Year', value: '2026', isTba: false },
+      { id: 'venue', label: 'Venue', value: 'TBA', isTba: true },
     ],
   },
 
   committees: {
-    heading: 'Committees',
+    label: 'Conference Chambers',
     items: [
-      { id: 'committee-1', name: 'Committee', agenda: 'TBA', chairs: 'TBA' },
-      { id: 'committee-2', name: 'Committee', agenda: 'TBA', chairs: 'TBA' },
-      { id: 'committee-3', name: 'Committee', agenda: 'TBA', chairs: 'TBA' },
-      { id: 'committee-4', name: 'Committee', agenda: 'TBA', chairs: 'TBA' },
-    ] satisfies CommitteePlaceholder[],
+      { id: 'chamber-01', chamber: 'Chamber 01', name: 'Committee', details: 'Agenda and chairs' },
+      { id: 'chamber-02', chamber: 'Chamber 02', name: 'Committee', details: 'Agenda and chairs' },
+      { id: 'chamber-03', chamber: 'Chamber 03', name: 'Committee', details: 'Agenda and chairs' },
+      { id: 'chamber-04', chamber: 'Chamber 04', name: 'Committee', details: 'Agenda and chairs' },
+      { id: 'chamber-05', chamber: 'Chamber 05', name: 'Committee', details: 'Agenda and chairs' },
+      { id: 'chamber-06', chamber: 'Chamber 06', name: 'Committee', details: 'Agenda and chairs' },
+    ] satisfies CommitteeItem[],
   },
 
   executiveBoard: {
-    heading: 'Executive Board',
-    roles: [
-      { id: 'sg', role: 'Secretary-General', holder: 'TBA' },
-      { id: 'dsg', role: 'Deputy Secretary-General', holder: 'TBA' },
-      { id: 'ga', role: 'General Advisor', holder: 'TBA' },
-      { id: 'hod', role: 'Heads of Departments', holder: 'TBA' },
-    ] satisfies ExecutiveRole[],
+    label: 'The People Behind It',
+  },
+
+  team: {
+    label: 'Secretariat & Departments',
+    groups: [
+      {
+        id: 'operations-delegate-care',
+        title: 'Delegate Affairs & Operations',
+        departments: [
+          { id: 'hr', name: 'Human Resources', role: 'Department Head & Team', holder: 'TBA' },
+          { id: 'security', name: 'Security', role: 'Department Head & Team', holder: 'TBA' },
+          { id: 'volunteers', name: 'Volunteers', role: 'Department Head & Team', holder: 'TBA' },
+          { id: 'dcc', name: 'DCC', role: 'Department Head & Team', holder: 'TBA' },
+        ],
+      },
+      {
+        id: 'communications-creative',
+        title: 'Communications & Creative',
+        departments: [
+          { id: 'media-press', name: 'Media & Press', role: 'Department Head & Team', holder: 'TBA' },
+          { id: 'marketing', name: 'Marketing', role: 'Department Head & Team', holder: 'TBA' },
+          { id: 'design', name: 'Design', role: 'Department Head & Team', holder: 'TBA' },
+          { id: 'pr', name: 'Public Relations', role: 'Department Head & Team', holder: 'TBA' },
+        ],
+      },
+      {
+        id: 'logistics-administration',
+        title: 'Logistics & Administration',
+        departments: [
+          { id: 'logistics', name: 'Logistics', role: 'Department Head & Team', holder: 'TBA' },
+          { id: 'it', name: 'Information Technology', role: 'Department Head & Team', holder: 'TBA' },
+          { id: 'finance', name: 'Finance', role: 'Department Head & Team', holder: 'TBA' },
+          { id: 'ceremony', name: 'Ceremony', role: 'Department Head & Team', holder: 'TBA' },
+        ],
+      },
+    ] satisfies TeamGroup[],
   },
 
   updates: {
-    heading: 'Updates',
+    label: 'Stay Informed',
     entries: [
       {
-        id: 'update-applications',
-        date: 'Date TBA',
-        title: 'Delegate and chair applications',
-        summary: 'Opening date to be announced.',
+        id: 'delegate-chair-apps',
+        badge: 'TBA',
+        title: 'Delegate & Chair Applications',
+        summary: 'Opening dates, application requirements, and delegate guidance will be announced here.',
       },
       {
-        id: 'update-dates-venue',
-        date: 'Date TBA',
-        title: 'Conference dates and venue',
-        summary: 'To be announced.',
+        id: 'conference-dates',
+        badge: 'TBA',
+        title: 'Conference Dates',
+        summary: 'Official conference dates, venue confirmation, and full itinerary are to be announced.',
       },
     ] satisfies UpdateEntry[],
   },
 
   apply: {
-    heading: 'Apply',
+    label: 'Delegate & Chair Registration',
+    buttonLabel: 'Applications Opening Soon',
+  },
+
+  suggestions: {
+    label: 'Have something to say?',
     description:
-      'Applications are not open yet. The opening date, delegate fees, and application requirements are TBA.',
-    buttonLabel: 'Applications opening soon',
-    contacts: [
-      { id: 'instagram', label: 'Instagram', value: 'TBA' },
-      { id: 'email', label: 'Email', value: 'TBA' },
-      { id: 'location', label: 'Location', value: 'TBA' },
-    ] satisfies ContactItem[],
+      'Share a suggestion, accessibility requirement, or general inquiry with the Willow MUN organizing team.',
+    types: ['Suggestion', 'Requirement', 'General'] as const,
   },
 
   footer: {
-    caption: 'Model United Nations · Name, dates and venue TBA',
+    fullName: 'Willow Model United Nations',
+    edition: 'WILLOW MUN · 2026',
+    copyright: '© 2026 Willow MUN',
   },
 } as const;

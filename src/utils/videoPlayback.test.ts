@@ -3,21 +3,17 @@ import assert from 'node:assert/strict';
 import {
   HERO_SCRIM_OPACITY,
   SCROLLED_SCRIM_OPACITY,
+  VIDEO_BASE_SCALE,
+  VIDEO_MAX_SCALE,
   computeOverlayOpacity,
-  getInitialVideoPaused,
+  computeScrollMetrics,
   shouldRetryAutoplay,
 } from './videoPlayback';
 
-test('starts paused when prefers-reduced-motion is enabled', () => {
-  assert.equal(getInitialVideoPaused(true), true);
-  assert.equal(getInitialVideoPaused(false), false);
-});
-
-test('retries autoplay only when not manually paused, not reduced motion, visible, and currently paused', () => {
+test('retries autoplay only when not manually paused, visible, and currently paused', () => {
   assert.equal(
     shouldRetryAutoplay({
       pausedByUser: false,
-      prefersReducedMotion: false,
       isVideoPaused: true,
       isDocumentHidden: false,
     }),
@@ -27,7 +23,6 @@ test('retries autoplay only when not manually paused, not reduced motion, visibl
   assert.equal(
     shouldRetryAutoplay({
       pausedByUser: true,
-      prefersReducedMotion: false,
       isVideoPaused: true,
       isDocumentHidden: false,
     }),
@@ -37,17 +32,6 @@ test('retries autoplay only when not manually paused, not reduced motion, visibl
   assert.equal(
     shouldRetryAutoplay({
       pausedByUser: false,
-      prefersReducedMotion: true,
-      isVideoPaused: true,
-      isDocumentHidden: false,
-    }),
-    false,
-  );
-
-  assert.equal(
-    shouldRetryAutoplay({
-      pausedByUser: false,
-      prefersReducedMotion: false,
       isVideoPaused: false,
       isDocumentHidden: false,
     }),
@@ -57,7 +41,6 @@ test('retries autoplay only when not manually paused, not reduced motion, visibl
   assert.equal(
     shouldRetryAutoplay({
       pausedByUser: false,
-      prefersReducedMotion: false,
       isVideoPaused: true,
       isDocumentHidden: true,
     }),
@@ -65,15 +48,29 @@ test('retries autoplay only when not manually paused, not reduced motion, visibl
   );
 });
 
-test('overlay scrim remains light in the hero and darkens after scrolling past hero', () => {
-  const heroHeight = 900;
+test('overlay scrim starts at 0.40 and rises smoothly to 0.75 after one viewport height', () => {
+  const viewportHeight = 900;
 
-  assert.equal(computeOverlayOpacity(0, heroHeight), HERO_SCRIM_OPACITY);
-  assert.equal(computeOverlayOpacity(100, heroHeight), HERO_SCRIM_OPACITY);
+  assert.equal(computeOverlayOpacity(0, viewportHeight), 0.4);
+  assert.equal(computeOverlayOpacity(-10, viewportHeight), 0.4);
 
-  const midScroll = computeOverlayOpacity(450, heroHeight);
+  const midScroll = computeOverlayOpacity(450, viewportHeight);
   assert.ok(midScroll > HERO_SCRIM_OPACITY && midScroll < SCROLLED_SCRIM_OPACITY);
 
-  assert.equal(computeOverlayOpacity(850, heroHeight), SCROLLED_SCRIM_OPACITY);
-  assert.equal(computeOverlayOpacity(2400, heroHeight), SCROLLED_SCRIM_OPACITY);
+  assert.equal(computeOverlayOpacity(900, viewportHeight), 0.75);
+  assert.equal(computeOverlayOpacity(2400, viewportHeight), 0.75);
+});
+
+test('scroll metrics scale video from 1.0 to 1.08 across full document scroll', () => {
+  const top = computeScrollMetrics(0, 900, 3900);
+  assert.equal(top.progress, 0);
+  assert.equal(top.videoScale, VIDEO_BASE_SCALE);
+
+  const mid = computeScrollMetrics(1500, 900, 3900);
+  assert.equal(mid.progress, 0.5);
+  assert.equal(mid.videoScale, 1.04);
+
+  const bottom = computeScrollMetrics(3000, 900, 3900);
+  assert.equal(bottom.progress, 1);
+  assert.equal(bottom.videoScale, VIDEO_MAX_SCALE);
 });

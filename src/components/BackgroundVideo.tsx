@@ -1,84 +1,91 @@
 import { useEffect, useRef, useState } from 'react';
+import { Pause, Play } from 'lucide-react';
 import { CONFERENCE_DATA } from '../data/conference';
 import {
   HERO_SCRIM_OPACITY,
-  computeOverlayOpacity,
-  getInitialVideoPaused,
+  computeScrollMetrics,
   shouldRetryAutoplay,
 } from '../utils/videoPlayback';
 
+interface BackgroundVideoProps {
+  hasAnnouncementBar: boolean;
+  introPlaying: boolean;
+}
+
 /**
- * Fixed full-viewport background video with:
- * - autoplay, muted, loop, playsinline, preload="auto", poster frame, and zero controls
- * - automatic retry on first user interaction and when the tab becomes visible
- * - prefers-reduced-motion support (starts paused on the poster frame)
- * - scroll-responsive scrim (light in the hero, darker once scrolled past the hero)
- * - bottom-right Pause/Play background toggle for accessibility
+ * Fixed full-viewport background video (100vw x 100dvh, object-fit: cover, z-index: -2):
+ * - Kept paused at currentTime = 0 behind #intro until finish() starts playback
+ * - Readability overlay (#14180a, z-index: -1) sits at a constant 0.40 opacity from first paint
+ *   (including during the intro) and only changes via scroll progress (0.40 -> 0.75) after intro ends
+ * - 40px round icon-only play/pause button fixed bottom-right
  */
-export function BackgroundVideo() {
+export function BackgroundVideo({
+  hasAnnouncementBar,
+  introPlaying,
+}: BackgroundVideoProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const overlayRef = useRef<HTMLDivElement | null>(null);
   const pausedByUserRef = useRef(false);
-  const reducedMotionRef = useRef(false);
+  const introPlayingRef = useRef(introPlaying);
+  introPlayingRef.current = introPlaying;
 
-  const [isPaused, setIsPaused] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    return getInitialVideoPaused(
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches,
-    );
-  });
+  const [isPaused, setIsPaused] = useState(true);
 
-  // Scroll-responsive scrim darkening: stays light over the hero so the video logo is clear.
+  // Reset scroll metrics & user-pause state whenever the intro starts or replays
   useEffect(() => {
-    const updateScrim = () => {
-      if (!overlayRef.current) return;
-      const opacity = computeOverlayOpacity(window.scrollY, window.innerHeight);
-      overlayRef.current.style.opacity = String(opacity);
+    if (!introPlaying) return;
+    pausedByUserRef.current = false;
+    const docEl = document.documentElement;
+    docEl.style.setProperty('--scroll-progress', '0');
+    docEl.style.setProperty('--scrim-opacity', String(HERO_SCRIM_OPACITY));
+    docEl.style.setProperty('--video-scale', '1');
+  }, [introPlaying]);
+
+  // Shared single requestAnimationFrame scroll loop (does not run while intro is playing)
+  useEffect(() => {
+    if (introPlaying) return;
+    let rafId = 0;
+
+    const applyScrollMetrics = () => {
+      rafId = 0;
+      if (introPlayingRef.current || document.body.classList.contains('intro-on')) return;
+      const docEl = document.documentElement;
+      const { progress, videoScale, scrimOpacity } = computeScrollMetrics(
+        window.scrollY,
+        window.innerHeight,
+        docEl.scrollHeight,
+      );
+
+      docEl.style.setProperty('--scroll-progress', String(progress));
+      docEl.style.setProperty('--scrim-opacity', String(scrimOpacity));
+      docEl.style.setProperty('--video-scale', String(videoScale));
     };
 
-    updateScrim();
-    window.addEventListener('scroll', updateScrim, { passive: true });
-    window.addEventListener('resize', updateScrim, { passive: true });
+    const scheduleUpdate = () => {
+      if (rafId !== 0 || introPlayingRef.current) return;
+      rafId = window.requestAnimationFrame(applyScrollMetrics);
+    };
+
+    applyScrollMetrics();
+    window.addEventListener('scroll', scheduleUpdate, { passive: true });
+    window.addEventListener('resize', scheduleUpdate, { passive: true });
 
     return () => {
-      window.removeEventListener('scroll', updateScrim);
-      window.removeEventListener('resize', updateScrim);
+      if (rafId !== 0) {
+        window.cancelAnimationFrame(rafId);
+      }
+      window.removeEventListener('scroll', scheduleUpdate);
+      window.removeEventListener('resize', scheduleUpdate);
     };
-  }, []);
+  }, [introPlaying]);
 
-  // Video autoplay management, reduced-motion handling, and interaction/visibility retries.
+  // Sync play/pause UI state and post-intro autoplay recovery
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
     video.muted = true;
     video.defaultMuted = true;
-
-    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
-    reducedMotionRef.current = mediaQuery.matches;
-
-    const attemptPlay = () => {
-      const target = videoRef.current;
-      if (!target) return;
-      target.muted = true;
-      const playPromise = target.play();
-      if (playPromise !== undefined) {
-        playPromise
-          .then(() => {
-            setIsPaused(false);
-          })
-          .catch(() => {
-            setIsPaused(true);
-          });
-      }
-    };
-
-    if (getInitialVideoPaused(mediaQuery.matches)) {
-      video.pause();
-      setIsPaused(true);
-    } else {
-      attemptPlay();
-    }
+    setIsPaused(video.paused);
 
     const onVideoPlay = () => setIsPaused(false);
     const onVideoPause = () => setIsPaused(true);
@@ -87,17 +94,21 @@ export function BackgroundVideo() {
     video.addEventListener('pause', onVideoPause);
 
     const retryIfNeeded = () => {
+      if (introPlayingRef.current || document.body.classList.contains('intro-on')) return;
       const target = videoRef.current;
       if (!target) return;
       if (
         shouldRetryAutoplay({
           pausedByUser: pausedByUserRef.current,
-          prefersReducedMotion: reducedMotionRef.current,
           isVideoPaused: target.paused,
           isDocumentHidden: document.hidden,
         })
       ) {
-        attemptPlay();
+        target.muted = true;
+        const p = target.play();
+        if (p !== undefined) {
+          p.then(() => setIsPaused(false)).catch(() => setIsPaused(true));
+        }
       }
     };
 
@@ -107,21 +118,10 @@ export function BackgroundVideo() {
       }
     };
 
-    const onMotionPrefChange = (event: MediaQueryListEvent) => {
-      reducedMotionRef.current = event.matches;
-      if (event.matches && !pausedByUserRef.current) {
-        video.pause();
-        setIsPaused(true);
-      } else if (!event.matches && !pausedByUserRef.current && video.paused) {
-        attemptPlay();
-      }
-    };
-
     window.addEventListener('click', retryIfNeeded, { passive: true });
     window.addEventListener('touchstart', retryIfNeeded, { passive: true });
     window.addEventListener('scroll', retryIfNeeded, { passive: true });
     document.addEventListener('visibilitychange', onVisibilityChange);
-    mediaQuery.addEventListener('change', onMotionPrefChange);
 
     return () => {
       video.removeEventListener('play', onVideoPlay);
@@ -130,7 +130,6 @@ export function BackgroundVideo() {
       window.removeEventListener('touchstart', retryIfNeeded);
       window.removeEventListener('scroll', retryIfNeeded);
       document.removeEventListener('visibilitychange', onVisibilityChange);
-      mediaQuery.removeEventListener('change', onMotionPrefChange);
     };
   }, []);
 
@@ -159,11 +158,10 @@ export function BackgroundVideo() {
   return (
     <>
       <video
+        id="bgVideo"
         ref={videoRef}
-        className="fixed inset-0 z-0 h-full w-full object-cover pointer-events-none select-none"
         src={CONFERENCE_DATA.brand.videoSrc}
         poster={CONFERENCE_DATA.brand.posterSrc}
-        autoPlay
         muted
         loop
         playsInline
@@ -171,22 +169,57 @@ export function BackgroundVideo() {
         aria-hidden="true"
         tabIndex={-1}
         disablePictureInPicture
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100vw',
+          height: '100dvh',
+          objectFit: 'cover',
+          objectPosition: 'center',
+          zIndex: -2,
+          pointerEvents: 'none',
+          userSelect: 'none',
+          transform: 'scale(var(--video-scale, 1))',
+          transformOrigin: 'center center',
+        }}
       />
 
       <div
-        ref={overlayRef}
         aria-hidden="true"
-        className="fixed inset-0 z-0 bg-[#232814] pointer-events-none transition-opacity duration-300"
-        style={{ opacity: HERO_SCRIM_OPACITY }}
+        style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: -1,
+          backgroundColor: '#14180a',
+          opacity: `var(--scrim-opacity, ${HERO_SCRIM_OPACITY})`,
+          pointerEvents: 'none',
+        }}
       />
 
       <button
         type="button"
         onClick={handleTogglePlayback}
         aria-pressed={isPaused}
-        className="fixed z-40 bottom-[max(1rem,env(safe-area-inset-bottom))] right-[max(1rem,env(safe-area-inset-right))] min-h-[40px] px-3 py-1.5 rounded-sm bg-[#1e2311]/90 border border-[#ede6ca]/25 text-[11px] sm:text-xs font-medium text-[#ede6ca] hover:bg-[#232814] hover:border-[#ede6ca]/50 transition-colors backdrop-blur-sm cursor-pointer whitespace-nowrap"
+        aria-label={isPaused ? 'Play background video' : 'Pause background video'}
+        title={isPaused ? 'Play background video' : 'Pause background video'}
+        tabIndex={introPlaying ? -1 : 0}
+        style={{
+          bottom: hasAnnouncementBar
+            ? 'max(3.5rem, calc(env(safe-area-inset-bottom) + 3.25rem))'
+            : 'max(1rem, env(safe-area-inset-bottom))',
+          right: 'max(1rem, env(safe-area-inset-right))',
+          opacity: introPlaying ? 0 : 1,
+          pointerEvents: introPlaying ? 'none' : 'auto',
+          transition: 'opacity 600ms ease',
+        }}
+        className="mun-btn-interactive fixed z-40 flex h-10 w-10 items-center justify-center rounded-full border border-[#ede6ca]/35 bg-[#181c0d]/92 text-[#ede6ca] hover:border-[#ede6ca]/70 hover:bg-[#232814] cursor-pointer"
       >
-        {isPaused ? 'Play background' : 'Pause background'}
+        {isPaused ? (
+          <Play className="h-4 w-4 translate-x-[1px]" aria-hidden="true" />
+        ) : (
+          <Pause className="h-4 w-4" aria-hidden="true" />
+        )}
       </button>
     </>
   );

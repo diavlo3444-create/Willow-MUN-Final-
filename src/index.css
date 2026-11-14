@@ -4,9 +4,9 @@
   --color-olive: #363c20;
   --color-olive-dark: #232814;
   --color-moss: #6b7547;
-  --color-moss-light: #96a16e;
+  --color-moss-light: #a9b47e;
   --color-cream: #ede6ca;
-  --color-cream-muted: #c9c2a4;
+  --color-cream-muted: #cfc8aa;
 
   --font-serif: "Cormorant Garamond", Georgia, "Times New Roman", serif;
   --font-sans: "Instrument Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -15,22 +15,16 @@
 @layer base {
   html {
     scroll-behavior: smooth;
-    background-color: #232814;
+    background-color: #363c20;
     color: #ede6ca;
     font-family: var(--font-sans);
     overflow-x: clip;
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    html {
-      scroll-behavior: auto;
-    }
-  }
-
   body {
     margin: 0;
     min-height: 100dvh;
-    background-color: #232814;
+    background-color: transparent;
     color: #ede6ca;
     overflow-x: clip;
   }
@@ -41,21 +35,373 @@
   }
 }
 
-/* Translucent dark-olive panel used for all sections below the hero */
-.mun-panel {
-  background-color: rgba(30, 35, 17, 0.78);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(237, 230, 202, 0.16);
-  border-radius: 6px;
+/* Flat semi-transparent top navigation background (no backdrop-filter) */
+.mun-nav-flat {
+  background-color: rgba(20, 24, 10, 0.85);
 }
 
-/* Top navigation bar with subtle vertical fade into the background video */
-.mun-nav-fade {
+/* Flat vertical section gradient: transparent edges, 0.82 dark olive body */
+.mun-section-gradient {
   background: linear-gradient(
     to bottom,
-    rgba(24, 28, 13, 0.96) 0%,
-    rgba(24, 28, 13, 0.84) 68%,
-    rgba(24, 28, 13, 0) 100%
+    transparent 0%,
+    rgba(20, 24, 10, 0.82) 15%,
+    rgba(20, 24, 10, 0.82) 85%,
+    transparent 100%
   );
+}
+
+/* Nearly opaque editorial cards with thin border and zero box-shadow */
+.mun-card {
+  background-color: rgba(24, 28, 13, 0.94);
+  border: 1px solid rgba(237, 230, 202, 0.16);
+  transition: border-color 200ms ease, transform 240ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Desktop mouse-only card border brighten & 10% cream radial spotlight */
+@media (hover: hover) and (pointer: fine) {
+  .mun-spotlight-card:hover {
+    border-color: rgba(237, 230, 202, 0.4);
+  }
+}
+
+.mun-card-spotlight {
+  background: radial-gradient(
+    280px circle at var(--mx, 50%) var(--my, 50%),
+    rgba(237, 230, 202, 0.1),
+    transparent 70%
+  );
+}
+
+/* Secretariat spotlight cards: desktop mouse-only 6px lift and 1.04 photo scale inside clipped frame */
+.mun-secretariat-photo {
+  transition: transform 320ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .mun-secretariat-card:hover {
+    transform: translate3d(0, -6px, 0);
+    border-color: rgba(237, 230, 202, 0.4);
+  }
+
+  .mun-secretariat-card:hover .mun-secretariat-photo {
+    transform: scale(1.04);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mun-secretariat-card,
+  .mun-secretariat-photo {
+    transition: border-color 200ms ease;
+  }
+
+  .mun-secretariat-card:hover,
+  .mun-secretariat-card:hover .mun-secretariat-photo {
+    transform: none;
+  }
+}
+
+/* Interactive button scale (1.04 hover on desktop mouse, 0.97 active press) */
+.mun-btn-interactive {
+  transition:
+    transform 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 200ms ease,
+    border-color 200ms ease,
+    color 200ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .mun-btn-interactive:hover {
+    transform: scale(1.04);
+  }
+}
+
+.mun-btn-interactive:active {
+  transform: scale(0.97);
+}
+
+/* Soft dark radial scrim strictly behind hero typography */
+.mun-hero-scrim {
+  background: radial-gradient(
+    ellipse at center,
+    rgba(20, 24, 10, 0.68) 0%,
+    rgba(20, 24, 10, 0.28) 54%,
+    transparent 76%
+  );
+}
+
+.mun-hero-shadow {
+  text-shadow: 0 2px 20px rgba(0, 0, 0, 0.5);
+}
+
+/* Transparent-to-dark footer and announcement bar surfaces */
+.mun-footer-gradient {
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(20, 24, 10, 0.78) 30%,
+    rgba(20, 24, 10, 0.9) 100%
+  );
+}
+
+.mun-announcement-bg {
+  background: linear-gradient(
+    to bottom,
+    rgba(20, 24, 10, 0) 0%,
+    rgba(20, 24, 10, 0.92) 30%,
+    rgba(20, 24, 10, 0.96) 100%
+  );
+}
+
+/* One-time hero text fade-in */
+@keyframes hero-fade-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.mun-hero-enter {
+  animation: hero-fade-in 0.75s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Mobile menu links staggered entrance */
+@keyframes mobile-link-slide {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 16px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.mun-mobile-link-enter {
+  animation: mobile-link-slide 0.42s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* KonMUN-style one-time section reveals (transform + opacity only) */
+.mun-heading-reveal {
+  opacity: 0;
+  transform: translate3d(0, 30px, 0);
+  transition:
+    opacity 0.65s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.65s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.mun-ornament-reveal {
+  display: inline-block;
+  opacity: 0;
+  transform: rotate(0deg);
+  transition:
+    opacity 0.6s ease,
+    transform 0.75s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.mun-card-reveal {
+  opacity: 0;
+  transform: translate3d(0, 24px, 0);
+  transition:
+    opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.mun-revealed .mun-heading-reveal {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+}
+
+.mun-revealed .mun-ornament-reveal {
+  opacity: 1;
+  transform: rotate(90deg);
+}
+
+.mun-revealed .mun-card-reveal {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+}
+
+/* Animated underline on bottom bar "View Committees" link */
+.mun-link-underline {
+  position: relative;
+  display: inline-block;
+}
+
+.mun-link-underline::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -2px;
+  height: 1px;
+  background-color: currentColor;
+  transform: scaleX(0.35);
+  transform-origin: left center;
+  transition: transform 240ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.mun-link-underline:hover::after,
+.mun-link-underline:focus-visible::after {
+  transform: scaleX(1);
+}
+
+/* Gentle willow branch sway (transform only, 1-2 deg back and forth) */
+@keyframes willow-sway-a {
+  0%,
+  100% {
+    transform: rotate(-1.3deg);
+  }
+  50% {
+    transform: rotate(1.5deg);
+  }
+}
+
+@keyframes willow-sway-b {
+  0%,
+  100% {
+    transform: rotate(1.4deg);
+  }
+  50% {
+    transform: rotate(-1.6deg);
+  }
+}
+
+.willow-branch-sway-a {
+  animation: willow-sway-a 7.5s ease-in-out infinite;
+}
+
+.willow-branch-sway-b {
+  animation: willow-sway-b 8.5s ease-in-out infinite;
+}
+
+.willow-paused .willow-branch-sway-a,
+.willow-paused .willow-branch-sway-b {
+  animation-play-state: paused;
+}
+
+/* Interactive member leaf hover/focus scale + tooltip + focus ring */
+.willow-member-leaf {
+  outline: none;
+}
+
+.willow-member-shape {
+  transform-box: fill-box;
+  transform-origin: center top;
+  transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.willow-member-focus-ring {
+  opacity: 0;
+  transition: opacity 140ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .willow-member-leaf:hover .willow-member-shape {
+    transform: scale(1.25);
+  }
+
+  .willow-member-leaf:hover .willow-member-fill {
+    fill: #fbf7e4;
+  }
+}
+
+.willow-member-leaf:focus-visible .willow-member-shape {
+  transform: scale(1.25);
+}
+
+.willow-member-leaf:focus-visible .willow-member-fill {
+  fill: #fbf7e4;
+}
+
+.willow-member-leaf:focus-visible .willow-member-focus-ring {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .willow-branch-sway-a,
+  .willow-branch-sway-b {
+    animation: none;
+  }
+}
+
+body.intro-on{overflow:hidden}
+
+.willow-intro-backdrop{
+  position:fixed;
+  inset:0;
+  z-index:0;
+  background:radial-gradient(ellipse at 50% 45%,#363c20 0%,#232814 55%,#14180a 100%);
+  opacity:0;
+  pointer-events:none;
+  transition:opacity 1.6s cubic-bezier(0.16,1,0.3,1);
+}
+body.intro-on .willow-intro-backdrop{opacity:1}
+
+.willow-emblem-container{
+  position:fixed;
+  inset:0;
+  z-index:1;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  pointer-events:none;
+  transform:scale(0.92);
+  opacity:0.22;
+  transition:
+    transform 1.6s cubic-bezier(0.16,1,0.3,1),
+    opacity 1.6s cubic-bezier(0.16,1,0.3,1);
+  will-change:transform,opacity;
+}
+body.intro-on .willow-emblem-container{
+  transform:scale(1);
+  opacity:1;
+}
+.willow-emblem-container.willow-emblem-instant{transition:none}
+
+.willow-intro-controls{
+  position:fixed;
+  inset:0;
+  z-index:100;
+  opacity:0;
+  pointer-events:none;
+  transition:opacity 0.5s ease;
+}
+.willow-intro-controls.is-active{
+  opacity:1;
+  pointer-events:auto;
+}
+
+#introSkip{
+  position:absolute;
+  right:20px;
+  bottom:20px;
+  min-height:44px;
+  padding:0 14px;
+  background:none;
+  border:0;
+  color:#cfc8aa;
+  font:inherit;
+  font-size:13px;
+  letter-spacing:.2em;
+  text-transform:uppercase;
+  white-space:nowrap;
+  cursor:pointer;
+}
+
+.chrome{opacity:1;transform:none;transition:opacity 1.1s cubic-bezier(.4,0,.2,1) .35s,transform 1.1s cubic-bezier(.4,0,.2,1) .35s}
+body.intro-on .chrome{opacity:0;transform:translateY(14px);transition:none}
+body.intro-on *{animation-play-state:paused !important}
+
+@media (prefers-reduced-motion: reduce){
+  .willow-intro-backdrop,
+  .willow-emblem-container,
+  .willow-intro-controls,
+  .chrome{
+    transition:none !important;
+  }
 }

@@ -1,32 +1,42 @@
 import { CONFERENCE_DATA } from '../data/conference';
-import { PanelSection } from './PanelSection';
+import { InteractiveCard } from './InteractiveCard';
+import { RevealSection, SectionHeading } from './RevealSection';
 import { TbaText } from './TbaText';
 
 /**
- * Section 2: Committees — four placeholder rows separated by thin cream lines,
- * stacking vertically on mobile viewports.
+ * Committees section: grid of six Chamber 01-06 cards with TBA agenda and chairs.
  */
 export function CommitteesSection() {
   return (
-    <PanelSection id="committees" heading={CONFERENCE_DATA.committees.heading}>
-      <ul className="divide-y divide-[#ede6ca]/18 border-y border-[#ede6ca]/18">
-        {CONFERENCE_DATA.committees.items.map((item) => (
-          <li
-            key={item.id}
-            className="flex flex-col gap-2 py-5 md:grid md:grid-cols-12 md:items-baseline md:gap-6"
-          >
-            <div className="md:col-span-4 font-serif text-xl sm:text-2xl font-medium text-[#ede6ca]">
-              {item.name}
-            </div>
-            <div className="md:col-span-5 text-sm sm:text-base text-[#c9c2a4]">
-              Agenda: <TbaText text={item.agenda} className="text-lg sm:text-xl" />
-            </div>
-            <div className="md:col-span-3 md:text-right text-sm sm:text-base text-[#c9c2a4]">
-              Chairs: <TbaText text={item.chairs} className="text-lg sm:text-xl" />
-            </div>
-          </li>
+    <RevealSection id="committees" ariaLabelledBy="committees-heading">
+      <div className="mb-10 sm:mb-12">
+        <SectionHeading
+          id="committees-heading"
+          label={CONFERENCE_DATA.committees.label}
+          prefix="COMMITTEES"
+        />
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        {CONFERENCE_DATA.committees.items.map((item, idx) => (
+          <InteractiveCard key={item.id} staggerIndex={idx} className="p-6 sm:p-7">
+            <article className="h-full flex flex-col justify-between gap-6">
+              <div>
+                <p className="text-[clamp(10px,2.6vw,11px)] uppercase tracking-[0.22em] text-[#cfc8aa] tabular-nums whitespace-nowrap">
+                  {item.chamber}
+                </p>
+                <h3 className="mt-3 font-serif text-[clamp(1.35rem,3vw,1.65rem)] font-medium text-[#ede6ca] whitespace-nowrap">
+                  {item.name} <TbaText text="TBA" />
+                </h3>
+              </div>
+
+              <p className="pt-4 border-t border-[#ede6ca]/14 text-sm text-[#cfc8aa] whitespace-nowrap">
+                {item.details} <TbaText text="TBA" className="text-base" />
+              </p>
+            </article>
+          </InteractiveCard>
         ))}
-      </ul>
-    </PanelSection>
+      </div>
+    </RevealSection>
   );
 }

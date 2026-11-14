@@ -1,56 +1,147 @@
+import { useEffect, useRef, type MouseEvent } from 'react';
 import { CONFERENCE_DATA } from '../data/conference';
+import { useDesktopPointerEnabled } from '../utils/pointerEffects';
+import { MagneticWrap } from './MagneticWrap';
 import { TbaText } from './TbaText';
 
+const MAX_PARALLAX_PX = 12;
+
+interface HeroProps {
+  cursorEffectsActive?: boolean;
+}
+
 /**
- * Full-screen hero anchored at the bottom-left so the center of the viewport
- * stays clear for the willow emblem in the background video.
+ * Full-screen editorial hero featuring single-line display typography ("WILLOW MUN"),
+ * smooth desktop-only cursor parallax (up to 12px opposite cursor),
+ * magnetic hero CTA button, soft radial scrim, and text-shadow.
+ * Entrance transition is governed by .chrome / body.intro-on.
  */
-export function Hero() {
+export function Hero({ cursorEffectsActive = true }: HeroProps) {
+  const titleRef = useRef<HTMLSpanElement | null>(null);
+  const desktopPointer = useDesktopPointerEnabled();
+
+  useEffect(() => {
+    const titleEl = titleRef.current;
+    if (!titleEl) return;
+
+    if (!desktopPointer || !cursorEffectsActive) {
+      titleEl.style.transform = 'translate3d(0, 0, 0)';
+      return;
+    }
+
+    let targetX = 0;
+    let targetY = 0;
+    let currentX = 0;
+    let currentY = 0;
+    let rafId = 0;
+
+    const animate = () => {
+      rafId = 0;
+      const dx = targetX - currentX;
+      const dy = targetY - currentY;
+
+      currentX += dx * 0.1;
+      currentY += dy * 0.1;
+
+      titleEl.style.transform = `translate3d(${currentX.toFixed(2)}px, ${currentY.toFixed(2)}px, 0)`;
+
+      if (Math.abs(dx) > 0.05 || Math.abs(dy) > 0.05) {
+        rafId = window.requestAnimationFrame(animate);
+      }
+    };
+
+    const schedule = () => {
+      if (rafId === 0) {
+        rafId = window.requestAnimationFrame(animate);
+      }
+    };
+
+    const onPointerMove = (event: PointerEvent) => {
+      if (event.pointerType !== 'mouse' || document.body.classList.contains('intro-on')) return;
+      const vw = window.innerWidth || 1;
+      const vh = window.innerHeight || 1;
+      const nx = (event.clientX / vw) * 2 - 1;
+      const ny = (event.clientY / vh) * 2 - 1;
+
+      targetX = Math.max(-MAX_PARALLAX_PX, Math.min(MAX_PARALLAX_PX, -nx * MAX_PARALLAX_PX));
+      targetY = Math.max(-MAX_PARALLAX_PX, Math.min(MAX_PARALLAX_PX, -ny * MAX_PARALLAX_PX));
+      schedule();
+    };
+
+    const onPointerLeave = () => {
+      targetX = 0;
+      targetY = 0;
+      schedule();
+    };
+
+    window.addEventListener('pointermove', onPointerMove, { passive: true });
+    document.addEventListener('pointerleave', onPointerLeave);
+
+    return () => {
+      if (rafId !== 0) {
+        window.cancelAnimationFrame(rafId);
+      }
+      window.removeEventListener('pointermove', onPointerMove);
+      document.removeEventListener('pointerleave', onPointerLeave);
+    };
+  }, [desktopPointer, cursorEffectsActive]);
+
+  const handleCtaClick = (event: MouseEvent<HTMLAnchorElement>) => {
+    const target = document.querySelector(CONFERENCE_DATA.hero.ctaHref);
+    if (target) {
+      event.preventDefault();
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
   return (
     <section
       id="top"
-      aria-label="Conference overview"
-      className="relative z-10 min-h-[100dvh] flex flex-col justify-end px-5 sm:px-8 md:px-12 pt-28 pb-20 sm:pb-16"
+      aria-label="Willow Model United Nations overview"
+      className="relative min-h-[100dvh] flex items-center justify-center px-3 sm:px-8 md:px-12 pt-24 pb-20"
     >
-      {/* Measured bottom scrim ensures headline and chip legibility without obscuring the center willow emblem */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 bottom-0 h-[58%] sm:h-[48%] bg-gradient-to-t from-[#191d0e]/92 via-[#191d0e]/60 to-transparent"
-      />
+      <div className="chrome mun-hero-scrim relative mx-auto flex w-full max-w-[1280px] flex-col items-center text-center px-2 py-12 sm:px-8 sm:py-16">
+        <p className="mun-hero-shadow text-[clamp(10px,2.8vw,12px)] font-medium uppercase tracking-[0.26em] text-[#cfc8aa] mb-5 whitespace-nowrap">
+          ✦ <span className="mx-2">{CONFERENCE_DATA.brand.year} Edition</span> ✦
+        </p>
 
-      <div className="relative mx-auto w-full max-w-[1200px]">
-        <div className="max-w-xl">
-          <h1 className="font-serif text-[clamp(2.25rem,4.3vw,3.75rem)] leading-[1.05] tracking-tight font-medium text-[#ede6ca] [text-wrap:balance]">
-            {CONFERENCE_DATA.hero.headlinePrefix}
-            <br />
-            <span className="italic font-normal text-[#c9c2a4]">
-              {CONFERENCE_DATA.hero.headlineItalic}
-            </span>
-          </h1>
-
-          <ul
-            aria-label="Key conference details"
-            className="mt-5 sm:mt-6 flex flex-wrap items-center gap-2.5"
+        <h1 className="mun-hero-shadow font-serif uppercase text-[#ede6ca] select-none w-full flex justify-center">
+          <span
+            ref={titleRef}
+            className="block will-change-transform whitespace-nowrap text-[clamp(2.4rem,10vw,9.5rem)] leading-[0.95] font-medium tracking-[0.03em]"
           >
-            {CONFERENCE_DATA.hero.chips.map((chip) => (
-              <li
-                key={chip.label}
-                className="inline-flex items-center gap-1.5 rounded-full border border-[#ede6ca]/28 bg-[#1e2311]/85 px-3.5 py-1.5 text-xs sm:text-sm text-[#c9c2a4] backdrop-blur-sm"
-              >
-                <span>{chip.label}:</span>
-                <TbaText text={chip.value} className="text-sm sm:text-base" />
-              </li>
-            ))}
-          </ul>
+            WILLOW MUN
+          </span>
+        </h1>
 
-          <div className="mt-6 sm:mt-7">
+        <div className="mt-7 w-16 border-t border-[#ede6ca]/35" aria-hidden="true" />
+
+        <p className="mun-hero-shadow mt-6 font-serif text-[clamp(1.15rem,3vw,1.6rem)] font-medium tracking-wide text-[#ede6ca] whitespace-nowrap">
+          {CONFERENCE_DATA.hero.fullTitle}
+        </p>
+
+        <p className="mun-hero-shadow mt-2 text-sm sm:text-base text-[#cfc8aa] whitespace-nowrap">
+          Tagline <TbaText text="TBA" className="text-lg sm:text-xl" />
+        </p>
+
+        <p className="mun-hero-shadow mt-2 text-[clamp(11px,2.8vw,14px)] uppercase tracking-[0.18em] text-[#cfc8aa] whitespace-nowrap">
+          Dates <TbaText text="TBA" className="normal-case text-base sm:text-lg" />
+          <span className="mx-2.5 text-[#ede6ca]/45" aria-hidden="true">
+            ·
+          </span>
+          Venue <TbaText text="TBA" className="normal-case text-base sm:text-lg" />
+        </p>
+
+        <div className="mt-8">
+          <MagneticWrap>
             <a
               href={CONFERENCE_DATA.hero.ctaHref}
-              className="inline-flex items-center justify-center min-h-[44px] rounded-sm bg-[#ede6ca] px-6 py-3 text-sm font-medium text-[#232814] hover:bg-[#c9c2a4] transition-colors whitespace-nowrap"
+              onClick={handleCtaClick}
+              className="mun-btn-interactive inline-flex items-center justify-center min-h-[44px] rounded-full bg-[#ede6ca] px-7 py-3 text-sm font-medium text-[#232814] hover:bg-[#cfc8aa] whitespace-nowrap"
             >
               {CONFERENCE_DATA.hero.ctaLabel}
             </a>
-          </div>
+          </MagneticWrap>
         </div>
       </div>
     </section>

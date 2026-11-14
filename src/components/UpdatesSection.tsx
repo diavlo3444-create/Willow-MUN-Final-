@@ -1,34 +1,49 @@
 import { CONFERENCE_DATA } from '../data/conference';
-import { PanelSection } from './PanelSection';
+import { InteractiveCard } from './InteractiveCard';
+import { RevealSection, SectionHeading } from './RevealSection';
 import { TbaText } from './TbaText';
 
 /**
- * Section 4: Updates — two editorial entries with "Date TBA" on the left
- * and title + single-line note on the right.
+ * Live Updates section: "Stay Informed" / "LIVE UPDATES" with two timeline cards.
  */
 export function UpdatesSection() {
   return (
-    <PanelSection id="updates" heading={CONFERENCE_DATA.updates.heading}>
-      <ul className="divide-y divide-[#ede6ca]/18 border-y border-[#ede6ca]/18">
-        {CONFERENCE_DATA.updates.entries.map((entry) => (
-          <li
-            key={entry.id}
-            className="flex flex-col gap-2 py-6 md:grid md:grid-cols-12 md:items-baseline md:gap-8"
-          >
-            <div className="md:col-span-3 text-sm sm:text-base text-[#c9c2a4]">
-              Date <TbaText text="TBA" className="text-lg sm:text-xl" />
-            </div>
-            <div className="md:col-span-9 space-y-1.5">
-              <h3 className="font-serif text-xl sm:text-2xl font-medium text-[#ede6ca]">
-                {entry.title}
-              </h3>
-              <p className="text-sm sm:text-base text-[#c9c2a4] leading-relaxed">
-                {entry.summary}
-              </p>
-            </div>
-          </li>
+    <RevealSection id="updates" ariaLabelledBy="updates-heading">
+      <div className="mb-10 sm:mb-12">
+        <SectionHeading
+          id="updates-heading"
+          label={CONFERENCE_DATA.updates.label}
+          prefix="LIVE"
+          italicWord="UPDATES"
+        />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        {CONFERENCE_DATA.updates.entries.map((entry, idx) => (
+          <InteractiveCard key={entry.id} staggerIndex={idx} className="p-6 sm:p-8">
+            <article className="h-full flex flex-col justify-between gap-6">
+              <div className="flex items-center justify-between gap-4">
+                <span className="inline-flex items-center gap-2 border border-[#ede6ca]/22 px-3 py-1 text-[11px] uppercase tracking-[0.2em] text-[#cfc8aa] whitespace-nowrap">
+                  <span>Date</span>
+                  <TbaText text={entry.badge} className="normal-case text-sm" />
+                </span>
+                <span className="text-[11px] uppercase tracking-[0.22em] text-[#cfc8aa] tabular-nums whitespace-nowrap">
+                  0{idx + 1}
+                </span>
+              </div>
+
+              <div className="space-y-2.5">
+                <h3 className="font-serif text-2xl sm:text-[28px] font-medium text-[#ede6ca] leading-snug [text-wrap:balance]">
+                  {entry.title}
+                </h3>
+                <p className="text-sm sm:text-base leading-relaxed text-[#cfc8aa]">
+                  {entry.summary}
+                </p>
+              </div>
+            </article>
+          </InteractiveCard>
         ))}
-      </ul>
-    </PanelSection>
+      </div>
+    </RevealSection>
   );
 }
