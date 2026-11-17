@@ -388,9 +388,9 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
 
   const resetDemoData = useCallback(() => {
     const fresh = conferenceDataService.resetDemoData();
-    setData(fresh);
+    setData((previous) => ({ ...fresh, users: previous.users, departments: previous.departments }));
     setTestModeHeadUserId(null);
-    pushToast({ tone: 'info', title: 'Demo conference dataset restored' });
+    pushToast({ tone: 'info', title: 'Local workspace reset to a clean baseline' });
   }, [pushToast]);
 
   const handleResult = useCallback(
