@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ShieldAlert } from 'lucide-react';
 import { useAdminStore } from '../../../context/AdminStoreContext';
 import { canAccessDepartment } from '../../../utils/adminPermissions';
 import { computeApplicationStats, scopeApplicationsForActor } from '../../../utils/applicationFilters';
