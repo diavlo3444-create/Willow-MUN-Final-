@@ -382,7 +382,7 @@ export function WillowBackground({
           }}
           src={CONFERENCE_DATA.brand.videoSrc}
           poster={CONFERENCE_DATA.brand.posterSrc}
-          autoPlay={!prefersReducedMotion && slot === 0}
+          autoPlay={!introPlaying && !prefersReducedMotion && slot === 0}
           muted
           playsInline
           preload="auto"
