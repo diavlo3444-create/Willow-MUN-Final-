@@ -13,6 +13,7 @@ import { AccountsView } from '../views/AccountsView';
 import { HeadAccountsView } from '../views/HeadAccountsView';
 import { ActivityLogsView } from '../views/ActivityLogsView';
 import { ApplicationsView } from '../views/ApplicationsView';
+import { LiveStaffAccountsView } from '../views/LiveStaffAccountsView';
 import { LiveApplicationsView } from '../views/LiveApplicationsView';
 import {
   EmailManagementView,
@@ -197,8 +198,8 @@ const SECTION_META: Record<string, { title: string; subtitle: string }> = {
     subtitle: 'Diagnostic probes, error alert triage, and runtime security parameters.',
   },
   admins: {
-    title: 'Administrator Directory',
-    subtitle: 'Executive & Admin account management (Read-Only for Admin role).',
+    title: 'Staff Accounts',
+    subtitle: 'Live staff account directory loaded directly from Supabase.'
   },
   heads: {
     title: 'Department Head Directory',
@@ -432,7 +433,7 @@ export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePorta
       ) : section === 'monitoring' ? (
         <SystemMonitoringView />
       ) : section === 'admins' ? (
-        <AccountsView mode="admins" />
+        <LiveStaffAccountsView />
       ) : section === 'heads' ? (
         <HeadAccountsView />
       ) : section === 'roles' ? (
