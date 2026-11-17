@@ -4,9 +4,9 @@
  * Structured so Supabase PostgreSQL tables, RLS policies, and Edge Functions map 1:1 later.
  */
 
-export type RoleType = 'super_admin' | 'admin' | 'department_head';
+export type RoleType = 'super_admin' | 'admin' | 'department_head' | 'executive_board';
 
-export type PortalKey = 'super_admin' | 'admin' | 'department_head';
+export type PortalKey = 'super_admin' | 'admin' | 'department_head' | 'executive_board';
 
 export type PermissionKey =
   | 'applications.view'
@@ -106,6 +106,8 @@ export interface AdminUser {
   invitationToken: string | null;
   lastPasswordResetAt: string | null;
   permissions: PermissionMap;
+  ebPermissions?: Record<string, boolean>;
+  ebRank?: string;
   createdAt: string;
   lastActiveAt: string;
 }
