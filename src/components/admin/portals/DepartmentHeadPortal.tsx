@@ -18,7 +18,7 @@ interface DepartmentHeadPortalProps {
 }
 
 export function DepartmentHeadPortal({ pathname, onNavigate }: DepartmentHeadPortalProps) {
-  const { currentUser, testModeHeadUser, data, recordSecurityViolation } = useAdminStore();
+  const { currentUser, testModeHeadUser, data, recordSecurityViolation, exitDepartmentTestMode } = useAdminStore();
   const [globalSearch, setGlobalSearch] = useState('');
 
   const subPath = pathname.replace(/^\/head\/?/, '');
@@ -154,7 +154,7 @@ export function DepartmentHeadPortal({ pathname, onNavigate }: DepartmentHeadPor
       pageSubtitle={`Isolated scope: ${assignedDepartment.name} (${assignedDepartment.cluster}). Stage 1 Recommendations only.`}
       activeNavId={activeNavId}
       onNavigate={onNavigate}
-      topActions={<a href="/head/qr" className="rounded-md border border-[#d4af37]/35 px-3 py-2 text-xs font-medium text-[#bfa04a] hover:bg-[#d4af37]/10">My QR Pass</a>}
+      topActions={isTestingAsHead ? <div className="flex items-center gap-2"><span className="rounded border border-sky-400/30 bg-sky-400/[0.08] px-2.5 py-2 text-[10px] font-semibold text-sky-200">SUPER ADMIN TEST MODE · {effectiveHead.fullName}</span><button type="button" onClick={() => { exitDepartmentTestMode(); onNavigate('/super-admin/heads'); }} className="rounded-md border border-white/15 px-3 py-2 text-xs font-medium text-neutral-200 hover:bg-white/[0.05]">Exit test</button></div> : <a href="/head/qr" className="rounded-md border border-[#d4af37]/35 px-3 py-2 text-xs font-medium text-[#bfa04a] hover:bg-[#d4af37]/10">My QR Pass</a>}
       globalSearch={activeNavId === 'applications' ? globalSearch : undefined}
       onGlobalSearchChange={activeNavId === 'applications' ? setGlobalSearch : undefined}
     >
