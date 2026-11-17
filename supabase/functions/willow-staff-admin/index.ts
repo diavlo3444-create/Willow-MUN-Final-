@@ -98,9 +98,15 @@ Deno.serve(async (req: Request) => {
       if (body.division !== undefined) patch.division = body.division ? String(body.division).trim() : null;
       if (body.eb_rank !== undefined) patch.eb_rank = String(body.eb_rank);
       if (body.eb_permissions !== undefined && typeof body.eb_permissions === "object") patch.eb_permissions = body.eb_permissions;
-      if (body.email !== undefined) {
-        const email = cleanEmail(body.email);
-        const { error } = await admin.auth.admin.updateUserById(userId, { email });
+      const authPatch: any = {};
+      if (body.email !== undefined) authPatch.email = cleanEmail(body.email);
+      if (body.password !== undefined && String(body.password).trim()) {
+        const nextPassword = String(body.password);
+        if (nextPassword.length < 10) return json({ error: 'Use a password of at least 10 characters.' }, 400);
+        authPatch.password = nextPassword;
+      }
+      if (Object.keys(authPatch).length) {
+        const { error } = await admin.auth.admin.updateUserById(userId, authPatch);
         if (error) throw error;
       }
       const { data, error } = await admin.from("wm_profiles").update(patch).eq("user_id", userId).select().single();
