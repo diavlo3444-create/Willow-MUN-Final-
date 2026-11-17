@@ -177,203 +177,33 @@ export function DepartmentHeadPortal({ pathname, onNavigate }: DepartmentHeadPor
           </button>
         </div>
       ) : activeNavId === 'overview' ? (
-        <div className="space-y-6">
-          {/* Two-Stage Process Notice */}
-          <div className="wm-surface-panel bg-[#1b2210] px-5 py-4 flex flex-wrap items-center justify-between gap-4 text-xs">
-            <div className="flex items-start gap-2.5 max-w-3xl">
-              <ClipboardCheck
-                className="h-4 w-4 shrink-0 text-[color:var(--wm-accent)] mt-0.5"
-                aria-hidden="true"
-              />
-              <p className="text-[color:var(--wm-ink-secondary)] leading-relaxed">
-                <strong className="text-[color:var(--wm-ink)]">Two-Stage Selection Workflow:</strong>{' '}
-                Evaluate candidate dossiers, write internal notes, and submit{' '}
-                <strong className="text-[color:var(--wm-accent)]">Stage 1 Recommendations</strong>{' '}
-                (Accept or Reject). Official status stays{' '}
-                <strong className="text-amber-200">Pending</strong> until Stage 2 confirmation by
-                Admin or Super Admin leadership.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => onNavigate('/head/applications')}
-              className="shrink-0 min-h-[38px] rounded bg-[color:var(--wm-focal)] px-4 text-xs font-semibold text-[#12170c] hover:bg-[#dad3b4] cursor-pointer transition-colors duration-150"
-            >
-              Review Queue ({stats.total})
-            </button>
-          </div>
-
-          {/* Unified Departmental Metric Ledger Strip */}
-          <section
-            aria-label="Department overview metrics"
-            className="wm-surface-panel overflow-hidden grid grid-cols-2 lg:grid-cols-5 divide-y lg:divide-y-0 lg:divide-x [&>*:nth-child(1)]:border-r [&>*:nth-child(3)]:border-r lg:[&>*:nth-child(1)]:border-r-0 lg:[&>*:nth-child(3)]:border-r-0 divide-[color:var(--wm-hairline)]"
-          >
-            {[
-              { label: 'Dept Applications', value: stats.total },
-              { label: 'Pending Final Admin', value: stats.pending },
-              { label: 'Stage 1 Recommended', value: stats.recommended },
-              { label: 'Final Accepted', value: stats.accepted },
-              {
-                label: 'Active Units & Shifts',
-                value: `${deptGroups.length} / ${deptShifts.length}`,
-              },
-            ].map((kpi, idx) => (
-              <div
-                key={kpi.label}
-                className={`p-5 ${idx === 4 ? 'col-span-2 lg:col-span-1' : ''}`}
-              >
-                <p className="wm-section-kicker">{kpi.label}</p>
-                <p className="mt-2 font-serif text-3xl font-medium text-[color:var(--wm-ink)] tabular-nums">
-                  {kpi.value}
-                </p>
-              </div>
-            ))}
+        <div className="space-y-5">
+          <section className="wm-surface-panel rounded-md flex flex-wrap items-center justify-between gap-4 p-4">
+            <div><p className="text-[10px] font-mono uppercase tracking-[0.16em] text-[#d4af37]">Your department</p><h2 className="mt-1 text-lg font-semibold text-neutral-100">{assignedDepartment.name}</h2><p className="mt-1 text-xs text-neutral-500">Your department workspace and assigned responsibilities.</p></div>
+            <button type="button" onClick={() => onNavigate('/head/applications')} className="inline-flex min-h-9 items-center gap-2 rounded bg-[#d4af37] px-4 text-xs font-semibold text-black hover:bg-[#f3e5ab]">Open applications <ArrowLeft className="h-3.5 w-3.5 rotate-180" /></button>
           </section>
-
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            <section className="lg:col-span-6 wm-surface-panel p-5">
-              <div className="flex items-center justify-between border-b border-[color:var(--wm-hairline)] pb-3">
-                <h2 className="text-sm font-semibold text-[color:var(--wm-ink)]">
-                  {assignedDepartment.name} Intake Trend
-                </h2>
-                <span className="font-mono text-xs text-[color:var(--wm-ink-secondary)] tabular-nums">
-                  Accepted: {stats.accepted}/{assignedDepartment.capacity}
-                </span>
-              </div>
-              <ApplicationTrendChart data={trend} />
+          <section className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+            {[
+              {label:'Applications',value:stats.total,detail:'Assigned to your department'},
+              {label:'Pending review',value:stats.pending,detail:'Awaiting final decision'},
+              {label:'Recommended',value:stats.recommended,detail:'Your Stage 1 recommendations'},
+              {label:'Accepted',value:stats.accepted,detail:'Final accepted applicants'},
+            ].map((item) => <div key={item.label} className="wm-surface-panel rounded-md p-4"><p className="text-[10px] font-medium text-neutral-500">{item.label}</p><p className="mt-2 font-serif text-3xl text-neutral-100 tabular-nums">{item.value}</p><p className="mt-1 text-[10px] text-neutral-500">{item.detail}</p></div>)}
+          </section>
+          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.3fr)_minmax(260px,.7fr)] gap-4">
+            <section className="wm-surface-panel overflow-hidden rounded-md">
+              <div className="flex items-center justify-between border-b border-[color:var(--wm-hairline)] px-4 py-3"><div><h2 className="text-sm font-semibold text-neutral-100">Applicant queue</h2><p className="mt-0.5 text-[10px] text-neutral-500">The latest applications assigned to your department</p></div><button type="button" onClick={() => onNavigate('/head/applications')} className="text-[11px] text-[#d4af37] hover:text-[#f3e5ab]">View all <ArrowRight className="ml-1 inline h-3 w-3" /></button></div>
+              {scopedApps.length === 0 ? <p className="px-4 py-8 text-center text-xs text-neutral-500">No applications are currently assigned to your department.</p> : <div className="divide-y divide-white/[0.055]">{scopedApps.slice(0,6).map((app) => <button key={app.id} type="button" onClick={() => onNavigate('/head/applications/'+app.id)} className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-white/[0.025]"><span className="min-w-0"><span className="block truncate text-xs font-medium text-neutral-200">{app.applicantName}</span><span className="mt-1 block truncate text-[10px] text-neutral-500">{app.applicationCode} · {app.position}</span></span><span className="shrink-0"><StatusBadge status={app.status} /></span></button>)}</div>}
             </section>
-
-            <section className="lg:col-span-6 wm-surface-panel overflow-hidden">
-              <div className="flex items-center justify-between border-b border-[color:var(--wm-hairline)] px-5 py-4">
-                <h2 className="text-sm font-semibold text-[color:var(--wm-ink)]">
-                  {assignedDepartment.name} Applicant Queue
-                </h2>
-                <button
-                  type="button"
-                  onClick={() => onNavigate('/head/applications')}
-                  className="text-xs font-medium text-[color:var(--wm-accent)] hover:text-[color:var(--wm-ink)] cursor-pointer"
-                >
-                  Open all
-                </button>
-              </div>
-              <div className="divide-y divide-[color:var(--wm-hairline)]">
-                {scopedApps.length === 0 ? (
-                  <p className="p-6 text-xs text-[color:var(--wm-ink-muted)]">
-                    No applications currently assigned to {assignedDepartment.name}.
-                  </p>
-                ) : (
-                  scopedApps.slice(0, 5).map((app) => (
-                    <div
-                      key={app.id}
-                      className="px-5 py-3 flex items-center justify-between gap-3 hover:bg-[#ede6ca]/[0.03]"
-                    >
-                      <button
-                        type="button"
-                        onClick={() => onNavigate(`/head/applications/${app.id}`)}
-                        className="text-left min-w-0 cursor-pointer group"
-                      >
-                        <p className="text-xs font-semibold text-[color:var(--wm-ink)] group-hover:text-[color:var(--wm-accent)] truncate">
-                          {app.applicantName}
-                        </p>
-                        <p className="mt-0.5 font-mono text-[11px] text-[color:var(--wm-ink-muted)] truncate">
-                          {app.applicationCode} · {app.position}
-                        </p>
-                      </button>
-                      <div className="flex flex-col items-end gap-1 shrink-0">
-                        <StatusBadge status={app.status} />
-                        {app.headRecommendation !== 'none' && (
-                          <RecommendationBadge decision={app.headRecommendation} />
-                        )}
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </section>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <section className="wm-surface-panel overflow-hidden">
-              <div className="flex items-center justify-between border-b border-[color:var(--wm-hairline)] px-5 py-4">
-                <h2 className="text-sm font-semibold text-[color:var(--wm-ink)] inline-flex items-center gap-2">
-                  <FolderKanban className="h-4 w-4 text-[color:var(--wm-accent)]" aria-hidden="true" />
-                  <span>Operations Hub Items ({deptTasks.length})</span>
-                </h2>
-                <button
-                  type="button"
-                  onClick={() => onNavigate('/head/workspace')}
-                  className="text-xs font-medium text-[color:var(--wm-accent)] hover:text-[color:var(--wm-ink)] cursor-pointer"
-                >
-                  Open Hub
-                </button>
-              </div>
-              {deptTasks.length === 0 ? (
-                <p className="p-5 text-xs text-[color:var(--wm-ink-muted)]">
-                  No workspace tasks or incident logs yet for {assignedDepartment.name}.
-                </p>
-              ) : (
-                <div className="divide-y divide-[color:var(--wm-hairline)]">
-                  {deptTasks.slice(0, 4).map((t) => (
-                    <div
-                      key={t.id}
-                      className="px-5 py-3 text-xs flex items-center justify-between gap-3"
-                    >
-                      <div className="min-w-0">
-                        <p className="font-medium text-[color:var(--wm-ink)] truncate">{t.title}</p>
-                        <p className="mt-0.5 text-[11px] text-[color:var(--wm-ink-muted)] truncate">
-                          {t.assignedTo} · Due <span className="font-mono">{t.deadline}</span>
-                        </p>
-                      </div>
-                      <span className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-[color:var(--wm-accent)]">
-                        {t.status.replace('_', ' ')}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-
-            <section className="wm-surface-panel overflow-hidden">
-              <div className="flex items-center justify-between border-b border-[color:var(--wm-hairline)] px-5 py-4">
-                <h2 className="text-sm font-semibold text-[color:var(--wm-ink)] inline-flex items-center gap-2">
-                  <Users className="h-4 w-4 text-[color:var(--wm-accent)]" aria-hidden="true" />
-                  <span>Recent {assignedDepartment.name} Activity</span>
-                </h2>
-                <button
-                  type="button"
-                  onClick={() => onNavigate('/head/teams')}
-                  className="text-xs font-medium text-[color:var(--wm-accent)] hover:text-[color:var(--wm-ink)] cursor-pointer"
-                >
-                  Teams & Units
-                </button>
-              </div>
-              <div className="divide-y divide-[color:var(--wm-hairline)]">
-                {deptLogs.length === 0 ? (
-                  <p className="p-5 text-xs text-[color:var(--wm-ink-muted)]">
-                    No department activity logged yet.
-                  </p>
-                ) : (
-                  deptLogs.slice(0, 4).map((log) => (
-                    <div
-                      key={log.id}
-                      className="px-5 py-3 flex items-start justify-between gap-3 text-xs"
-                    >
-                      <div className="min-w-0">
-                        <span className="font-semibold text-[color:var(--wm-ink)]">
-                          {log.actorName}
-                        </span>{' '}
-                        <span className="text-[color:var(--wm-accent)]">{log.action}</span>
-                        <p className="text-[color:var(--wm-ink-secondary)] mt-0.5">{log.details}</p>
-                      </div>
-                      <span className="font-mono text-[11px] text-[color:var(--wm-ink-muted)] tabular-nums shrink-0">
-                        {new Date(log.timestamp).toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                        })}
-                      </span>
-                    </div>
-                  ))
-                )}
+            <section className="wm-surface-panel overflow-hidden rounded-md">
+              <div className="border-b border-[color:var(--wm-hairline)] px-4 py-3"><h2 className="text-sm font-semibold text-neutral-100">Department tools</h2><p className="mt-0.5 text-[10px] text-neutral-500">Go straight to the work you need</p></div>
+              <div className="divide-y divide-white/[0.055]">
+                {[
+                  {label:'Operations hub',detail:deptTasks.length+' open records',path:'/head/workspace'},
+                  {label:'Teams & groups',detail:deptGroups.length+' groups',path:'/head/teams'},
+                  {label:'Shifts & deployment',detail:deptShifts.length+' shifts',path:'/head/shifts'},
+                  {label:'My QR pass',detail:'View your conference pass',path:'/head/qr'},
+                ].map((item) => <button key={item.label} type="button" onClick={() => onNavigate(item.path)} className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-white/[0.025]"><span><span className="block text-xs font-medium text-neutral-200">{item.label}</span><span className="mt-1 block text-[10px] text-neutral-500">{item.detail}</span></span><ArrowRight className="h-3.5 w-3.5 text-neutral-600" /></button>)}
               </div>
             </section>
           </div>
