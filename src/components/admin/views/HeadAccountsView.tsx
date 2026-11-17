@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Copy, KeyRound, RefreshCw, ShieldCheck, UserPlus, UserRound, UserX } from 'lucide-react';
+import { Copy, KeyRound, RefreshCw, ShieldCheck, UserPlus, UserX } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { useAdminStore } from '../../../context/AdminStoreContext';
 
