@@ -58,8 +58,8 @@ const SECTION_META: Record<string, { title: string; subtitle: string }> = {
     subtitle: 'Dedicated intake queue for MUN Committee delegate applicants.',
   },
   'staff-apps': {
-    title: 'Staff, Security, Media & Volunteer Applications',
-    subtitle: 'Departmental organizing team, venue security, press, and volunteer queues.',
+    title: 'Staff Applications',
+    subtitle: 'Review Volunteer, Media, Press, and Security applications.',
   },
   recommendations: {
     title: 'Stage 1 Department Recommendations',
@@ -244,7 +244,7 @@ export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePorta
   const isSuperOnlyRoute = section === 'admins' || section === 'testing' || section === 'eb-accounts';
   const attemptedForbiddenSuperRoute = authorizedForPortal && !isSuperAdmin && isSuperOnlyRoute;
   const westPortalSections = new Set([
-    'dashboard', 'applications', 'executive-board', 'heads', 'departments', 'reports',
+    'dashboard', 'applications', 'staff-apps', 'executive-board', 'heads', 'departments', 'reports',
     'attendance', 'qr', 'website-editor', 'committees', 'secretariat', 'sponsors',
     'schedule', 'announcements', 'documents', 'faqs', 'messages', 'settings',
     'admins', 'eb-accounts', 'testing',
