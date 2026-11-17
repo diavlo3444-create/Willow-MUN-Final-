@@ -36,12 +36,6 @@
       "cluster": "Operations"
     },
     {
-      "id": "it",
-      "label": "Information Technology",
-      "side": "right",
-      "cluster": "Operations"
-    },
-    {
       "id": "hr",
       "label": "Human Resources",
       "side": "right",
@@ -251,45 +245,6 @@
       ]
     },
     {
-      "id": "mohammed-magdi",
-      "name": "Mohammed Magdi",
-      "role": "Head of IT",
-      "group": "it",
-      "quote": "Everyone has something they're good at. It's just a matter of finding it.",
-      "quoteBy": null,
-      "photo": "photos/mohammed-magdi.jpg",
-      "focus": [
-        50,
-        30
-      ]
-    },
-    {
-      "id": "saleh-samaha",
-      "name": "Saleh Samaha",
-      "role": "Head of IT",
-      "group": "it",
-      "quote": "God's plan is better than yours.",
-      "quoteBy": null,
-      "photo": "photos/saleh-samaha.jpg",
-      "focus": [
-        53,
-        36
-      ]
-    },
-    {
-      "id": "it-team-member",
-      "name": "Name TBA",
-      "role": "Information Technology",
-      "group": "it",
-      "quote": "My plans are temporary.",
-      "quoteBy": null,
-      "photo": "photos/it-team-member.jpg",
-      "focus": [
-        48,
-        24
-      ]
-    },
-    {
       "id": "muaz-tagelsir",
       "name": "Muaz Tagelsir",
       "role": "Head of HR",
@@ -327,6 +282,26 @@
         55,
         35
       ]
+    },
+    {
+      "id": "mallak-abbas",
+      "name": "Mallak Abbas",
+      "role": "Head of Design",
+      "group": "design",
+      "quote": "To love and be loved",
+      "quoteBy": null,
+      "photo": null,
+      "focus": null
+    },
+    {
+      "id": "tala-mohammed",
+      "name": "Tala Mohammed",
+      "role": "DCC Member",
+      "group": "delegate-affairs",
+      "quote": "Why would I choose cosmic energy over Katara?",
+      "quoteBy": null,
+      "photo": null,
+      "focus": null
     }
   ]
 }
