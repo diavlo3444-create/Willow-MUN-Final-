@@ -15,7 +15,8 @@ type HeadRow = {
 };
 
 export function HeadAccountsView() {
-  const { data, pushToast } = useAdminStore();
+  const { data, currentUser, pushToast } = useAdminStore();
+  const canManage = currentUser?.role === 'super_admin';
   const [serverHeads, setServerHeads] = useState<ServerHead[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -139,7 +140,7 @@ export function HeadAccountsView() {
             </div>
             <div className="flex flex-wrap items-center gap-2 sm:justify-end">
               <span className={'rounded border px-2.5 py-1 text-[9px] uppercase tracking-wider '+(row.signupStatus==='active'?'border-emerald-400/20 bg-emerald-400/[0.06] text-emerald-300':row.signupStatus==='suspended'?'border-rose-400/20 bg-rose-400/[0.06] text-rose-300':'border-amber-400/20 bg-amber-400/[0.06] text-amber-200')}>{row.signupStatus==='active'?'Active':row.signupStatus==='suspended'?'Suspended':'Awaiting password setup'}</span>
-              {row.source==='roster' ? <button type="button" disabled={busy || !row.email || !department} onClick={()=>void createInvite(row)} className="inline-flex h-8 items-center gap-1.5 rounded bg-[#d4af37] px-3 text-[10px] font-semibold text-black disabled:opacity-40"><UserPlus className="h-3 w-3"/>{busy?'Creating…':'Create login & invite'}</button> : <>
+              {!canManage ? null : row.source==='roster' ? <button type="button" disabled={busy || !row.email || !department} onClick={()=>void createInvite(row)} className="inline-flex h-8 items-center gap-1.5 rounded bg-[#d4af37] px-3 text-[10px] font-semibold text-black disabled:opacity-40"><UserPlus className="h-3 w-3"/>{busy?'Creating…':'Create login & invite'}</button> : <>
                 {row.signupStatus==='awaiting_setup' && <button type="button" disabled={busy} onClick={()=>void generateSetupLink(row)} className="inline-flex h-8 items-center gap-1.5 rounded border border-[#d4af37]/30 px-3 text-[10px] text-[#e5cb76] disabled:opacity-40"><KeyRound className="h-3 w-3"/>{busy?'Generating…':'Get password setup link'}</button>}
                 <button type="button" disabled={busy} onClick={()=>void toggleActive(row)} className="inline-flex h-8 items-center gap-1.5 rounded border border-white/[0.1] px-3 text-[10px] text-neutral-300 disabled:opacity-40">{row.isActive?<><UserX className="h-3 w-3"/>Suspend</>:<><ShieldCheck className="h-3 w-3"/>Reactivate</>}</button>
               </>}
@@ -148,7 +149,7 @@ export function HeadAccountsView() {
         })}
       </div>}
     </section>
-    {setupLink && <div className="fixed inset-0 z-[120] grid place-items-center bg-black/80 p-4" role="dialog" aria-modal="true" aria-label="Password setup link">
+    {canManage && setupLink && <div className="fixed inset-0 z-[120] grid place-items-center bg-black/80 p-4" role="dialog" aria-modal="true" aria-label="Password setup link">
       <div className="w-full max-w-lg rounded-lg border border-[#d4af37]/25 bg-[#101012] p-5 shadow-2xl">
         <div className="flex items-start justify-between gap-3"><div><p className="text-[9px] font-mono uppercase tracking-[0.18em] text-[#d4af37]">Account setup</p><h3 className="mt-2 text-lg font-semibold text-neutral-100">{setupLink.name}</h3><p className="mt-1 text-xs text-neutral-400">{setupLink.email}</p></div><button onClick={()=>setSetupLink(null)} className="text-xs text-neutral-400 hover:text-white">Close</button></div>
         <p className="mt-4 text-xs leading-relaxed text-neutral-300">This one-time password recovery link lets the head set a password without you knowing or choosing their password. Share it privately.</p>
