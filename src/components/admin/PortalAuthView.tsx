@@ -258,6 +258,7 @@ export function PortalAuthView({ portal, onNavigate }: PortalAuthViewProps) {
                 <span>Sign In</span>
               </button>
             </form>
+            {portal === 'executive_board' && <div className="mt-5 border-t border-[color:var(--wm-hairline)] pt-4 text-center"><p className="text-xs text-[color:var(--wm-ink-muted)]">First time here?</p><button type="button" onClick={() => onNavigate('/eb-signup')} className="mt-1 text-sm font-semibold text-[color:var(--wm-accent)] underline underline-offset-4">Create your EB account</button></div>}
           </section>
 
           <section className="lg:col-span-7 wm-surface-panel p-6 sm:p-7">
