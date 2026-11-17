@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { CheckCircle2, Camera, CameraOff, Download, Plus, QrCode, RefreshCw, ScanLine, ShieldAlert, UserRound, XCircle } from 'lucide-react';
+import { CheckCircle2, Camera, CameraOff, Download, Plus, QrCode, RefreshCw, ScanLine, ShieldAlert, XCircle } from 'lucide-react';
 import { useAdminStore } from '../../../context/AdminStoreContext';
 import { supabase } from '../../../lib/supabase';
 import { hasPermission } from '../../../utils/adminPermissions';
@@ -169,7 +169,6 @@ export function QrAttendanceView({
     else await load();
   };
 
-  const currentDepartment = personalPass?.department_id ? passes.find(p=>p.department_id===personalPass.department_id)?.department_id : null;
   const checkedIn = passes.filter(pass => pass.checked_in_at).length;
 
   return <div className="space-y-5">
