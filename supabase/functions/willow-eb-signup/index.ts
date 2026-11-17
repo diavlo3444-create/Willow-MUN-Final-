@@ -24,7 +24,7 @@ Deno.serve(async (req: Request) => {
   try { body = await req.json(); } catch { return json({ error: "Invalid request." }, 400); }
   const email = String(body?.email || "").trim().toLowerCase();
   const password = String(body?.password || "");
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ error: "Enter a valid email address." }, 400);
+  if (!email.includes("@") || email.startsWith("@") || !email.split("@")[1]?.includes(".")) return json({ error: "Enter a valid email address." }, 400);
   if (password.length < 10 || password.length > 128) return json({ error: "Password must be between 10 and 128 characters." }, 400);
 
   const admin = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
