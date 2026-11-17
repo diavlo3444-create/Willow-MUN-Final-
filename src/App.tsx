@@ -18,6 +18,7 @@ import {
   type WillowIntroEmblemHandle,
 } from './components/WillowIntroEmblem';
 import { PortalAuthView } from './components/admin/PortalAuthView';
+import { ExecutiveBoardSignupView } from './components/admin/ExecutiveBoardSignupView';
 import { ToastViewport } from './components/admin/ToastViewport';
 import { AdminPortal } from './components/admin/portals/AdminPortal';
 import { DepartmentHeadPortal } from './components/admin/portals/DepartmentHeadPortal';
@@ -98,6 +99,7 @@ function AdminRouter({ pathname, navigate }: { pathname: string; navigate: (path
     pathname === '/head' || pathname.startsWith('/head/') ? 'department_head' :
     pathname === '/eb' || pathname.startsWith('/eb/') ? 'executive_board' : null;
   const loginPortal: PortalKey | undefined = pathname === '/admin-login' ? 'admin' : pathname === '/eb-login' ? 'executive_board' : undefined;
+  const isEbSignup = pathname === '/eb-signup';
 
   useEffect(() => {
     if (!authReady) return;
@@ -142,6 +144,8 @@ function AdminRouter({ pathname, navigate }: { pathname: string; navigate: (path
         <DepartmentHeadPortal pathname={pathname} onNavigate={navigate} />
       ) : requestedPortal === 'executive_board' ? (
         <ExecutiveBoardPortal pathname={pathname} onNavigate={navigate} />
+      ) : isEbSignup ? (
+        <ExecutiveBoardSignupView onNavigate={navigate} />
       ) : (
         <PortalAuthView portal={loginPortal} onNavigate={navigate} />
       )}
