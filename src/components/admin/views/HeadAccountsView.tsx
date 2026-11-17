@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Copy, KeyRound, RefreshCw, ShieldCheck, UserPlus, UserX } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { useAdminStore } from '../../../context/AdminStoreContext';
+import { navigateTo } from '../../../utils/router';
 
 type ServerHead = {
   user_id: string; full_name: string; email: string; role: string;
@@ -9,13 +10,13 @@ type ServerHead = {
   signup_status?: 'claimed' | 'awaiting_signup'; created_at?: string | null;
 };
 type HeadRow = {
-  id: string; user_id?: string; fullName: string; email: string; title: string;
+  id: string; user_id?: string; testUserId?: string; fullName: string; email: string; title: string;
   departmentId: string | null; isActive: boolean; signupStatus: 'active' | 'awaiting_setup' | 'suspended';
   source: 'server' | 'roster'; 
 };
 
 export function HeadAccountsView() {
-  const { data, currentUser, pushToast } = useAdminStore();
+  const { data, currentUser, pushToast, enterDepartmentTestMode } = useAdminStore();
   const canManage = currentUser?.role === 'super_admin';
   const [serverHeads, setServerHeads] = useState<ServerHead[]>([]);
   const [loading, setLoading] = useState(true);
@@ -39,8 +40,9 @@ export function HeadAccountsView() {
   const rows = useMemo(() => {
     const byEmail = new Map<string, HeadRow>();
     for (const account of serverHeads) {
+      const rosterUser = data.users.find((u) => u.role === 'department_head' && u.email.toLowerCase() === account.email.toLowerCase());
       byEmail.set(account.email.toLowerCase(), {
-        id: account.user_id, user_id: account.user_id, fullName: account.full_name,
+        id: account.user_id, user_id: account.user_id, testUserId: rosterUser?.id, fullName: account.full_name,
         email: account.email, title: account.title || 'Department Head',
         departmentId: account.department_id, isActive: account.is_active,
         signupStatus: account.is_active ? (account.signup_status === 'awaiting_signup' ? 'awaiting_setup' : 'active') : 'suspended',
@@ -51,7 +53,7 @@ export function HeadAccountsView() {
       const email = user.email.toLowerCase();
       if (email && !byEmail.has(email)) {
         byEmail.set(email, {
-          id: user.id, fullName: user.fullName, email, title: user.title || 'Department Head',
+          id: user.id, testUserId: user.id, fullName: user.fullName, email, title: user.title || 'Department Head',
           departmentId: user.departmentId, isActive: user.isActive,
           signupStatus: 'awaiting_setup', source: 'roster',
         });
@@ -141,10 +143,10 @@ export function HeadAccountsView() {
             </div>
             <div className="flex flex-wrap items-center gap-2 sm:justify-end">
               <span className={'rounded border px-2.5 py-1 text-[9px] uppercase tracking-wider '+(row.signupStatus==='active'?'border-emerald-400/20 bg-emerald-400/[0.06] text-emerald-300':row.signupStatus==='suspended'?'border-rose-400/20 bg-rose-400/[0.06] text-rose-300':'border-amber-400/20 bg-amber-400/[0.06] text-amber-200')}>{row.signupStatus==='active'?'Active':row.signupStatus==='suspended'?'Suspended':'Awaiting password setup'}</span>
-              {!canManage ? null : row.source==='roster' ? <button type="button" disabled={busy || !row.email || !department} onClick={()=>void createInvite(row)} className="inline-flex h-8 items-center gap-1.5 rounded bg-[#d4af37] px-3 text-[10px] font-semibold text-black disabled:opacity-40"><UserPlus className="h-3 w-3"/>{busy?'Creating…':'Create login & invite'}</button> : <>
+              {!canManage ? null : <>{row.testUserId && <button type="button" onClick={()=>{ if (enterDepartmentTestMode(row.testUserId!)) navigateTo('/head'); }} className="inline-flex h-8 items-center gap-1.5 rounded border border-sky-400/30 px-3 text-[10px] text-sky-200 hover:bg-sky-400/[0.08]"><ShieldCheck className="h-3 w-3"/>Test account</button>}{row.source==='roster' ? <button type="button" disabled={busy || !row.email || !department} onClick={()=>void createInvite(row)} className="inline-flex h-8 items-center gap-1.5 rounded bg-[#d4af37] px-3 text-[10px] font-semibold text-black disabled:opacity-40"><UserPlus className="h-3 w-3"/>{busy?'Creating…':'Create login & invite'}</button> : <>
                 <button type="button" disabled={busy} onClick={()=>void generateSetupLink(row)} className="inline-flex h-8 items-center gap-1.5 rounded border border-[#d4af37]/30 px-3 text-[10px] text-[#e5cb76] disabled:opacity-40"><KeyRound className="h-3 w-3"/>{busy?'Generating…':'Set / reset password'}</button>
                 <button type="button" disabled={busy} onClick={()=>void toggleActive(row)} className="inline-flex h-8 items-center gap-1.5 rounded border border-white/[0.1] px-3 text-[10px] text-neutral-300 disabled:opacity-40">{row.isActive?<><UserX className="h-3 w-3"/>Suspend</>:<><ShieldCheck className="h-3 w-3"/>Reactivate</>}</button>
-              </>}
+              </>}</>}
             </div>
           </article>;
         })}
