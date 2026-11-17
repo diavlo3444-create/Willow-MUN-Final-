@@ -10,6 +10,7 @@ import {
 import { AdminShell } from '../AdminShell';
 import { PortalAuthView } from '../PortalAuthView';
 import { AccountsView } from '../views/AccountsView';
+import { HeadAccountsView } from '../views/HeadAccountsView';
 import { ActivityLogsView } from '../views/ActivityLogsView';
 import { ApplicationsView } from '../views/ApplicationsView';
 import {
@@ -429,7 +430,7 @@ export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePorta
       ) : section === 'admins' ? (
         <AccountsView mode="admins" />
       ) : section === 'heads' ? (
-        <AccountsView mode="heads" />
+        <HeadAccountsView />
       ) : section === 'roles' ? (
         <RolesPermissionsView section="roles" />
       ) : section === 'permission-defs' ? (
