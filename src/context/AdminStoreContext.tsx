@@ -59,6 +59,7 @@ const TEST_HEAD_STORAGE_KEY = 'willow_mun_test_head_uid_v3';
 interface AdminStoreContextValue {
   data: ConferenceDataSnapshot;
   currentUser: AdminUser | null;
+  authReady: boolean;
   testModeHeadUser: AdminUser | null;
   toasts: ToastMessage[];
   notifications: AdminNotification[];
@@ -68,7 +69,7 @@ interface AdminStoreContextValue {
     email: string,
     password: string,
     expectedPortal?: PortalKey,
-  ) => ServiceResult<AdminUser>;
+  ) => Promise<ServiceResult<AdminUser>>;
   signInAsDemoUser: (userId: string) => ServiceResult<AdminUser>;
   signOut: () => void;
   enterDepartmentTestMode: (headUserId: string) => boolean;
