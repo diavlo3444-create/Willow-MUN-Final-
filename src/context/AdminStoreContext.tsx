@@ -304,7 +304,7 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
       if (active) window.setTimeout(() => { if (active) void loadAuthenticatedUser(session?.user ?? null); }, 0);
     });
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (active) void loadAuthenticatedUser(session?.user ?? null);
+      if (active) window.setTimeout(() => { if (active) void loadAuthenticatedUser(session?.user ?? null); }, 0);
     });
     return () => { active = false; listener.subscription.unsubscribe(); };
   }, [loadAuthenticatedUser]);
@@ -314,7 +314,7 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password });
       if (authError || !authData.user) return { ok: false, error: authError?.message ?? 'Sign in failed.' };
       const { data: profile, error: profileError } = await supabase.from('wm_profiles')
-        .select('user_id, full_name, role, department_id, is_active, title, division, avatar_url')
+        .select('user_id, full_name, role, department_id, is_active, title, division, avatar_url, eb_permissions, eb_rank')
         .eq('user_id', authData.user.id).maybeSingle();
       if (profileError || !profile || profile.is_active !== true) {
         await supabase.auth.signOut();
