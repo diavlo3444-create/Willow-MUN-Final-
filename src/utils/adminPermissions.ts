@@ -402,6 +402,7 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<RoleType, PermissionMap> = {
   super_admin: SUPER_ADMIN_PERMISSIONS,
   admin: ADMIN_DEFAULT_PERMISSIONS,
   department_head: DEPARTMENT_HEAD_DEFAULT_PERMISSIONS,
+  executive_board: DEPARTMENT_HEAD_DEFAULT_PERMISSIONS,
 };
 
 const SUPER_ADMIN_ONLY_KEYS = new Set<PermissionKey>(
@@ -431,6 +432,7 @@ export function canAccessPortal(user: AdminUser | null | undefined, portal: Port
   if (user.role === 'super_admin') return true;
   if (portal === 'admin') return user.role === 'admin';
   if (portal === 'department_head') return user.role === 'department_head';
+  if (portal === 'executive_board') return user.role === 'executive_board';
   return false;
 }
 
@@ -440,7 +442,7 @@ export function canAccessDepartment(
 ): boolean {
   if (!user || !user.isActive || user.status !== 'active') return false;
   if (user.role === 'super_admin' || user.role === 'admin') return true;
-  if (user.role === 'department_head') {
+  if (user.role === 'department_head' || user.role === 'executive_board') {
     return Boolean(user.departmentId && user.departmentId === departmentId);
   }
   return false;
@@ -491,6 +493,8 @@ export function getRoleLabel(role: RoleType): string {
       return 'Admin';
     case 'department_head':
       return 'Department Head';
+    case 'executive_board':
+      return 'Executive Board';
   }
 }
 
@@ -502,6 +506,8 @@ export function getPortalHomeRoute(role: RoleType): string {
       return '/admin';
     case 'department_head':
       return '/head';
+    case 'executive_board':
+      return '/eb';
   }
 }
 
@@ -513,6 +519,8 @@ export function getPortalBasePath(portal: PortalKey): string {
       return '/admin';
     case 'department_head':
       return '/head';
+    case 'executive_board':
+      return '/eb';
   }
 }
 
