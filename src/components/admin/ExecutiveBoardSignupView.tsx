@@ -18,12 +18,12 @@ export function ExecutiveBoardSignupView({ onNavigate }: { onNavigate: (path: st
     if (password.length < 10) { setError('Use a password with at least 10 characters.'); return; }
     if (password !== confirmPassword) { setError('The passwords do not match.'); return; }
     setBusy(true);
-    const { error: signupError } = await supabase.functions.invoke('willow-eb-signup', {
+    const { data: signupData, error: signupError } = await supabase.functions.invoke('willow-eb-signup', {
       body: { email: normalizedEmail, password },
     });
     if (signupError) {
       setBusy(false);
-      setError(signupError.message || 'Signup could not be completed.');
+      setError(signupData?.error || signupError.message || 'Signup could not be completed.');
       return;
     }
     const login = await signInWithCredentials(normalizedEmail, password, 'executive_board');
