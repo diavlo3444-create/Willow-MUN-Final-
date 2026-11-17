@@ -13,6 +13,7 @@ import { AccountsView } from '../views/AccountsView';
 import { HeadAccountsView } from '../views/HeadAccountsView';
 import { ActivityLogsView } from '../views/ActivityLogsView';
 import { ApplicationsView } from '../views/ApplicationsView';
+import { LiveApplicationsView } from '../views/LiveApplicationsView';
 import {
   EmailManagementView,
   MessagesInquiriesView,
@@ -336,10 +337,13 @@ export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePorta
           onFilterApplications={navigateFilteredApps}
           onSelectApplication={(appId) => onNavigate(`${basePath}/applications/${appId}`)}
         />
-      ) : section === 'applications' ||
-        section === 'delegates' ||
-        section === 'staff-apps' ||
-        section === 'recommendations' ? (
+      ) : section === 'applications' || section === 'staff-apps' ? (
+        hasPermission(currentUser, 'applications.view') ? (
+          <LiveApplicationsView selectedId={paramId} onClose={() => onNavigate(basePath + '/applications')} />
+        ) : (
+          renderDenied('Your account lacks applications.view permission.')
+        )
+      ) : section === 'delegates' || section === 'recommendations' ? (
         hasPermission(currentUser, 'applications.view') ? (
           <ApplicationsView
             key={`${section}-${appFilterDept}-${appFilterStatus}`}
