@@ -129,7 +129,7 @@ export function AdminShell({ portal, portalLabel, pageTitle, activeNavId, onNavi
   );
 
   return (
-    <div className="wm-app min-h-screen">
+    <div className="wm-admin min-h-screen">
       <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-md focus:bg-[#d4af37] focus:px-3 focus:py-2 focus:text-[12px] focus:font-semibold focus:text-black">Skip to main content</a>
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-[17.5rem] flex-col border-r border-white/[0.06] bg-[#09090b] lg:flex">
         <div className="pointer-events-none absolute inset-x-0 top-0 h-56 bg-[radial-gradient(240px_120px_at_18%_0%,rgba(212,175,55,0.09),transparent_72%)]" aria-hidden="true" />
