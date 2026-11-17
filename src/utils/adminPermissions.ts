@@ -881,6 +881,12 @@ export function getNavigationGroups(
           readOnlyHint: !isSuper,
         },
         {
+          id: 'eb-accounts',
+          label: 'Executive Board Accounts',
+          path: `${base}/eb-accounts`,
+          superAdminOnly: true,
+        },
+        {
           id: 'roles',
           label: 'Role Management',
           path: `${base}/roles`,
