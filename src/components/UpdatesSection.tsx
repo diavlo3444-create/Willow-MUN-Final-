@@ -1,48 +1,57 @@
 import { CONFERENCE_DATA } from '../data/conference';
-import { InteractiveCard } from './InteractiveCard';
 import { RevealSection, SectionHeading } from './RevealSection';
 import { TbaText } from './TbaText';
 
 /**
- * Live Updates section: "Stay Informed" / "LIVE UPDATES" with two timeline cards.
+ * Editorial conference dispatches and release schedule ledger.
  */
 export function UpdatesSection() {
   return (
     <RevealSection id="updates" ariaLabelledBy="updates-heading">
-      <div className="mb-10 sm:mb-12">
-        <SectionHeading
-          id="updates-heading"
-          label={CONFERENCE_DATA.updates.label}
-          prefix="LIVE"
-          italicWord="UPDATES"
-        />
-      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
+        <div className="lg:col-span-4 space-y-4">
+          <SectionHeading
+            id="updates-heading"
+            indexLabel="05"
+            label={CONFERENCE_DATA.updates.label}
+            prefix="Official"
+            italicWord="Updates"
+          />
+          <p className="text-sm leading-[1.7] text-[#c9c2a6] max-w-[36ch]">
+            Official conference releases, registration timelines, and venue confirmations published by
+            the Secretariat.
+          </p>
+        </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {CONFERENCE_DATA.updates.entries.map((entry, idx) => (
-          <InteractiveCard key={entry.id} staggerIndex={idx} className="p-6 sm:p-8">
-            <article className="h-full flex flex-col justify-between gap-6">
-              <div className="flex items-center justify-between gap-4">
-                <span className="inline-flex items-center gap-2 border border-[#ede6ca]/22 px-3 py-1 text-[11px] uppercase tracking-[0.2em] text-[#cfc8aa] whitespace-nowrap">
-                  <span>Date</span>
-                  <TbaText text={entry.badge} className="normal-case text-sm" />
-                </span>
-                <span className="text-[11px] uppercase tracking-[0.22em] text-[#cfc8aa] tabular-nums whitespace-nowrap">
-                  0{idx + 1}
-                </span>
-              </div>
+        <div className="lg:col-span-8 willow-folio rounded-[3px] overflow-hidden">
+          <div className="divide-y divide-[#ede6ca]/14">
+            {CONFERENCE_DATA.updates.entries.map((entry, idx) => (
+              <article
+                key={entry.id}
+                className="p-6 sm:p-7 grid grid-cols-1 sm:grid-cols-12 gap-4 sm:gap-6 items-start"
+              >
+                <div className="sm:col-span-4 flex sm:flex-col items-baseline sm:items-start justify-between gap-2">
+                  <span className="font-mono text-xs text-[#a9b47e] tabular-nums">
+                    Dispatch 0{idx + 1}
+                  </span>
+                  <span className="text-xs text-[#c9c2a6]">
+                    Schedule{' '}
+                    <TbaText text={entry.badge} className="text-base ml-1" />
+                  </span>
+                </div>
 
-              <div className="space-y-2.5">
-                <h3 className="font-serif text-2xl sm:text-[28px] font-medium text-[#ede6ca] leading-snug [text-wrap:balance]">
-                  {entry.title}
-                </h3>
-                <p className="text-sm sm:text-base leading-relaxed text-[#cfc8aa]">
-                  {entry.summary}
-                </p>
-              </div>
-            </article>
-          </InteractiveCard>
-        ))}
+                <div className="sm:col-span-8 space-y-2">
+                  <h3 className="font-serif text-2xl sm:text-[26px] font-medium leading-snug text-[#ede6ca]">
+                    {entry.title}
+                  </h3>
+                  <p className="text-sm sm:text-[15px] leading-[1.7] text-[#c9c2a6]">
+                    {entry.summary}
+                  </p>
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
       </div>
     </RevealSection>
   );

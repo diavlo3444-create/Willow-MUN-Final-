@@ -1,66 +1,57 @@
 import { CONFERENCE_DATA } from '../data/conference';
-import { InteractiveCard } from './InteractiveCard';
 import { RevealSection, SectionHeading } from './RevealSection';
 import { TbaText } from './TbaText';
 
 /**
- * Meet the Team section: grouped by department across all 12 conference departments,
- * each card displaying its department, role, and italic moss TBA.
+ * Institutional three-column organizing departments directory,
+ * replacing 12 repetitive boxed cards with a clean structured roster.
  */
 export function MeetTeamSection() {
-  let cardCounter = 0;
-
   return (
     <RevealSection id="team" ariaLabelledBy="team-heading">
-      <div className="mb-12">
+      <div className="mb-10 sm:mb-12 flex flex-col md:flex-row md:items-end md:justify-between gap-4 border-b border-[#ede6ca]/16 pb-6">
         <SectionHeading
           id="team-heading"
+          indexLabel="04"
           label={CONFERENCE_DATA.team.label}
-          prefix="MEET THE"
-          italicWord="TEAM"
-          period
+          prefix="Organizing"
+          italicWord="Departments"
         />
+        <p className="text-sm text-[#c9c2a6] max-w-[44ch]">
+          Twelve specialized departments across operations, creative communications, and logistics
+          administration.
+        </p>
       </div>
 
-      <div className="space-y-12">
-        {CONFERENCE_DATA.team.groups.map((group) => (
-          <div key={group.id}>
-            <div className="mb-5 flex items-center gap-4 min-w-0">
-              <h3 className="text-[clamp(0.6875rem,2.6vw,0.875rem)] font-medium uppercase tracking-[0.2em] text-[#cfc8aa] break-words">
-                {group.title}
-              </h3>
-              <div className="h-px flex-1 min-w-[24px] bg-[#ede6ca]/15" aria-hidden="true" />
-            </div>
+      <div className="willow-folio rounded-[3px] overflow-hidden">
+        <div className="grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x divide-[#ede6ca]/14">
+          {CONFERENCE_DATA.team.groups.map((group) => (
+            <section key={group.id} aria-label={group.title} className="flex flex-col">
+              <header className="border-b border-[#ede6ca]/14 bg-[#191f0e]/70 px-6 py-4">
+                <h3 className="text-xs font-semibold tracking-[0.1em] text-[#ede6ca]">
+                  {group.title}
+                </h3>
+              </header>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {group.departments.map((dept) => {
-                const idx = cardCounter++;
-                return (
-                  <InteractiveCard
+              <ul className="divide-y divide-[#ede6ca]/12 flex-1">
+                {group.departments.map((dept) => (
+                  <li
                     key={dept.id}
-                    staggerIndex={idx % 4}
-                    className="p-5 sm:p-6"
+                    className="px-6 py-4 flex items-baseline justify-between gap-4 hover:bg-[#ede6ca]/[0.025] transition-colors duration-150"
                   >
-                    <article className="h-full min-w-0 flex flex-col justify-between gap-4">
-                      <div className="min-w-0">
-                        <h4 className="font-serif text-[clamp(1.2rem,2.4vw,1.5rem)] font-medium text-[#ede6ca] break-words">
-                          {dept.name}
-                        </h4>
-                        <p className="mt-1 text-[clamp(0.65rem,2.3vw,0.75rem)] uppercase tracking-[0.14em] text-[#cfc8aa] break-words">
-                          {dept.role}
-                        </p>
-                      </div>
-
-                      <div className="pt-3 border-t border-[#ede6ca]/12">
-                        <TbaText text={dept.holder} className="text-xl whitespace-nowrap" />
-                      </div>
-                    </article>
-                  </InteractiveCard>
-                );
-              })}
-            </div>
-          </div>
-        ))}
+                    <div className="min-w-0">
+                      <p className="font-serif text-xl font-medium text-[#ede6ca] leading-snug">
+                        {dept.name}
+                      </p>
+                      <p className="mt-0.5 text-xs text-[#c9c2a6]">{dept.role}</p>
+                    </div>
+                    <TbaText text={dept.holder} className="text-lg shrink-0" />
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
+        </div>
       </div>
     </RevealSection>
   );

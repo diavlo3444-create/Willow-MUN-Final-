@@ -14,7 +14,8 @@
   --color-cream-muted: #cfc8aa;
 
   --font-serif: "Cormorant Garamond", Georgia, "Times New Roman", serif;
-  --font-sans: "Instrument Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-sans: "Public Sans", "Instrument Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 @layer base {
@@ -40,11 +41,11 @@
   }
 }
 
-/* Semi-transparent blurred top navigation background */
+/* Editorial navigation chrome over full-bleed willow background */
 .mun-nav-flat {
-  background-color: rgba(10, 18, 8, 0.85);
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
+  background-color: rgba(15, 19, 8, 0.9);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
 }
 
 /* Transparent full-width sections positioned above background video */
@@ -54,13 +55,24 @@
   background: transparent;
 }
 
+/* Archival editorial surface (quiet single-level depth over video backdrop) */
+.willow-folio {
+  background-color: rgba(18, 22, 10, 0.88);
+  border: 1px solid rgba(237, 230, 202, 0.16);
+}
+
+.willow-folio-inset {
+  background-color: rgba(25, 31, 14, 0.72);
+  border: 1px solid rgba(237, 230, 202, 0.14);
+}
+
 /* Skip layout/paint for offscreen sections */
 .mun-offscreen-section {
   content-visibility: auto;
   contain-intrinsic-size: auto 640px;
 }
 
-/* Responsive Executive Board grid: 4 cols desktop, 2 cols tablet, 1 col phone */
+/* Responsive Executive Board grid */
 .mun-eb-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
@@ -69,12 +81,11 @@
   min-width: 0;
 }
 
-/* Editorial cards with -4px hover lift + soft opacity glow (transform & opacity only, 260ms) */
 .mun-card {
   position: relative;
-  background-color: rgba(24, 28, 13, 0.94);
+  background-color: rgba(18, 22, 10, 0.88);
   border: 1px solid rgba(237, 230, 202, 0.16);
-  transition: transform 260ms cubic-bezier(0.16, 1, 0.3, 1);
+  transition: border-color 200ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .mun-card::after,
@@ -92,14 +103,10 @@
 }
 
 .mun-card-spotlight {
-  background: radial-gradient(
-    280px circle at var(--mx, 50%) var(--my, 50%),
-    rgba(237, 230, 202, 0.1),
-    transparent 70%
-  );
+  display: none;
 }
 
-/* Executive Board cards: subtle -4px lift, photo scale, and soft glow (transform & opacity only) */
+/* Executive Board cards: subtle hover lift and focus framing */
 .mun-eb-card {
   position: relative;
   transition: transform 260ms cubic-bezier(0.16, 1, 0.3, 1);
@@ -111,14 +118,13 @@
 
 @media (hover: hover) and (pointer: fine) {
   .mun-card:hover {
-    transform: translate3d(0, -4px, 0);
+    border-color: rgba(237, 230, 202, 0.32);
   }
 
   .mun-eb-card:hover {
     transform: translate3d(0, -4px, 0);
   }
 
-  .mun-card:hover::after,
   .mun-eb-card:hover::after {
     opacity: 1;
   }
@@ -137,50 +143,47 @@
   display: none;
 }
 
-/* Interactive button press & hover scale (transform & opacity only, 220ms) */
+/* Restrained tactile feedback (<= 200ms settling curve) */
 .mun-btn-interactive {
   transition:
-    transform 220ms cubic-bezier(0.16, 1, 0.3, 1),
-    opacity 220ms ease;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .mun-btn-interactive:hover {
-    transform: scale(1.03);
-  }
+    background-color 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    color 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 180ms ease;
 }
 
 .mun-btn-interactive:active {
-  transform: scale(0.96);
+  transform: scale(0.985);
 }
 
 .mun-eb-card:active {
   transform: scale(0.988);
 }
 
-/* Transparent hero surface so background video shows through cleanly */
+/* Asymmetric gradient scrim behind hero text so left typography reads crisply while the willow canopy breathes */
 .mun-hero-scrim {
-  background: transparent;
+  background: linear-gradient(
+    to top,
+    rgba(16, 20, 9, 0.72) 0%,
+    rgba(16, 20, 9, 0.36) 55%,
+    rgba(16, 20, 9, 0.12) 100%
+  );
 }
 
 .mun-hero-shadow {
-  text-shadow: 0 2px 20px rgba(0, 0, 0, 0.5);
+  text-shadow: 0 1px 18px rgba(0, 0, 0, 0.55);
 }
 
 /* Transparent footer surface positioned above background video */
 .mun-footer-gradient {
   position: relative;
   z-index: 1;
-  background: transparent;
+  background: rgba(14, 18, 8, 0.88);
 }
 
 .mun-announcement-bg {
-  background: linear-gradient(
-    to bottom,
-    rgba(20, 24, 10, 0) 0%,
-    rgba(20, 24, 10, 0.92) 30%,
-    rgba(20, 24, 10, 0.96) 100%
-  );
+  background: rgba(15, 19, 8, 0.94);
 }
 
 /* One-time hero text fade-in (transform + opacity only, 360ms) */

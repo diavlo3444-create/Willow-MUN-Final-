@@ -1,101 +1,32 @@
-import { useEffect, useRef, type MouseEvent } from 'react';
+import { type MouseEvent } from 'react';
+import { ArrowDownRight } from 'lucide-react';
 import { CONFERENCE_DATA } from '../data/conference';
-import { useDesktopPointerEnabled } from '../utils/pointerEffects';
 import { usePublishedWebsite } from '../utils/usePublishedWebsite';
-import { MagneticWrap } from './MagneticWrap';
 import { TbaText } from './TbaText';
-
-const MAX_PARALLAX_PX = 12;
 
 interface HeroProps {
   cursorEffectsActive?: boolean;
 }
 
 /**
- * Full-screen editorial hero featuring single-line display typography ("WILLOW MUN"),
- * smooth desktop-only cursor parallax (up to 12px opposite cursor),
- * magnetic hero CTA button, soft radial scrim, and text-shadow.
- * Entrance transition is governed by .chrome / body.intro-on.
+ * Asymmetric diplomatic masthead framed against the preserved willow canopy video:
+ * - Left-weighted editorial lockup anchored near the lower third so the willow backdrop breathes cleanly
+ * - Right architectural conference specification block (Edition, Dates, Venue, Chambers)
+ * - No centered stacking, no decorative sparkles, no capsule pill buttons
  */
-export function Hero({ cursorEffectsActive = true }: HeroProps) {
-  const titleRef = useRef<HTMLSpanElement | null>(null);
-  const desktopPointer = useDesktopPointerEnabled();
+export function Hero(_props: HeroProps) {
   const { published, settings } = usePublishedWebsite();
   const heroSec = published.sections.find((s) => s.sectionKey === 'hero');
   const ctaHref = heroSec?.buttonHref || CONFERENCE_DATA.hero.ctaHref;
   const ctaLabel = heroSec?.buttonLabel || CONFERENCE_DATA.hero.ctaLabel;
   const fullTitle = heroSec?.heading || CONFERENCE_DATA.hero.fullTitle;
-  const hasPublishedCustomDates = settings.datesText !== 'TBA' || settings.venueText !== 'TBA';
+  const editionYear = settings.editionYear || CONFERENCE_DATA.brand.year;
+  const hasCustomDates = settings.datesText !== 'TBA';
+  const hasCustomVenue = settings.venueText !== 'TBA';
 
-  useEffect(() => {
-    const titleEl = titleRef.current;
-    if (!titleEl) return;
-
-    if (!desktopPointer || !cursorEffectsActive) {
-      titleEl.style.transform = 'translate3d(0, 0, 0)';
-      return;
-    }
-
-    let targetX = 0;
-    let targetY = 0;
-    let currentX = 0;
-    let currentY = 0;
-    let rafId = 0;
-
-    const animate = () => {
-      rafId = 0;
-      const dx = targetX - currentX;
-      const dy = targetY - currentY;
-
-      currentX += dx * 0.1;
-      currentY += dy * 0.1;
-
-      titleEl.style.transform = `translate3d(${currentX.toFixed(2)}px, ${currentY.toFixed(2)}px, 0)`;
-
-      if (Math.abs(dx) > 0.05 || Math.abs(dy) > 0.05) {
-        rafId = window.requestAnimationFrame(animate);
-      }
-    };
-
-    const schedule = () => {
-      if (rafId === 0) {
-        rafId = window.requestAnimationFrame(animate);
-      }
-    };
-
-    const onPointerMove = (event: PointerEvent) => {
-      if (event.pointerType !== 'mouse' || document.body.classList.contains('intro-on')) return;
-      const vw = window.innerWidth || 1;
-      const vh = window.innerHeight || 1;
-      const nx = (event.clientX / vw) * 2 - 1;
-      const ny = (event.clientY / vh) * 2 - 1;
-
-      targetX = Math.max(-MAX_PARALLAX_PX, Math.min(MAX_PARALLAX_PX, -nx * MAX_PARALLAX_PX));
-      targetY = Math.max(-MAX_PARALLAX_PX, Math.min(MAX_PARALLAX_PX, -ny * MAX_PARALLAX_PX));
-      schedule();
-    };
-
-    const onPointerLeave = () => {
-      targetX = 0;
-      targetY = 0;
-      schedule();
-    };
-
-    window.addEventListener('pointermove', onPointerMove, { passive: true });
-    document.addEventListener('pointerleave', onPointerLeave);
-
-    return () => {
-      if (rafId !== 0) {
-        window.cancelAnimationFrame(rafId);
-      }
-      window.removeEventListener('pointermove', onPointerMove);
-      document.removeEventListener('pointerleave', onPointerLeave);
-    };
-  }, [desktopPointer, cursorEffectsActive]);
-
-  const handleCtaClick = (event: MouseEvent<HTMLAnchorElement>) => {
-    if (ctaHref.startsWith('#')) {
-      const target = document.querySelector(ctaHref);
+  const handleSmoothAnchor = (event: MouseEvent<HTMLAnchorElement>, href: string) => {
+    if (href.startsWith('#')) {
+      const target = document.querySelector(href);
       if (target) {
         event.preventDefault();
         target.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -107,64 +38,86 @@ export function Hero({ cursorEffectsActive = true }: HeroProps) {
     <section
       id="top"
       aria-label="Willow Model United Nations overview"
-      className="relative z-[1] min-h-[100dvh] flex items-center justify-center bg-transparent px-[clamp(16px,4vw,48px)] pt-24 pb-20"
+      className="relative z-[1] min-h-[100dvh] flex flex-col justify-end bg-transparent px-[clamp(16px,4vw,48px)] pt-24 pb-28 sm:pb-16 lg:pb-16"
     >
-      <div className="chrome mun-hero-scrim relative mx-auto flex w-full max-w-[1200px] min-w-0 flex-col items-center text-center px-1 py-12 sm:px-6 sm:py-16">
-        <p className="mun-hero-shadow text-[clamp(0.65rem,2.6vw,0.75rem)] font-medium uppercase tracking-[0.26em] text-[#cfc8aa] mb-5">
-          ✦ <span className="mx-2">{settings.editionYear || CONFERENCE_DATA.brand.year} Edition</span> ✦
-        </p>
+      {/* Measured vertical readability scrim spanning only the lower masthead footprint */}
+      <div
+        aria-hidden="true"
+        className="mun-hero-scrim pointer-events-none absolute inset-x-0 bottom-0 top-[28%]"
+      />
 
-        <h1 className="mun-hero-shadow font-serif uppercase text-[#ede6ca] select-none w-full flex justify-center min-w-0">
-          <span
-            ref={titleRef}
-            className="block whitespace-nowrap text-[clamp(2.25rem,8.8vw,8.75rem)] leading-[0.95] font-medium tracking-[0.03em]"
+      <div className="chrome relative z-10 mx-auto w-full max-w-[1200px] min-w-0">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-end border-t border-[#ede6ca]/18 pt-7 sm:pt-9">
+          {/* Left Masthead Column (8 cols) */}
+          <div className="lg:col-span-8 min-w-0">
+            <p className="text-xs font-medium tracking-[0.18em] text-[#a9b47e] mb-3.5">
+              <span>{editionYear} Conference</span>
+              <span aria-hidden="true" className="mx-2 text-[#ede6ca]/35">
+                /
+              </span>
+              <span className="text-[#cfc8aa]">Inaugural Session Prospectus</span>
+            </p>
+
+            <h1 className="mun-hero-shadow font-serif text-[clamp(2.65rem,6.5vw,5.75rem)] font-medium leading-[0.96] tracking-[-0.02em] text-[#ede6ca] [text-wrap:balance]">
+              {fullTitle}
+            </h1>
+
+            <p className="mun-hero-shadow mt-5 max-w-[54ch] text-base sm:text-[17px] leading-[1.68] text-[#ddd6bc]">
+              {CONFERENCE_DATA.about.paragraphs[0]}
+            </p>
+
+            <div className="mt-7 flex flex-wrap items-center gap-4 sm:gap-6">
+              <a
+                href={ctaHref}
+                onClick={(e) => handleSmoothAnchor(e, ctaHref)}
+                className="mun-btn-interactive inline-flex items-center justify-center gap-2 min-h-[44px] rounded-[2px] bg-[#ede6ca] px-6 py-2.5 text-sm font-semibold text-[#181c0d] hover:bg-[#dad3b4] whitespace-nowrap"
+              >
+                <span>{ctaLabel}</span>
+                <ArrowDownRight className="h-4 w-4 shrink-0" aria-hidden="true" />
+              </a>
+
+              <a
+                href="#committees"
+                onClick={(e) => handleSmoothAnchor(e, '#committees')}
+                className="group inline-flex items-center min-h-[44px] text-sm font-medium text-[#ede6ca] hover:text-[#a9b47e] transition-colors whitespace-nowrap"
+              >
+                <span className="border-b border-[#ede6ca]/45 pb-0.5 transition-colors duration-150 group-hover:border-[#a9b47e]">
+                  Explore Conference Chambers
+                </span>
+              </a>
+            </div>
+          </div>
+
+          {/* Right Specification Ledger (4 cols) */}
+          <aside
+            aria-label="Conference briefing details"
+            className="lg:col-span-4 willow-folio rounded-[3px] px-5 py-4 sm:px-6 sm:py-5"
           >
-            WILLOW MUN
-          </span>
-        </h1>
-
-        <div className="mt-7 w-16 border-t border-[#ede6ca]/35" aria-hidden="true" />
-
-        <p className="mun-hero-shadow mt-6 font-serif text-[clamp(1.1rem,3vw,1.6rem)] font-medium tracking-wide text-[#ede6ca] [text-wrap:balance]">
-          {fullTitle}
-        </p>
-
-        <p className="mun-hero-shadow mt-2 text-[clamp(0.875rem,2.4vw,1rem)] text-[#cfc8aa]">
-          Tagline <TbaText text="TBA" className="text-lg sm:text-xl" />
-        </p>
-
-        <p className="mun-hero-shadow mt-2 text-[clamp(0.7rem,2.6vw,0.875rem)] uppercase tracking-[0.18em] text-[#cfc8aa]">
-          Dates{' '}
-          {hasPublishedCustomDates ? (
-            <span className="normal-case text-base sm:text-lg text-[#a9b47e]">
-              {settings.datesText}
-            </span>
-          ) : (
-            <TbaText text="TBA" className="normal-case text-base sm:text-lg" />
-          )}
-          <span className="mx-2.5 text-[#ede6ca]/45" aria-hidden="true">
-            ·
-          </span>
-          Venue{' '}
-          {hasPublishedCustomDates ? (
-            <span className="normal-case text-base sm:text-lg text-[#a9b47e]">
-              {settings.venueText}
-            </span>
-          ) : (
-            <TbaText text="TBA" className="normal-case text-base sm:text-lg" />
-          )}
-        </p>
-
-        <div className="mt-8">
-          <MagneticWrap>
-            <a
-              href={ctaHref}
-              onClick={handleCtaClick}
-              className="mun-btn-interactive inline-flex items-center justify-center min-h-[44px] rounded-full bg-[#ede6ca] px-7 py-3 text-sm font-medium text-[#232814] hover:opacity-90 whitespace-nowrap"
-            >
-              {ctaLabel}
-            </a>
-          </MagneticWrap>
+            <dl className="divide-y divide-[#ede6ca]/14 text-sm">
+              <div className="flex items-baseline justify-between gap-4 py-2.5 first:pt-0">
+                <dt className="text-xs tracking-[0.1em] text-[#cfc8aa]">Edition</dt>
+                <dd className="font-mono text-xs text-[#ede6ca] tabular-nums">{editionYear}</dd>
+              </div>
+              <div className="flex items-baseline justify-between gap-4 py-2.5">
+                <dt className="text-xs tracking-[0.1em] text-[#cfc8aa]">Dates</dt>
+                <dd className="text-right text-sm text-[#ede6ca]">
+                  {hasCustomDates ? settings.datesText : <TbaText text="TBA" className="text-base" />}
+                </dd>
+              </div>
+              <div className="flex items-baseline justify-between gap-4 py-2.5">
+                <dt className="text-xs tracking-[0.1em] text-[#cfc8aa]">Venue</dt>
+                <dd className="text-right text-sm text-[#ede6ca]">
+                  {hasCustomVenue ? settings.venueText : <TbaText text="TBA" className="text-base" />}
+                </dd>
+              </div>
+              <div className="flex items-baseline justify-between gap-4 py-2.5 last:pb-0">
+                <dt className="text-xs tracking-[0.1em] text-[#cfc8aa]">Chambers</dt>
+                <dd className="font-mono text-xs text-[#ede6ca] tabular-nums">
+                  {CONFERENCE_DATA.committees.items.length} Planned
+                </dd>
+              </div>
+            </dl>
+          </aside>
         </div>
       </div>
     </section>

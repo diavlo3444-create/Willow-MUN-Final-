@@ -11,14 +11,10 @@ interface AnnouncementBarProps {
 const DEFAULT_BANNER_TEXT = 'Committees Announced Soon · Willow MUN 2026 · Details TBA';
 
 /**
- * Slim dismissible announcement bar pinned to the bottom edge:
- * - Animated underline on "View Committees" and smooth scroll on click
- * - Slides down and fades out when closed with ✕, staying closed
+ * Slim dismissible conference notice bar pinned to bottom edge,
+ * keeping mobile sticky footer budget well below 15% of viewport height.
  */
-export function AnnouncementBar({
-  visible,
-  onDismiss,
-}: AnnouncementBarProps) {
+export function AnnouncementBar({ visible, onDismiss }: AnnouncementBarProps) {
   const [isClosing, setIsClosing] = useState(false);
   const { published } = usePublishedWebsite();
 
@@ -33,7 +29,7 @@ export function AnnouncementBar({
     setIsClosing(true);
     window.setTimeout(() => {
       onDismiss();
-    }, 260);
+    }, 220);
   };
 
   const handleLinkClick = (event: MouseEvent<HTMLAnchorElement>) => {
@@ -57,16 +53,19 @@ export function AnnouncementBar({
               opacity: 0,
               pointerEvents: 'none',
               transition:
-                'transform 260ms cubic-bezier(0.16, 1, 0.3, 1), opacity 260ms ease',
+                'transform 220ms cubic-bezier(0.16, 1, 0.3, 1), opacity 220ms ease',
             }
           : undefined
       }
       className="chrome mun-announcement-bg fixed bottom-0 inset-x-0 z-30 border-t border-[#ede6ca]/15 px-[clamp(16px,4vw,48px)] py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]"
     >
-      <div className="mx-auto flex max-w-[1200px] items-center justify-between gap-2 sm:gap-3 text-[11px] sm:text-xs text-[#cfc8aa]">
-        <div className="flex flex-1 flex-nowrap items-center gap-2 sm:gap-2.5 min-w-0 overflow-hidden whitespace-nowrap">
-          <span className="text-[#a9b47e] shrink-0" aria-hidden="true">
-            ✦
+      <div className="mx-auto flex max-w-[1200px] items-center justify-between gap-3 text-xs text-[#c9c2a6]">
+        <div className="flex flex-1 flex-nowrap items-center gap-2.5 min-w-0 overflow-hidden whitespace-nowrap">
+          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#a9b47e] shrink-0">
+            Notice
+          </span>
+          <span aria-hidden="true" className="text-[#ede6ca]/30 shrink-0">
+            /
           </span>
           {isDefaultText ? (
             <span className="truncate">
@@ -78,13 +77,13 @@ export function AnnouncementBar({
           ) : (
             <span className="truncate">{published.bannerText}</span>
           )}
-          <span className="shrink-0" aria-hidden="true">
+          <span className="shrink-0 text-[#ede6ca]/35" aria-hidden="true">
             ·
           </span>
           <a
             href={linkHref}
             onClick={handleLinkClick}
-            className="mun-link-underline font-medium text-[#ede6ca] hover:opacity-85 transition-opacity duration-200 whitespace-nowrap shrink-0"
+            className="mun-link-underline font-medium text-[#ede6ca] hover:opacity-85 transition-opacity duration-150 whitespace-nowrap shrink-0"
           >
             {linkLabel}
           </a>
@@ -94,7 +93,7 @@ export function AnnouncementBar({
           type="button"
           onClick={handleClose}
           aria-label="Dismiss announcement"
-          className="mun-btn-interactive inline-flex h-9 w-9 items-center justify-center rounded-sm text-[#cfc8aa] hover:text-[#ede6ca] shrink-0 cursor-pointer"
+          className="mun-btn-interactive inline-flex h-8 w-8 items-center justify-center rounded-[2px] text-[#c9c2a6] hover:text-[#ede6ca] shrink-0 cursor-pointer"
         >
           <X className="h-4 w-4" aria-hidden="true" />
         </button>

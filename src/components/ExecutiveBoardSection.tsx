@@ -443,14 +443,14 @@ export function ExecutiveBoardSection() {
       <div className="mb-10 sm:mb-14 text-center">
         <SectionHeading
           id="executive-board-heading"
+          indexLabel="03"
           label={CONFERENCE_DATA.executiveBoard.label}
-          prefix="EXECUTIVE"
-          italicWord="BOARD"
-          period
+          prefix="Executive"
+          italicWord="Board"
           centered
         />
-        <p className="mun-heading-reveal mt-3 text-xs sm:text-sm uppercase tracking-[0.2em] text-[#cfc8aa]">
-          Click a name to meet them.
+        <p className="mt-3 text-sm text-[#c9c2a6]">
+          Select any officer below to inspect their portfolio and personal statement.
         </p>
       </div>
 

@@ -1,41 +1,72 @@
 import { CONFERENCE_DATA } from '../data/conference';
-import { InteractiveCard } from './InteractiveCard';
+import { usePublishedWebsite } from '../utils/usePublishedWebsite';
 import { RevealSection, SectionHeading } from './RevealSection';
 import { TbaText } from './TbaText';
 
 /**
- * Committees section: grid of six Chamber 01-06 cards with TBA agenda and chairs.
+ * Architectural two-column Chamber Directory for Committees 01-06,
+ * replacing six identical rounded box clones with a calm ruled broadsheet index.
  */
 export function CommitteesSection() {
+  const { published } = usePublishedWebsite();
+  const committeesSec = published.sections.find((s) => s.sectionKey === 'committees');
+  const label = committeesSec?.label || CONFERENCE_DATA.committees.label;
+  const subIntro =
+    committeesSec?.bodyText ||
+    'Six diplomatic chambers spanning specialized multilateral debate formats. Formal agendas, study guides, and chair appointments remain to be announced.';
+
   return (
     <RevealSection id="committees" ariaLabelledBy="committees-heading">
-      <div className="mb-10 sm:mb-12">
-        <SectionHeading
-          id="committees-heading"
-          label={CONFERENCE_DATA.committees.label}
-          prefix="COMMITTEES"
-        />
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-12 items-end mb-8 sm:mb-10">
+        <div className="lg:col-span-7">
+          <SectionHeading
+            id="committees-heading"
+            indexLabel="02"
+            label={label}
+            prefix="Conference"
+            italicWord="Chambers"
+          />
+        </div>
+        <p className="lg:col-span-5 text-sm leading-[1.7] text-[#c9c2a6] max-w-[50ch]">
+          {subIntro}
+        </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-        {CONFERENCE_DATA.committees.items.map((item, idx) => (
-          <InteractiveCard key={item.id} staggerIndex={idx} className="p-6 sm:p-7">
-            <article className="h-full min-w-0 flex flex-col justify-between gap-6">
-              <div className="min-w-0">
-                <p className="text-[clamp(0.65rem,2.4vw,0.75rem)] uppercase tracking-[0.22em] text-[#cfc8aa] tabular-nums">
-                  {item.chamber}
-                </p>
-                <h3 className="mt-3 font-serif text-[clamp(1.35rem,3vw,1.65rem)] font-medium text-[#ede6ca]">
+      <div className="willow-folio rounded-[3px] overflow-hidden">
+        <div className="grid grid-cols-1 md:grid-cols-2 divide-y divide-[#ede6ca]/14">
+          {CONFERENCE_DATA.committees.items.map((item, idx) => {
+            const indexNum = String(idx + 1).padStart(2, '0');
+            const isLeftCol = idx % 2 === 0;
+            const isLastRow = idx >= CONFERENCE_DATA.committees.items.length - 2;
+
+            return (
+              <article
+                key={item.id}
+                className={`p-6 sm:p-7 transition-colors duration-150 hover:bg-[#ede6ca]/[0.025] ${
+                  isLeftCol ? 'md:border-r md:border-[#ede6ca]/14' : ''
+                } ${isLastRow ? 'md:border-b-0' : ''}`}
+              >
+                <div className="flex items-baseline justify-between gap-4">
+                  <span className="font-mono text-xs text-[#a9b47e] tabular-nums">
+                    {item.chamber}
+                  </span>
+                  <span className="font-mono text-[11px] text-[#cfc8aa]/70 tabular-nums">
+                    Dossier {indexNum}
+                  </span>
+                </div>
+
+                <h3 className="mt-3 font-serif text-2xl sm:text-[26px] font-medium leading-snug text-[#ede6ca]">
                   {item.name} <TbaText text="TBA" />
                 </h3>
-              </div>
 
-              <p className="pt-4 border-t border-[#ede6ca]/14 text-sm text-[#cfc8aa]">
-                {item.details} <TbaText text="TBA" className="text-base" />
-              </p>
-            </article>
-          </InteractiveCard>
-        ))}
+                <p className="mt-3 pt-3 border-t border-[#ede6ca]/10 text-sm text-[#c9c2a6] flex items-baseline justify-between gap-3">
+                  <span>{item.details}</span>
+                  <TbaText text="TBA" className="text-base shrink-0" />
+                </p>
+              </article>
+            );
+          })}
+        </div>
       </div>
     </RevealSection>
   );

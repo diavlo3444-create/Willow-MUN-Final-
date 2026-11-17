@@ -1,21 +1,23 @@
-import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { Menu, X } from 'lucide-react';
 import { CONFERENCE_DATA } from '../data/conference';
 import { usePublishedWebsite } from '../utils/usePublishedWebsite';
-import { MagneticWrap } from './MagneticWrap';
 
 /**
- * Top navigation:
- * - Collapses below 768px into a hamburger button opening a full-screen overlay menu
- * - Keeps the "Apply Now" pill CTA always visible across desktop and mobile
- * - Highlights exactly one active nav link in view via IntersectionObserver
+ * Three-zone institutional header:
+ * - Zone 1: Willow MUN wordmark crest (single-line lockup)
+ * - Zone 2: Clean typographic navigation links with sliding baseline indicator
+ * - Zone 3: Single crisp primary CTA + responsive mobile drawer trigger
  */
 export function Navbar() {
   const { published } = usePublishedWebsite();
-  const navLinks =
-    published.navigation.filter((n) => n.visible).length > 0
-      ? [...published.navigation].filter((n) => n.visible).sort((a, b) => a.order - b.order)
-      : CONFERENCE_DATA.navLinks;
+  const navLinks = useMemo(
+    () =>
+      published.navigation.filter((n) => n.visible).length > 0
+        ? [...published.navigation].filter((n) => n.visible).sort((a, b) => a.order - b.order)
+        : CONFERENCE_DATA.navLinks,
+    [published.navigation],
+  );
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeHref, setActiveHref] = useState<string | null>(null);
@@ -56,7 +58,6 @@ export function Navbar() {
     });
   }, []);
 
-  // Track single most-prominent section in viewport via IntersectionObserver
   useEffect(() => {
     const sectionIds = navLinks.map((link) => link.href.replace(/^#/, ''));
     const intersectingIds = new Set<string>();
@@ -104,9 +105,8 @@ export function Navbar() {
     }
 
     return () => observer.disconnect();
-  }, []);
+  }, [navLinks]);
 
-  // Reposition sliding underline whenever activeHref or viewport size changes
   useEffect(() => {
     updateUnderlinePosition(activeHref);
     const onResize = () => updateUnderlinePosition(activeHref);
@@ -114,7 +114,6 @@ export function Navbar() {
     return () => window.removeEventListener('resize', onResize);
   }, [activeHref, updateUnderlinePosition]);
 
-  // Close mobile menu on Escape and lock background scroll while open
   useEffect(() => {
     if (!menuOpen) return;
 
@@ -149,27 +148,27 @@ export function Navbar() {
         ref={headerRef}
         className="chrome fixed top-0 inset-x-0 z-30 mun-nav-flat border-b border-[#ede6ca]/15 pt-[env(safe-area-inset-top)]"
       >
-        <div className="mx-auto flex max-w-[1200px] items-center justify-between gap-3 sm:gap-6 px-[clamp(16px,4vw,48px)] py-3">
-          {/* Zone 1: Logo + Willow MUN */}
+        <div className="mx-auto flex max-w-[1200px] items-center justify-between gap-4 sm:gap-8 px-[clamp(16px,4vw,48px)] py-2.5">
+          {/* Zone 1: Single-line conference wordmark */}
           <a
             href="#top"
             onClick={(e) => handleAnchorClick(e, '#top')}
-            className="flex items-center gap-2 sm:gap-2.5 text-[#ede6ca] whitespace-nowrap shrink-0 min-h-[44px]"
+            className="flex items-center gap-2.5 text-[#ede6ca] whitespace-nowrap shrink-0 min-h-[40px]"
             aria-label="Willow MUN home"
           >
             <img
               src={CONFERENCE_DATA.brand.logoSrc}
               alt=""
-              width={32}
-              height={32}
-              className="h-7 w-7 sm:h-8 sm:w-8 object-contain shrink-0"
+              width={28}
+              height={28}
+              className="h-7 w-7 object-contain shrink-0"
             />
-            <span className="font-serif text-[clamp(1.1rem,4vw,1.5rem)] font-medium tracking-[0.04em] text-[#ede6ca]">
+            <span className="font-serif text-[clamp(1.125rem,3.2vw,1.4rem)] font-medium tracking-[0.02em] text-[#ede6ca]">
               {CONFERENCE_DATA.brand.name}
             </span>
           </a>
 
-          {/* Zone 2: Desktop Navigation Links (768px+) + Sliding Cream Underline */}
+          {/* Zone 2: Desktop Navigation Links */}
           <nav
             ref={navRef}
             aria-label="Primary navigation"
@@ -186,10 +185,10 @@ export function Navbar() {
                   href={link.href}
                   onClick={(e) => handleAnchorClick(e, link.href)}
                   aria-current={isActive ? 'location' : undefined}
-                  className={`inline-flex items-center min-h-[44px] text-sm font-medium transition-opacity duration-200 whitespace-nowrap shrink-0 ${
+                  className={`inline-flex items-center min-h-[40px] text-[13px] font-medium tracking-[0.02em] transition-opacity duration-150 whitespace-nowrap shrink-0 ${
                     isActive
                       ? 'text-[#ede6ca] opacity-100'
-                      : 'text-[#ede6ca] opacity-70 hover:opacity-100'
+                      : 'text-[#cfc8aa] opacity-85 hover:text-[#ede6ca] hover:opacity-100'
                   }`}
                 >
                   {link.label}
@@ -199,7 +198,7 @@ export function Navbar() {
 
             <span
               aria-hidden="true"
-              className="pointer-events-none absolute bottom-[6px] left-0 h-[1.5px] w-px bg-[#ede6ca]"
+              className="pointer-events-none absolute bottom-[4px] left-0 h-[1.5px] w-px bg-[#a9b47e]"
               style={{
                 transformOrigin: 'left center',
                 transform: underline
@@ -207,22 +206,20 @@ export function Navbar() {
                   : 'translate3d(0, 0, 0) scaleX(0)',
                 opacity: underline ? 1 : 0,
                 transition:
-                  'transform 260ms cubic-bezier(0.16, 1, 0.3, 1), opacity 220ms ease',
+                  'transform 240ms cubic-bezier(0.16, 1, 0.3, 1), opacity 180ms ease',
               }}
             />
           </nav>
 
-          {/* Zone 3: Always-Visible Apply Now Pill + Mobile Hamburger (<768px) */}
+          {/* Zone 3: Single rectangular institutional CTA + Mobile Drawer Trigger */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-            <MagneticWrap>
-              <a
-                href="#apply"
-                onClick={(e) => handleAnchorClick(e, '#apply')}
-                className="mun-btn-interactive inline-flex items-center justify-center min-h-[40px] sm:min-h-[44px] rounded-full bg-[#ede6ca] px-3.5 sm:px-5 py-2 text-xs sm:text-sm font-medium text-[#232814] hover:opacity-90 whitespace-nowrap shrink-0"
-              >
-                Apply Now
-              </a>
-            </MagneticWrap>
+            <a
+              href="#apply"
+              onClick={(e) => handleAnchorClick(e, '#apply')}
+              className="mun-btn-interactive inline-flex items-center justify-center min-h-[38px] sm:min-h-[40px] rounded-[2px] bg-[#ede6ca] px-4 py-2 text-xs sm:text-[13px] font-semibold text-[#181c0d] hover:bg-[#dad3b4] whitespace-nowrap shrink-0"
+            >
+              Apply Now
+            </a>
 
             <button
               type="button"
@@ -230,7 +227,7 @@ export function Navbar() {
               aria-expanded={menuOpen}
               aria-controls="mobile-nav-menu"
               aria-label="Open navigation menu"
-              className="mun-btn-interactive md:hidden inline-flex h-10 w-10 items-center justify-center rounded-sm border border-[#ede6ca]/25 text-[#ede6ca] cursor-pointer"
+              className="mun-btn-interactive md:hidden inline-flex h-10 w-10 items-center justify-center rounded-[2px] border border-[#ede6ca]/25 text-[#ede6ca] cursor-pointer"
             >
               <Menu className="h-5 w-5" aria-hidden="true" />
             </button>
@@ -245,9 +242,9 @@ export function Navbar() {
           role="dialog"
           aria-modal="true"
           aria-label="Mobile navigation"
-          className="fixed inset-0 z-50 flex flex-col justify-between bg-[#14180a]/96 px-[clamp(16px,4vw,48px)] pt-[max(1.25rem,env(safe-area-inset-top))] pb-[max(2rem,env(safe-area-inset-bottom))] md:hidden"
+          className="fixed inset-0 z-50 flex flex-col justify-between bg-[#12160a]/98 px-[clamp(16px,4vw,48px)] pt-[max(1.25rem,env(safe-area-inset-top))] pb-[max(2rem,env(safe-area-inset-bottom))] md:hidden"
         >
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between border-b border-[#ede6ca]/14 pb-3">
             <a
               href="#top"
               onClick={(e) => handleAnchorClick(e, '#top')}
@@ -256,11 +253,11 @@ export function Navbar() {
               <img
                 src={CONFERENCE_DATA.brand.logoSrc}
                 alt=""
-                width={32}
-                height={32}
-                className="h-8 w-8 object-contain"
+                width={28}
+                height={28}
+                className="h-7 w-7 object-contain"
               />
-              <span className="font-serif text-xl font-medium tracking-[0.04em]">
+              <span className="font-serif text-xl font-medium tracking-[0.02em]">
                 {CONFERENCE_DATA.brand.name}
               </span>
             </a>
@@ -269,13 +266,13 @@ export function Navbar() {
               type="button"
               onClick={() => setMenuOpen(false)}
               aria-label="Close navigation menu"
-              className="mun-btn-interactive inline-flex h-11 w-11 items-center justify-center rounded-sm border border-[#ede6ca]/25 text-[#ede6ca] cursor-pointer"
+              className="mun-btn-interactive inline-flex h-11 w-11 items-center justify-center rounded-[2px] border border-[#ede6ca]/25 text-[#ede6ca] cursor-pointer"
             >
               <X className="h-5 w-5" aria-hidden="true" />
             </button>
           </div>
 
-          <nav aria-label="Mobile links" className="flex flex-col gap-2 my-auto py-8">
+          <nav aria-label="Mobile links" className="flex flex-col divide-y divide-[#ede6ca]/14 my-auto">
             {navLinks.map((link, idx) => {
               const isActive = activeHref === link.href;
               return (
@@ -284,27 +281,25 @@ export function Navbar() {
                   href={link.href}
                   onClick={(e) => handleAnchorClick(e, link.href)}
                   aria-current={isActive ? 'location' : undefined}
-                  style={{ animationDelay: `${idx * 45}ms` }}
-                  className={`mun-mobile-link-enter font-serif text-3xl font-medium py-2.5 border-b border-[#ede6ca]/12 transition-opacity duration-200 ${
+                  style={{ animationDelay: `${idx * 35}ms` }}
+                  className={`mun-mobile-link-enter flex items-baseline justify-between font-serif text-3xl font-medium py-3.5 transition-opacity duration-150 ${
                     isActive
                       ? 'text-[#a9b47e] opacity-100'
-                      : 'text-[#ede6ca] opacity-85 hover:opacity-100'
+                      : 'text-[#ede6ca] opacity-90 hover:opacity-100'
                   }`}
                 >
-                  {link.label}
+                  <span>{link.label}</span>
+                  <span className="font-mono text-xs text-[#cfc8aa]/70">0{idx + 1}</span>
                 </a>
               );
             })}
           </nav>
 
-          <div
-            style={{ animationDelay: `${navLinks.length * 45}ms` }}
-            className="mun-mobile-link-enter"
-          >
+          <div>
             <a
               href="#apply"
               onClick={(e) => handleAnchorClick(e, '#apply')}
-              className="mun-btn-interactive flex w-full items-center justify-center min-h-[44px] rounded-full bg-[#ede6ca] px-6 py-3.5 text-sm font-medium text-[#232814] hover:opacity-90"
+              className="mun-btn-interactive flex w-full items-center justify-center min-h-[46px] rounded-[2px] bg-[#ede6ca] px-6 py-3.5 text-sm font-semibold text-[#181c0d] hover:bg-[#dad3b4]"
             >
               Apply Now
             </a>

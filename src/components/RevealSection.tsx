@@ -10,8 +10,8 @@ interface RevealSectionProps {
 }
 
 /**
- * Editorial section wrapper positioned transparently over the background video.
- * Triggers a crisp one-time viewport fade-up (320ms, transform + opacity only).
+ * Institutional editorial section band resting over the live willow background.
+ * Content remains immediately readable in the DOM with subtle settle transition on scroll.
  */
 export function RevealSection({
   id,
@@ -22,27 +22,12 @@ export function RevealSection({
   noHorizontalPadding = false,
 }: RevealSectionProps) {
   const ref = useRef<HTMLElement | null>(null);
-  const [revealed, setRevealed] = useState(false);
+  const [revealed, setRevealed] = useState(true);
 
   useEffect(() => {
-    const el = ref.current;
-    if (!el || revealed) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            setRevealed(true);
-            observer.disconnect();
-            break;
-          }
-        }
-      },
-      { threshold: 0.01, rootMargin: '0px 0px -24px 0px' },
-    );
-
-    observer.observe(el);
-    return () => observer.disconnect();
+    if (!revealed && ref.current) {
+      setRevealed(true);
+    }
   }, [revealed]);
 
   return (
@@ -51,15 +36,27 @@ export function RevealSection({
       id={id}
       aria-labelledby={ariaLabelledBy}
       style={style}
-      className={`mun-section-gradient mun-offscreen-section relative z-[1] bg-transparent scroll-mt-20 py-16 sm:py-24 lg:py-28 ${
+      className={`mun-section-gradient mun-offscreen-section relative z-[1] bg-transparent scroll-mt-20 py-14 sm:py-20 lg:py-24 ${
         noHorizontalPadding ? '' : 'px-[clamp(16px,4vw,48px)]'
-      } ${revealed ? 'mun-revealed' : ''} ${className}`}
+      } mun-revealed ${className}`}
     >
-      <div className="mun-section-reveal mx-auto w-full max-w-[1200px] min-w-0">
+      <div className="mx-auto w-full max-w-[1200px] min-w-0">
         {children}
       </div>
     </section>
   );
+}
+
+function toEditorialTitleCase(word: string): string {
+  const clean = word.trim();
+  if (!clean) return '';
+  if (clean === clean.toUpperCase() && clean.length > 2) {
+    return clean
+      .split(/\s+/)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+      .join(' ');
+  }
+  return clean;
 }
 
 interface SectionHeadingProps {
@@ -69,6 +66,7 @@ interface SectionHeadingProps {
   italicWord?: string;
   period?: boolean;
   centered?: boolean;
+  indexLabel?: string;
 }
 
 export function SectionHeading({
@@ -76,35 +74,35 @@ export function SectionHeading({
   label,
   prefix,
   italicWord,
-  period = false,
   centered = false,
+  indexLabel,
 }: SectionHeadingProps) {
+  const formattedPrefix = toEditorialTitleCase(prefix);
+  const formattedItalic = italicWord ? toEditorialTitleCase(italicWord) : '';
+
   return (
-    <div className={centered ? 'text-center' : ''}>
-      <div
-        aria-hidden="true"
-        className={`text-xs text-[#a9b47e] mb-3 tracking-widest ${centered ? 'text-center' : ''}`}
-      >
-        <span className="mun-ornament-reveal">✦</span>
-      </div>
-      <p className="mun-heading-reveal text-[clamp(0.65rem,2.4vw,0.75rem)] font-medium uppercase tracking-[0.22em] text-[#cfc8aa] mb-3">
-        {label}
+    <div className={centered ? 'text-center mx-auto max-w-2xl' : ''}>
+      <p className="text-xs font-medium tracking-[0.14em] text-[#a9b47e] mb-2.5">
+        {indexLabel ? (
+          <>
+            <span className="font-mono text-[#cfc8aa]/75 mr-2">{indexLabel}</span>
+            <span aria-hidden="true" className="mr-2 text-[#ede6ca]/35">
+              /
+            </span>
+          </>
+        ) : null}
+        <span>{label}</span>
       </p>
       <h2
         id={id}
-        className="mun-heading-reveal font-serif text-[clamp(2rem,5vw,3.75rem)] leading-[1.02] font-medium tracking-tight text-[#ede6ca] [text-wrap:balance]"
+        className="font-serif text-[clamp(2rem,4.4vw,3.35rem)] leading-[1.06] font-medium tracking-[-0.015em] text-[#ede6ca] [text-wrap:balance]"
       >
-        {prefix}
-        {italicWord ? (
+        {formattedPrefix}
+        {formattedItalic ? (
           <>
-            {prefix ? ' ' : ''}
-            <span className="italic font-normal">
-              {italicWord}
-              {period ? '.' : ''}
-            </span>
+            {formattedPrefix ? ' ' : ''}
+            <span className="italic font-normal text-[#ede6ca]">{formattedItalic}</span>
           </>
-        ) : period ? (
-          '.'
         ) : null}
       </h2>
     </div>
