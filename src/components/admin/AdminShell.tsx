@@ -43,7 +43,7 @@ const NAV_ICONS: Record<string, typeof LayoutDashboard> = {
 
 function initials(name?: string | null, email?: string | null) {
   const source = (name || email || 'WM').trim();
-  const parts = source.split(/[\\s._-]+/).filter(Boolean);
+  const parts = source.split(/[\s._-]+/).filter(Boolean);
   return parts.length > 1 ? (parts[0][0] + parts[1][0]).toUpperCase() : source.slice(0, 2).toUpperCase();
 }
 
