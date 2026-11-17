@@ -80,7 +80,8 @@ export function HeadAccountsView() {
       pushToast({ tone: 'error', title: 'Head account could not be created', description: result?.error || error?.message });
       return;
     }
-    pushToast({ tone: 'success', title: 'Head account created', description: 'An account setup invitation has been sent to ' + row.email });
+    if (result?.action_link) setSetupLink({ name: row.fullName, email: row.email, url: result.action_link });
+    pushToast({ tone: 'success', title: 'Head account created', description: result?.action_link ? 'Copy the password setup link and share it privately.' : 'An account setup invitation has been sent to ' + row.email });
     await load();
   };
 
