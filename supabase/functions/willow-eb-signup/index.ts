@@ -31,7 +31,7 @@ Deno.serve(async (req: Request) => {
   const cutoff = new Date(Date.now() - 15 * 60 * 1000).toISOString();
 
   const { data: candidate, error: lookupError } = await admin.from("wm_eb_signup_allowlist")
-    .select("email,email_aliases,member_key,full_name,title,department_id,avatar_url,eb_rank,eb_permissions")
+    .select("email,email_aliases,member_key,full_name,title,phone_number,department_id,avatar_url,eb_rank,eb_permissions")
     .or(`email.eq.${email},email_aliases.cs.{${email}}`)
     .maybeSingle();
   if (lookupError) return json({ error: "Could not verify the signup record. Try again later." }, 500);
