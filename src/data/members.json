@@ -36,6 +36,12 @@
       "cluster": "Operations"
     },
     {
+      "id": "it",
+      "label": "Information Technology",
+      "side": "right",
+      "cluster": "Operations"
+    },
+    {
       "id": "hr",
       "label": "Human Resources",
       "side": "right",
@@ -243,6 +249,29 @@
         30,
         50
       ]
+    },
+    {
+      "id": "mohammed-magdi",
+      "name": "Mohammed Magdi",
+      "role": "Head of IT",
+      "group": "it",
+      "quote": "Everyone has something they're good at. It's just a matter of finding it.",
+      "quoteBy": null,
+      "photo": "photos/mohammed-magdi.jpg",
+      "focus": [
+        50,
+        30
+      ]
+    },
+    {
+      "id": "saleh-samaha",
+      "name": "Saleh Samaha",
+      "role": "Head of IT",
+      "group": "it",
+      "quote": "God's plan is better than yours.",
+      "quoteBy": null,
+      "photo": null,
+      "focus": null
     },
     {
       "id": "muaz-tagelsir",
