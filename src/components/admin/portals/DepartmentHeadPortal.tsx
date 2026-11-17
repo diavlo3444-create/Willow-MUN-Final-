@@ -1,22 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import {
-  ArrowLeft,
-  ClipboardCheck,
-  FolderKanban,
-  ShieldAlert,
-  Users,
-} from 'lucide-react';
+import { ArrowLeft, ShieldAlert } from 'lucide-react';
 import { useAdminStore } from '../../../context/AdminStoreContext';
 import { canAccessDepartment } from '../../../utils/adminPermissions';
-import {
-  computeApplicationStats,
-  computeDailyApplicationTrend,
-  scopeApplicationsForActor,
-} from '../../../utils/applicationFilters';
+import { computeApplicationStats, scopeApplicationsForActor } from '../../../utils/applicationFilters';
 import { AdminShell } from '../AdminShell';
 import { PortalAuthView } from '../PortalAuthView';
-import { ApplicationTrendChart } from '../SimpleCharts';
-import { RecommendationBadge, StatusBadge } from '../StatusBadge';
+import { StatusBadge } from '../StatusBadge';
 import { ApplicationsView } from '../views/ApplicationsView';
 import { DepartmentsView } from '../views/DepartmentsView';
 import { OperationsView } from '../views/OperationsView';
@@ -111,11 +100,9 @@ export function DepartmentHeadPortal({ pathname, onNavigate }: DepartmentHeadPor
 
   const scopedApps = scopeApplicationsForActor(data.applications, effectiveHead);
   const stats = computeApplicationStats(scopedApps);
-  const trend = computeDailyApplicationTrend(scopedApps, 10);
   const deptTasks = data.workspaceRecords.filter((w) => w.departmentId === assignedDepartment.id);
   const deptGroups = data.teamGroups.filter((g) => g.departmentId === assignedDepartment.id);
   const deptShifts = data.shifts.filter((s) => s.departmentId === assignedDepartment.id);
-  const deptLogs = data.logs.filter((l) => l.departmentId === assignedDepartment.id);
 
   const activeNavId =
     section === 'applications'
