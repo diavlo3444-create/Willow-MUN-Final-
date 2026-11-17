@@ -79,36 +79,8 @@ export function WillowBackground({
     return () => document.removeEventListener('visibilitychange', onVisibilityChange);
   }, []);
 
-  const shouldPlay = !introPlaying && !prefersReducedMotion && !isUserPaused && !isTabHidden;
+  const shouldPlay = !prefersReducedMotion && !isUserPaused && !isTabHidden;
 
-  // The intro and the page background use the same source video. On handoff,
-  // seek the background to the exact intro timestamp so the scene continues.
-  useEffect(() => {
-    const handleIntroFinished = (event: Event) => {
-      const detail = (event as CustomEvent<{ currentTime?: number }>).detail;
-      const targetTime = detail?.currentTime;
-      const activeVideo = videoRefs.current[activeSlotRef.current];
-      if (!activeVideo || !Number.isFinite(targetTime)) return;
-
-      const syncPosition = () => {
-        if (!Number.isFinite(activeVideo.duration) || activeVideo.duration <= 0) return;
-        try {
-          activeVideo.currentTime = Math.min(
-            Math.max(0, targetTime as number),
-            Math.max(0, activeVideo.duration - 0.08),
-          );
-        } catch {
-          // Ignore a seek that the browser cannot apply yet.
-        }
-      };
-
-      if (activeVideo.readyState >= 1) syncPosition();
-      else activeVideo.addEventListener('loadedmetadata', syncPosition, { once: true });
-    };
-
-    window.addEventListener('willow-intro-finished', handleIntroFinished);
-    return () => window.removeEventListener('willow-intro-finished', handleIntroFinished);
-  }, []);
 
   // Complete crossfade handoff cleanly
   const finishCrossfade = useCallback((nextSlot: 0 | 1) => {
@@ -382,14 +354,13 @@ export function WillowBackground({
           }}
           src={CONFERENCE_DATA.brand.videoSrc}
           poster={CONFERENCE_DATA.brand.posterSrc}
-          autoPlay={!introPlaying && !prefersReducedMotion && slot === 0}
+          autoPlay={!prefersReducedMotion && slot === 0}
           muted
           playsInline
           preload="auto"
           disablePictureInPicture
           aria-hidden="true"
           tabIndex={-1}
-          className="willow-background-video"
           style={getSlotStyle(slot)}
         />
       ))}
