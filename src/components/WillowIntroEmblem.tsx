@@ -8,6 +8,7 @@ import {
 import { CONFERENCE_DATA } from '../data/conference';
 
 const INTRO_TRANSITION_TIME_S = 7.2;
+const INTRO_TREE_BLEND_START_S = 5.4;
 const INTRO_FALLBACK_TIMEOUT_MS = 12000;
 const INTRO_WATERMARK_FALLBACK_DURATION_S = 8.4;
 const REPLAY_FADE_OUT_MS = 560;
@@ -79,6 +80,11 @@ export const WillowIntroEmblem = forwardRef<WillowIntroEmblemHandle, WillowIntro
         finishedRef.current = true;
         clearTimers();
 
+        document.body.classList.add('intro-transitioning');
+        window.setTimeout(() => {
+          document.body.classList.remove('intro-transitioning');
+        }, 2200);
+
         const video = videoRef.current;
         if (video) {
           if (options?.seekToEnd) {
@@ -123,6 +129,9 @@ export const WillowIntroEmblem = forwardRef<WillowIntroEmblemHandle, WillowIntro
         }
         if (finishedRef.current) return;
         const currentVideo = videoRef.current;
+        if (currentVideo && currentVideo.currentTime >= INTRO_TREE_BLEND_START_S) {
+          document.body.classList.add('intro-transitioning');
+        }
         if (currentVideo && currentVideo.currentTime >= INTRO_TRANSITION_TIME_S) {
           rafIdRef.current = 0;
           finishIntro();
@@ -144,6 +153,7 @@ export const WillowIntroEmblem = forwardRef<WillowIntroEmblemHandle, WillowIntro
         pendingWatermarkSeekRef.current = false;
         onIntroStateChange(true);
 
+        document.body.classList.remove('intro-transitioning');
         document.body.classList.add('intro-on');
 
         if (!isReplay) {
@@ -205,6 +215,9 @@ export const WillowIntroEmblem = forwardRef<WillowIntroEmblemHandle, WillowIntro
 
       const handleTimeUpdate = () => {
         if (!video || finishedRef.current || replayTimerRef.current !== 0) return;
+        if (video.currentTime >= INTRO_TREE_BLEND_START_S) {
+          document.body.classList.add('intro-transitioning');
+        }
         if (video.currentTime >= INTRO_TRANSITION_TIME_S) {
           finishIntro();
         }
@@ -257,6 +270,9 @@ export const WillowIntroEmblem = forwardRef<WillowIntroEmblemHandle, WillowIntro
             }
             if (finishedRef.current) return;
             const currentVideo = videoRef.current;
+            if (currentVideo && currentVideo.currentTime >= INTRO_TREE_BLEND_START_S) {
+              document.body.classList.add('intro-transitioning');
+            }
             if (currentVideo && currentVideo.currentTime >= INTRO_TRANSITION_TIME_S) {
               rafIdRef.current = 0;
               finishIntro();
