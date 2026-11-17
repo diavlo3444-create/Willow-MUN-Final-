@@ -98,13 +98,13 @@ function AdminRouter({ pathname, navigate }: { pathname: string; navigate: (path
     pathname === '/admin' || pathname.startsWith('/admin/') ? 'admin' :
     pathname === '/head' || pathname.startsWith('/head/') ? 'department_head' :
     pathname === '/eb' || pathname.startsWith('/eb/') ? 'executive_board' : null;
-  const loginPortal: PortalKey | undefined = pathname === '/admin-login' ? 'admin' : pathname === '/eb-login' ? 'executive_board' : undefined;
+  const loginPortal: PortalKey | undefined = pathname === '/admin-login' ? 'admin' : pathname === '/eb-login' ? 'executive_board' : pathname === '/head-login' ? 'department_head' : pathname === '/super-admin-login' ? 'super_admin' : undefined;
   const isEbSignup = pathname === '/eb-signup';
 
   useEffect(() => {
     if (!authReady) return;
     if (!currentUser && requestedPortal) {
-      navigate(requestedPortal === 'executive_board' ? '/eb-login' : '/admin-login');
+      navigate(requestedPortal === 'executive_board' ? '/eb-login' : requestedPortal === 'department_head' ? '/head-login' : requestedPortal === 'super_admin' ? '/super-admin-login' : '/admin-login');
       return;
     }
     if (currentUser && loginPortal) {
