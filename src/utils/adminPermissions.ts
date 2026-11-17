@@ -552,6 +552,7 @@ export function getNavigationGroups(
     const workspaceItems: NavItemConfig[] = [
       { id: 'overview', label: 'Overview', path: '/head' },
       { id: 'applications', label: 'Applications', path: '/head/applications', requiredPermission: 'applications.view' },
+      { id: 'qr', label: 'My QR Pass', path: '/head/qr', requiredPermission: 'qr.view_pass' },
     ];
     const operationsItems: NavItemConfig[] = [
       { id: 'workspace', label: 'Workspace', path: '/head/workspace', requiredPermission: 'departments.workspace' },
