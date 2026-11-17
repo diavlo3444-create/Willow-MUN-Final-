@@ -316,7 +316,7 @@ export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePorta
       onNavigate={onNavigate}
       topActions={
         <>
-          <a href="/pass" className="rounded-md border border-[#d4af37]/35 px-3 py-2 text-xs font-medium text-[#bfa04a] hover:bg-[#d4af37]/10">My QR Pass</a>
+          <a href={basePath + '/qr'} className="rounded-md border border-[#d4af37]/35 px-3 py-2 text-xs font-medium text-[#bfa04a] hover:bg-[#d4af37]/10">My QR Pass</a>
           {isSuperAdmin && <a href={basePath + '/eb-accounts'} className="rounded-md border border-[#d4af37]/35 px-3 py-2 text-xs font-medium text-[#bfa04a] hover:bg-[#d4af37]/10">EB Signup & Accounts</a>}
         </>
       }
