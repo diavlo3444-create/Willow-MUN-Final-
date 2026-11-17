@@ -45,7 +45,7 @@ const PORTAL_META: Record<
 };
 
 export function PortalAuthView({ portal, onNavigate }: PortalAuthViewProps) {
-  const { data, currentUser, signInWithCredentials, signInAsDemoUser, signOut } = useAdminStore();
+  const { currentUser, signInWithCredentials, signOut } = useAdminStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -53,10 +53,10 @@ export function PortalAuthView({ portal, onNavigate }: PortalAuthViewProps) {
   const meta = portal ? PORTAL_META[portal] : null;
   const Icon = meta?.icon ?? Shield;
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
-    const res = signInWithCredentials(email, password, portal);
+    const res = await signInWithCredentials(email, password, portal);
     if (!res.ok || !res.data) {
       setErrorMsg(res.error ?? 'Authentication failed.');
       return;
@@ -66,13 +66,7 @@ export function PortalAuthView({ portal, onNavigate }: PortalAuthViewProps) {
     }
   };
 
-  const relevantDemoUsers = data.users.filter((u) => {
-    if (!u.isActive || u.status !== 'active') return false;
-    if (!portal) return true;
-    if (portal === 'super_admin') return u.role === 'super_admin';
-    if (portal === 'admin') return u.role === 'admin' || u.role === 'super_admin';
-    return u.role === 'department_head';
-  });
+
 
   const wrongRoleSignedIn =
     portal &&
@@ -259,70 +253,18 @@ export function PortalAuthView({ portal, onNavigate }: PortalAuthViewProps) {
             </form>
           </section>
 
-          <section className="lg:col-span-7 wm-surface-panel overflow-hidden">
-            <div className="px-6 py-5 border-b border-[color:var(--wm-hairline)]">
-              <h2 className="text-base font-semibold text-[color:var(--wm-ink)]">
-                {portal === 'department_head'
-                  ? 'Active Department Head Accounts'
-                  : 'Configured Staff Accounts (Quick Access)'}
-              </h2>
-              <p className="mt-1 text-xs text-[color:var(--wm-ink-muted)]">
-                {portal === 'department_head'
-                  ? 'Signing in automatically scopes /head strictly to that head’s assigned department.'
-                  : 'Select an account to preview its exact permissions across the three-tier RBAC hierarchy.'}
-              </p>
-            </div>
-
-            <div className="divide-y divide-[color:var(--wm-hairline)]">
-              {relevantDemoUsers.map((user) => {
-                const dept = user.departmentId
-                  ? data.departments.find((d) => d.id === user.departmentId)
-                  : null;
-                const enabledCount = Object.values(user.permissions).filter(Boolean).length;
-
-                return (
-                  <button
-                    key={user.id}
-                    type="button"
-                    onClick={() => {
-                      const res = signInAsDemoUser(user.id);
-                      if (res.ok && res.data) {
-                        const targetPath = portal
-                          ? getPortalBasePath(portal)
-                          : getPortalHomeRoute(res.data.role);
-                        onNavigate(targetPath);
-                      }
-                    }}
-                    className="group flex w-full flex-col sm:flex-row sm:items-center justify-between gap-3 px-6 py-3.5 text-left hover:bg-[#ede6ca]/[0.04] transition-colors duration-150 cursor-pointer"
-                  >
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2.5">
-                        <span className="text-sm font-semibold text-[color:var(--wm-ink)] group-hover:text-[color:var(--wm-focal)]">
-                          {user.fullName}
-                        </span>
-                        <span className="font-mono text-[11px] text-[color:var(--wm-ink-muted)] truncate">
-                          {user.email}
-                        </span>
-                      </div>
-                      <p className="mt-0.5 text-xs text-[color:var(--wm-accent)]">
-                        {dept ? dept.name : user.title}
-                        <span className="text-[color:var(--wm-ink-muted)]">
-                          {' '}
-                          · {enabledCount} permissions
-                        </span>
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-3 shrink-0 self-start sm:self-center">
-                      <RoleBadge role={user.role} />
-                      <ArrowRight
-                        className="h-4 w-4 text-[color:var(--wm-ink-muted)] group-hover:text-[color:var(--wm-ink)] transition-colors duration-150"
-                        aria-hidden="true"
-                      />
-                    </div>
-                  </button>
-                );
-              })}
+          <section className="lg:col-span-7 wm-surface-panel p-6 sm:p-7">
+            <p className="wm-section-kicker text-[color:var(--wm-accent)]">Secure staff access</p>
+            <h2 className="mt-2 font-serif text-2xl text-[color:var(--wm-ink)]">Your account, your permissions.</h2>
+            <p className="mt-3 max-w-xl text-sm leading-6 text-[color:var(--wm-ink-secondary)]">
+              Willow uses Supabase authentication. Demo-account shortcuts have been removed.
+              Sign in with the email and password issued to your staff account. Your assigned role
+              determines which portal and department data you can access.
+            </p>
+            <div className="mt-6 border-t border-[color:var(--wm-hairline)] pt-5 text-xs leading-5 text-[color:var(--wm-ink-muted)]">
+              <p><strong className="text-[color:var(--wm-ink-secondary)]">Super Admin</strong> — full platform control, including account and role administration.</p>
+              <p className="mt-2"><strong className="text-[color:var(--wm-ink-secondary)]">Admin</strong> — conference operations and content management; account administration remains restricted.</p>
+              <p className="mt-2"><strong className="text-[color:var(--wm-ink-secondary)]">Department Head</strong> — access limited to the assigned department.</p>
             </div>
           </section>
         </div>
