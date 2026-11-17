@@ -19,6 +19,7 @@ import {
 } from './components/WillowIntroEmblem';
 import { PortalAuthView } from './components/admin/PortalAuthView';
 import { ExecutiveBoardSignupView } from './components/admin/ExecutiveBoardSignupView';
+import { HeadPasswordSetupView } from './components/admin/HeadPasswordSetupView';
 import { ToastViewport } from './components/admin/ToastViewport';
 import { AdminPortal } from './components/admin/portals/AdminPortal';
 import { DepartmentHeadPortal } from './components/admin/portals/DepartmentHeadPortal';
@@ -100,9 +101,10 @@ function AdminRouter({ pathname, navigate }: { pathname: string; navigate: (path
     pathname === '/eb' || pathname.startsWith('/eb/') ? 'executive_board' : null;
   const loginPortal: PortalKey | undefined = pathname === '/admin-login' ? 'admin' : pathname === '/eb-login' ? 'executive_board' : pathname === '/head-login' ? 'department_head' : pathname === '/super-admin-login' ? 'super_admin' : undefined;
   const isEbSignup = pathname === '/eb-signup';
+  const isHeadSetup = pathname === '/head-setup';
 
   useEffect(() => {
-    if (!authReady) return;
+    if (!authReady || isHeadSetup) return;
     if (!currentUser && requestedPortal) {
       navigate(requestedPortal === 'executive_board' ? '/eb-login' : requestedPortal === 'department_head' ? '/head-login' : requestedPortal === 'super_admin' ? '/super-admin-login' : '/admin-login');
       return;
@@ -118,7 +120,7 @@ function AdminRouter({ pathname, navigate }: { pathname: string; navigate: (path
     if (currentUser && requestedPortal && !canAccessPortal(currentUser, requestedPortal)) {
       navigate(getPortalHomeRoute(currentUser.role));
     }
-  }, [authReady, currentUser, requestedPortal, loginPortal, navigate]);
+  }, [authReady, currentUser, requestedPortal, loginPortal, navigate, isHeadSetup]);
 
   if (!authReady) {
     return (
@@ -132,7 +134,7 @@ function AdminRouter({ pathname, navigate }: { pathname: string; navigate: (path
   }
 
   if (requestedPortal && (!currentUser || !canAccessPortal(currentUser, requestedPortal))) return null;
-  if (!requestedPortal && currentUser) return null;
+  if (!requestedPortal && currentUser && !isHeadSetup) return null;
 
   return (
     <>
@@ -144,6 +146,8 @@ function AdminRouter({ pathname, navigate }: { pathname: string; navigate: (path
         <DepartmentHeadPortal pathname={pathname} onNavigate={navigate} />
       ) : requestedPortal === 'executive_board' ? (
         <ExecutiveBoardPortal pathname={pathname} onNavigate={navigate} />
+      ) : isHeadSetup ? (
+        <HeadPasswordSetupView onComplete={() => navigate('/head')} />
       ) : isEbSignup ? (
         <ExecutiveBoardSignupView onNavigate={navigate} />
       ) : (
