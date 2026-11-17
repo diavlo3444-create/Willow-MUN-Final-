@@ -18,6 +18,8 @@ import type {
   UpdateAccountInput,
 } from '../services/interfaces';
 import { conferenceDataService } from '../services/mockDataService';
+import { supabase } from '../lib/supabase';
+import { ROLE_DEFAULT_PERMISSIONS } from '../utils/adminPermissions';
 import type {
   AdminNotification,
   AdminUser,
@@ -52,7 +54,6 @@ import type {
   WorkspaceRecord,
 } from '../types/admin';
 
-const SESSION_STORAGE_KEY = 'willow_mun_admin_session_uid_v3';
 const TEST_HEAD_STORAGE_KEY = 'willow_mun_test_head_uid_v3';
 
 interface AdminStoreContextValue {
@@ -170,14 +171,8 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState<ConferenceDataSnapshot>(() =>
     conferenceDataService.getSnapshot(),
   );
-  const [currentUserId, setCurrentUserId] = useState<string | null>(() => {
-    if (typeof window === 'undefined') return null;
-    try {
-      return window.localStorage.getItem(SESSION_STORAGE_KEY);
-    } catch {
-      return null;
-    }
-  });
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [authReady, setAuthReady] = useState(false);
   const [testModeHeadUserId, setTestModeHeadUserId] = useState<string | null>(() => {
     if (typeof window === 'undefined') return null;
     try {
@@ -202,15 +197,6 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
   const currentUserRef = useRef<AdminUser | null>(currentUser);
   currentUserRef.current = currentUser;
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    try {
-      if (currentUserId) window.localStorage.setItem(SESSION_STORAGE_KEY, currentUserId);
-      else window.localStorage.removeItem(SESSION_STORAGE_KEY);
-    } catch {
-      // Ignore storage error
-    }
-  }, [currentUserId]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -239,21 +225,80 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
     setData(conferenceDataService.getSnapshot());
   }, []);
 
+  const userFromProfile = useCallback((profile: any, authUser: any): AdminUser => {
+    const role = profile.role as AdminUser['role'];
+    const snapshot = conferenceDataService.getSnapshot();
+    const template = snapshot.users.find((u) => u.role === role) ?? snapshot.users[0];
+    return {
+      ...template,
+      id: authUser.id,
+      fullName: profile.full_name || authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'Willow Staff',
+      email: authUser.email ?? '',
+      password: undefined,
+      role,
+      roleDefinitionId: role,
+      title: profile.title || (role === 'super_admin' ? 'Super Admin' : role === 'admin' ? 'Administrator' : 'Department Head'),
+      departmentId: profile.department_id ?? null,
+      division: profile.division ?? null,
+      avatarUrl: profile.avatar_url ?? null,
+      isActive: profile.is_active === true,
+      status: profile.is_active === true ? 'active' : 'suspended',
+      invitationStatus: 'accepted',
+      invitationToken: null,
+      lastPasswordResetAt: null,
+      permissions: ROLE_DEFAULT_PERMISSIONS[role],
+      createdAt: authUser.created_at ?? new Date().toISOString(),
+      lastActiveAt: new Date().toISOString(),
+    };
+  }, []);
+
+  const loadAuthenticatedUser = useCallback(async (authUser: any) => {
+    if (!authUser) { setCurrentUserId(null); setAuthReady(true); return; }
+    const { data: profile, error } = await supabase.from('wm_profiles')
+      .select('user_id, full_name, role, department_id, is_active, title, division, avatar_url')
+      .eq('user_id', authUser.id).maybeSingle();
+    if (error || !profile || profile.is_active !== true) {
+      setCurrentUserId(null); setAuthReady(true); await supabase.auth.signOut(); return;
+    }
+    const user = userFromProfile(profile, authUser);
+    setData((prev) => ({ ...prev, users: [...prev.users.filter((u) => u.id !== user.id), user] }));
+    setCurrentUserId(user.id); setAuthReady(true);
+  }, [userFromProfile]);
+
+  useEffect(() => {
+    let active = true;
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (active) void loadAuthenticatedUser(session?.user ?? null);
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (active) void loadAuthenticatedUser(session?.user ?? null);
+    });
+    return () => { active = false; listener.subscription.unsubscribe(); };
+  }, [loadAuthenticatedUser]);
+
   const signInWithCredentials = useCallback(
-    (email: string, password: string, expectedPortal?: PortalKey): ServiceResult<AdminUser> => {
-      const res = conferenceDataService.authenticate(email, password, expectedPortal);
-      if (!res.ok || !res.data) return { ok: false, error: res.error };
-      setCurrentUserId(res.data.user.id);
-      setTestModeHeadUserId(null);
-      refreshSnapshot();
-      pushToast({
-        tone: 'success',
-        title: `Signed in as ${res.data.user.fullName}`,
-        description: res.data.user.title,
-      });
-      return { ok: true, data: res.data.user };
-    },
-    [pushToast, refreshSnapshot],
+    async (email: string, password: string, expectedPortal?: PortalKey): Promise<ServiceResult<AdminUser>> => {
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password });
+      if (authError || !authData.user) return { ok: false, error: authError?.message ?? 'Sign in failed.' };
+      const { data: profile, error: profileError } = await supabase.from('wm_profiles')
+        .select('user_id, full_name, role, department_id, is_active, title, division, avatar_url')
+        .eq('user_id', authData.user.id).maybeSingle();
+      if (profileError || !profile || profile.is_active !== true) {
+        await supabase.auth.signOut();
+        return { ok: false, error: 'Your account is not provisioned or has been disabled. Contact the Super Admin.' };
+      }
+      const user = userFromProfile(profile, authData.user);
+      if (expectedPortal && expectedPortal !== 'admin' && user.role !== expectedPortal) {
+        await supabase.auth.signOut(); return { ok: false, error: 'This account does not have access to the selected portal.' };
+      }
+      if (expectedPortal === 'admin' && user.role !== 'admin' && user.role !== 'super_admin') {
+        await supabase.auth.signOut(); return { ok: false, error: 'This account does not have access to the Admin portal.' };
+      }
+      setData((prev) => ({ ...prev, users: [...prev.users.filter((u) => u.id !== user.id), user] }));
+      setCurrentUserId(user.id); setTestModeHeadUserId(null); setAuthReady(true);
+      pushToast({ tone: 'success', title: `Signed in as ${user.fullName}`, description: user.title });
+      return { ok: true, data: user };
+    }, [pushToast, userFromProfile],
   );
 
   const signInAsDemoUser = useCallback(
