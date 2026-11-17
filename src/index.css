@@ -496,6 +496,11 @@ body.intro-on .willow-intro-video {
   z-index: 50;
 }
 
+/* Keep the page copy hidden while the identical intro video is playing. */
+body.intro-on .willow-background-video {
+  opacity: 0 !important;
+}
+
 /* Final intro handoff: dissolve the intro tree over the real background tree. */
 body.intro-transitioning .willow-intro-backdrop {
   opacity: 0;
