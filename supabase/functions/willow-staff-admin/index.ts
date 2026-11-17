@@ -51,7 +51,7 @@ Deno.serve(async (req: Request) => {
   try {
     if (action === "list") {
       const [{ data: profiles, error: profileError }, { data: users, error: usersError }] = await Promise.all([
-        admin.from("wm_profiles").select("user_id,full_name,role,department_id,is_active,title,division,avatar_url,eb_rank,eb_permissions,created_at").order("created_at", { ascending: false }),
+        admin.from("wm_profiles").select("user_id,full_name,role,department_id,is_active,title,division,avatar_url,phone_number,eb_rank,eb_permissions,created_at").order("created_at", { ascending: false }),
         admin.auth.admin.listUsers({ page: 1, perPage: 1000 }),
       ]);
       if (profileError || usersError) throw profileError || usersError;
