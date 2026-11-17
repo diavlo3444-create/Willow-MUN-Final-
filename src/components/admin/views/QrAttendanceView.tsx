@@ -1,50 +1,17 @@
-import { useState, type FormEvent } from 'react';
-import {
-  CheckCircle2,
-  Plus,
-  QrCode,
-  ScanLine,
-  ShieldAlert,
-  Users,
-} from 'lucide-react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
+import { CheckCircle2, Camera, CameraOff, Download, Plus, QrCode, RefreshCw, ScanLine, ShieldAlert, UserRound, XCircle } from 'lucide-react';
 import { useAdminStore } from '../../../context/AdminStoreContext';
-import type { QrPassRecord } from '../../../types/admin';
+import { supabase } from '../../../lib/supabase';
 import { hasPermission } from '../../../utils/adminPermissions';
 
-function DeterministicQrSvg({ token }: { token: string }) {
-  const cells: boolean[] = [];
-  for (let i = 0; i < 81; i++) {
-    const code = token.charCodeAt(i % Math.max(1, token.length)) || 42;
-    const row = Math.floor(i / 9);
-    const col = i % 9;
-    const isCornerFinder =
-      (row < 3 && col < 3) || (row < 3 && col >= 6) || (row >= 6 && col < 3);
-    cells.push(isCornerFinder || ((code + i * 7) % 3 === 0));
-  }
-
-  return (
-    <svg
-      width={108}
-      height={108}
-      viewBox="0 0 90 90"
-      aria-label={`QR Code for ${token}`}
-      className="rounded border border-[color:var(--wm-hairline-strong)] bg-[#ede6ca] p-1.5 shrink-0"
-    >
-      {cells.map((filled, idx) =>
-        filled ? (
-          <rect
-            key={idx}
-            x={(idx % 9) * 10}
-            y={Math.floor(idx / 9) * 10}
-            width={9}
-            height={9}
-            fill="#14180a"
-          />
-        ) : null,
-      )}
-    </svg>
-  );
-}
+type Pass = {
+  id: string; user_id: string | null; holder_name: string; holder_email: string | null;
+  role_label: string; category: string; department_id: string | null; active: boolean;
+  checked_in_at: string | null; checked_in_gate: string | null; token_value?: string;
+  created_at: string;
+};
+type Scan = { id: string; holder_name: string | null; result: string; gate_location: string; scanned_at: string; pass_id: string | null };
 
 export function QrAttendanceView({
   mode,
@@ -53,275 +20,202 @@ export function QrAttendanceView({
   mode: 'qr' | 'attendance';
   actingUserOverride?: ReturnType<typeof useAdminStore>['testModeHeadUser'];
 }) {
-  const { data, currentUser, saveQrPass, scanQrToken } = useAdminStore();
-  const effectiveActor = actingUserOverride ?? currentUser;
-
-  const [scanInput, setScanInput] = useState('WM26-HD-MUAZ-010');
-  const [gateLocation, setGateLocation] = useState('Main Atrium Gate A');
-  const [lastScanResult, setLastScanResult] = useState<string | null>(null);
+  const { currentUser, pushToast } = useAdminStore();
+  const actor = actingUserOverride ?? currentUser;
+  const isAdmin = actor?.role === 'admin' || actor?.role === 'super_admin';
+  const canScan = isAdmin || hasPermission(actor, 'qr.scan');
+  const canManage = isAdmin || hasPermission(actor, 'qr.manage');
+  const [personalPass, setPersonalPass] = useState<Pass | null>(null);
+  const [passes, setPasses] = useState<Pass[]>([]);
+  const [scans, setScans] = useState<Scan[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [scanInput, setScanInput] = useState('');
+  const [gateLocation, setGateLocation] = useState('Main Entrance');
+  const [lastResult, setLastResult] = useState<{ result: string; holder_name?: string | null; role_label?: string | null; gate_location?: string } | null>(null);
+  const [scanError, setScanError] = useState('');
+  const [scannerOpen, setScannerOpen] = useState(false);
   const [newHolder, setNewHolder] = useState('');
-  const [newRoleLabel, setNewRoleLabel] = useState('Staff');
+  const [newEmail, setNewEmail] = useState('');
+  const [newRole, setNewRole] = useState('Conference Participant');
+  const [issuedPass, setIssuedPass] = useState<Pass | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const scannedTokenRef = useRef('');
 
-  const canScan = hasPermission(effectiveActor, 'qr.scan') || hasPermission(effectiveActor, 'qr.manage');
-  const canManage = hasPermission(effectiveActor, 'qr.manage');
+  const load = useCallback(async () => {
+    setLoading(true);
+    const requests: Promise<any>[] = [
+      supabase.functions.invoke('willow-qr', { body: { action: 'my_pass' } }),
+    ];
+    if (canManage) {
+      requests.push(supabase.functions.invoke('willow-qr', { body: { action: 'list' } }));
+      requests.push(supabase.functions.invoke('willow-qr', { body: { action: 'scan_log' } }));
+    }
+    const results = await Promise.all(requests);
+    const [mine, registry, log] = results;
+    if (mine.error) pushToast({ tone: 'error', title: 'Could not load your QR pass', description: mine.error.message });
+    else setPersonalPass(mine.data?.pass ?? null);
+    if (canManage) {
+      if (registry?.error) pushToast({ tone: 'error', title: 'Pass registry unavailable', description: registry.error.message });
+      else setPasses(registry?.data?.passes ?? []);
+      if (!log?.error) setScans(log?.data?.scans ?? []);
+    }
+    setLoading(false);
+  }, [canManage, pushToast]);
 
-  const personalPass =
-    data.qrPasses.find((p) => p.holderName === effectiveActor?.fullName) ?? data.qrPasses[0];
+  useEffect(() => { void load(); }, [load]);
 
-  const handleScanSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    const res = scanQrToken(scanInput, gateLocation);
-    setLastScanResult(
-      res.ok
-        ? `VALID CHECK-IN: ${res.data?.holderName} at ${gateLocation}`
-        : res.error ?? 'Scan rejected',
-    );
-  };
+  const stopCamera = useCallback(() => {
+    if (streamRef.current) streamRef.current.getTracks().forEach(track => track.stop());
+    streamRef.current = null;
+    if (videoRef.current) videoRef.current.srcObject = null;
+  }, []);
 
-  const handleIssuePass = (e: FormEvent) => {
-    e.preventDefault();
-    if (!newHolder.trim()) return;
-    const prefix = newHolder.replace(/[^a-zA-Z]/g, '').slice(0, 4).toUpperCase() || 'WM';
-    const pass: QrPassRecord = {
-      id: '',
-      token: `WM26-${prefix}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
-      holderName: newHolder.trim(),
-      roleLabel: newRoleLabel,
-      departmentId: effectiveActor?.departmentId ?? null,
-      category: 'Staff',
-      active: true,
-      checkedIn: false,
-      lastScannedAt: null,
+  const scanToken = useCallback(async (token: string) => {
+    setBusy(true);
+    const { data: response, error } = await supabase.functions.invoke('willow-qr', {
+      body: { action: 'scan', token, gate_location: gateLocation },
+    });
+    setBusy(false);
+    if (error || response?.error) {
+      setScanError(response?.error || error?.message || 'Scan failed.');
+      setLastResult(null);
+      return;
+    }
+    setScanError('');
+    setLastResult(response);
+    setScanInput('');
+    if (response.result === 'valid_checkin') pushToast({ tone: 'success', title: 'Check-in successful', description: response.holder_name + ' · ' + gateLocation });
+    else if (response.result === 'duplicate_recent') pushToast({ tone: 'warning', title: 'Already checked in', description: response.holder_name || 'This pass has already been used.' });
+    else pushToast({ tone: 'error', title: response.result === 'revoked_pass' ? 'Pass revoked' : 'Invalid QR pass', description: 'Do not admit this pass holder.' });
+    await load();
+  }, [gateLocation, load, pushToast]);
+
+  useEffect(() => {
+    if (!scannerOpen) { stopCamera(); return; }
+    let interval = 0;
+    let cancelled = false;
+    const start = async () => {
+      try {
+        if (!('mediaDevices' in navigator) || !navigator.mediaDevices.getUserMedia) throw new Error('Camera access is not available in this browser.');
+        const Detector = (window as any).BarcodeDetector;
+        if (!Detector) throw new Error('Live QR scanning is not supported by this browser. Use the token input below.');
+        const detector = new Detector({ formats: ['qr_code'] });
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+        if (cancelled) { stream.getTracks().forEach(track => track.stop()); return; }
+        streamRef.current = stream;
+        if (videoRef.current) { videoRef.current.srcObject = stream; await videoRef.current.play(); }
+        interval = window.setInterval(async () => {
+          const video = videoRef.current;
+          if (!video || video.readyState < 2 || busy) return;
+          try {
+            const codes = await detector.detect(video);
+            const value = codes?.[0]?.rawValue;
+            if (value && value !== scannedTokenRef.current) {
+              scannedTokenRef.current = value;
+              setScannerOpen(false);
+              await scanToken(value);
+              window.setTimeout(() => { scannedTokenRef.current = ''; }, 1200);
+            }
+          } catch { /* Wait for the next camera frame. */ }
+        }, 350);
+      } catch (error) {
+        setScanError(error instanceof Error ? error.message : 'Could not start camera.');
+        setScannerOpen(false);
+      }
     };
-    if (saveQrPass(pass)) setNewHolder('');
+    void start();
+    return () => { cancelled = true; if (interval) window.clearInterval(interval); stopCamera(); };
+  }, [scannerOpen, stopCamera, scanToken, busy]);
+
+  const issuePersonalPass = async () => {
+    if (!actor) return;
+    setBusy(true);
+    const { data: response, error } = await supabase.functions.invoke('willow-qr', { body: { action: 'issue', user_id: actor.id } });
+    setBusy(false);
+    if (error || response?.error) { pushToast({ tone: 'error', title: 'Could not create your pass', description: response?.error || error?.message }); return; }
+    setPersonalPass(response.pass);
+    setIssuedPass(response.pass);
+    await load();
   };
 
-  const checkedInCount = data.qrPasses.filter((p) => p.checkedIn).length;
+  const issueGuestPass = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!newHolder.trim()) return;
+    setBusy(true);
+    const { data: response, error } = await supabase.functions.invoke('willow-qr', {
+      body: { action: 'issue', holder_name: newHolder.trim(), holder_email: newEmail.trim() || null, role_label: newRole, category: 'Delegate' },
+    });
+    setBusy(false);
+    if (error || response?.error) { pushToast({ tone: 'error', title: 'Pass could not be issued', description: response?.error || error?.message }); return; }
+    setIssuedPass(response.pass);
+    setNewHolder(''); setNewEmail('');
+    await load();
+  };
 
-  return (
-    <div className="space-y-6">
-      {/* Personal Conference Credential Dossier Strip */}
-      {personalPass && (
-        <section className="wm-surface-panel p-5 sm:p-6 flex flex-wrap items-center justify-between gap-5">
-          <div className="flex items-center gap-5">
-            <DeterministicQrSvg token={personalPass.token} />
-            <div className="space-y-1">
-              <p className="wm-section-kicker text-[color:var(--wm-accent)]">
-                Personal Conference Credential
-              </p>
-              <h2 className="font-serif text-2xl font-medium text-[color:var(--wm-ink)]">
-                {personalPass.holderName}
-              </h2>
-              <p className="text-xs text-[color:var(--wm-ink-secondary)]">
-                {personalPass.roleLabel}
-              </p>
-              <p className="font-mono text-xs text-[color:var(--wm-accent)] pt-0.5 select-all">
-                {personalPass.token}
-              </p>
-            </div>
+  const issueMissing = async () => {
+    setBusy(true);
+    const { data: response, error } = await supabase.functions.invoke('willow-qr', { body: { action: 'ensure_profile_passes' } });
+    setBusy(false);
+    if (error || response?.error) pushToast({ tone: 'error', title: 'Could not issue account passes', description: response?.error || error?.message });
+    else pushToast({ tone: 'success', title: 'QR passes issued', description: response.message });
+    await load();
+  };
+
+  const setPassActive = async (pass: Pass) => {
+    const { data: response, error } = await supabase.functions.invoke('willow-qr', { body: { action: pass.active ? 'revoke' : 'activate', pass_id: pass.id } });
+    if (error || response?.error) pushToast({ tone: 'error', title: 'Pass could not be updated', description: response?.error || error?.message });
+    else await load();
+  };
+
+  const currentDepartment = personalPass?.department_id ? passes.find(p=>p.department_id===personalPass.department_id)?.department_id : null;
+  const checkedIn = passes.filter(pass => pass.checked_in_at).length;
+
+  return <div className="space-y-5">
+    {(mode === 'qr' || personalPass || actor?.role === 'department_head') && <section className="rounded-md border border-white/[0.08] bg-[#0c0c0f] p-5 sm:p-6">
+      <div className="flex flex-wrap items-center justify-between gap-5">
+        <div className="flex min-w-0 items-center gap-4">
+          {personalPass?.token_value ? <div className="rounded-md bg-white p-2"><QRCodeSVG value={personalPass.token_value} size={144} level="H" includeMargin /></div> : <div className="grid h-36 w-36 place-items-center rounded-md border border-dashed border-white/[0.12] bg-black/20"><QrCode className="h-9 w-9 text-neutral-600"/></div>}
+          <div className="min-w-0"><p className="text-[9px] font-mono uppercase tracking-[0.18em] text-[#d4af37]">Willow MUN · Digital pass</p><h2 className="wm-serif mt-2 text-2xl text-neutral-100">{personalPass?.holder_name || actor?.fullName || 'Personal pass'}</h2><p className="mt-1 text-xs text-neutral-400">{personalPass?.role_label || actor?.title || 'Conference participant'}</p><p className="mt-2 font-mono text-[10px] text-neutral-500">{personalPass?.id ? 'Credential active' : 'No pass issued yet'}</p>
+            {personalPass?.checked_in_at && <p className="mt-2 text-[10px] text-emerald-300">Checked in · {new Date(personalPass.checked_in_at).toLocaleString()} · {personalPass.checked_in_gate}</p>}
           </div>
-          <div className="text-xs text-right">
-            <span
-              className={`inline-flex items-center gap-1.5 rounded border px-2.5 py-1 font-medium ${
-                personalPass.checkedIn
-                  ? 'border-emerald-400/35 bg-emerald-500/[0.1] text-emerald-200'
-                  : 'border-[color:var(--wm-hairline-strong)] text-[color:var(--wm-ink-secondary)]'
-              }`}
-            >
-              <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>{personalPass.checkedIn ? 'Checked In On Venue' : 'Not Yet Scanned Today'}</span>
-            </span>
-          </div>
-        </section>
-      )}
-
-      {/* Security Checkpoint Scanner */}
-      {canScan && (
-        <section className="wm-surface-panel overflow-hidden">
-          <div className="px-5 py-3.5 border-b border-[color:var(--wm-hairline)] bg-[color:var(--wm-inset)] flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <ScanLine className="h-4 w-4 text-[color:var(--wm-accent)]" aria-hidden="true" />
-              <h2 className="text-sm font-semibold text-[color:var(--wm-ink)]">
-                Venue QR Security Scanner
-              </h2>
-            </div>
-            <span className="font-mono text-xs text-[color:var(--wm-ink-secondary)] tabular-nums">
-              {checkedInCount}/{data.qrPasses.length} passes checked in
-            </span>
-          </div>
-
-          <div className="p-5 space-y-4">
-            <form onSubmit={handleScanSubmit} className="grid grid-cols-1 md:grid-cols-12 gap-3 text-xs">
-              <div className="md:col-span-5">
-                <label className="text-[color:var(--wm-ink-secondary)]">
-                  Scan or Enter QR Token
-                </label>
-                <input
-                  type="text"
-                  value={scanInput}
-                  onChange={(e) => setScanInput(e.target.value)}
-                  placeholder="e.g. WM26-HD-MUAZ-010"
-                  className="mt-1 h-10 w-full rounded border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-rail)] px-3 font-mono text-[color:var(--wm-ink)]"
-                />
-              </div>
-              <div className="md:col-span-4">
-                <label className="text-[color:var(--wm-ink-secondary)]">Checkpoint Gate</label>
-                <select
-                  value={gateLocation}
-                  onChange={(e) => setGateLocation(e.target.value)}
-                  className="mt-1 h-10 w-full rounded border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-rail)] px-3 text-[color:var(--wm-ink)]"
-                >
-                  <option value="Main Atrium Gate A">Main Atrium Gate A</option>
-                  <option value="VIP Operations Entrance">VIP Operations Entrance</option>
-                  <option value="Chambers North Desk">Chambers North Desk</option>
-                </select>
-              </div>
-              <div className="md:col-span-3 flex items-end">
-                <button
-                  type="submit"
-                  className="h-10 w-full rounded bg-[color:var(--wm-focal)] px-4 font-semibold text-[#12170c] hover:bg-[#dad3b4] cursor-pointer"
-                >
-                  Verify & Check In
-                </button>
-              </div>
-            </form>
-
-            {lastScanResult && (
-              <div className="border-t border-[color:var(--wm-hairline)] pt-3 text-xs font-mono text-[color:var(--wm-ink)]">
-                {lastScanResult}
-              </div>
-            )}
-          </div>
-        </section>
-      )}
-
-      {/* Attendance Roster & Verification Log */}
-      {(mode === 'attendance' || canManage) && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          <section className="lg:col-span-7 wm-surface-panel overflow-hidden">
-            <div className="px-5 py-3.5 border-b border-[color:var(--wm-hairline)] bg-[color:var(--wm-inset)] flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold text-[color:var(--wm-ink)] inline-flex items-center gap-2">
-                <QrCode className="h-4 w-4 text-[color:var(--wm-accent)]" aria-hidden="true" />
-                <span>Issued Conference Passes ({data.qrPasses.length})</span>
-              </h2>
-              {canManage && (
-                <form onSubmit={handleIssuePass} className="flex flex-wrap gap-2 text-xs">
-                  <input
-                    type="text"
-                    value={newHolder}
-                    onChange={(e) => setNewHolder(e.target.value)}
-                    placeholder="Issue pass for name..."
-                    className="h-8 rounded border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-rail)] px-2.5 text-[color:var(--wm-ink)]"
-                  />
-                  <input
-                    type="text"
-                    value={newRoleLabel}
-                    onChange={(e) => setNewRoleLabel(e.target.value)}
-                    placeholder="Role label"
-                    className="h-8 w-28 rounded border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-rail)] px-2.5 text-[color:var(--wm-ink)]"
-                  />
-                  <button
-                    type="submit"
-                    className="inline-flex h-8 items-center gap-1 rounded bg-[color:var(--wm-focal)] px-3 font-semibold text-[#12170c] hover:bg-[#dad3b4] cursor-pointer"
-                  >
-                    <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-                    <span>Issue</span>
-                  </button>
-                </form>
-              )}
-            </div>
-
-            <div className="divide-y divide-[color:var(--wm-hairline)] text-xs">
-              {data.qrPasses.map((p) => (
-                <div
-                  key={p.id}
-                  className="px-5 py-3 flex items-center justify-between gap-3 hover:bg-[#ede6ca]/[0.02]"
-                >
-                  <div className="min-w-0">
-                    <p className="font-semibold text-[color:var(--wm-ink)] truncate">
-                      {p.holderName}
-                    </p>
-                    <p className="mt-0.5 text-[11px] font-mono text-[color:var(--wm-accent)]">
-                      {p.token}{' '}
-                      <span className="font-sans text-[color:var(--wm-ink-secondary)]">
-                        · {p.roleLabel}
-                      </span>
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    {canScan && (
-                      <button
-                        type="button"
-                        onClick={() => setScanInput(p.token)}
-                        className="h-7 rounded border border-[color:var(--wm-hairline-strong)] px-2.5 text-[11px] text-[color:var(--wm-ink-secondary)] hover:text-[color:var(--wm-ink)] hover:bg-[#ede6ca]/8 cursor-pointer"
-                      >
-                        Load Token
-                      </button>
-                    )}
-                    {canManage && (
-                      <button
-                        type="button"
-                        onClick={() => saveQrPass({ ...p, active: !p.active })}
-                        className={`h-7 rounded border px-2.5 text-[11px] font-medium cursor-pointer ${
-                          p.active
-                            ? 'border-rose-400/35 text-rose-200 hover:bg-rose-500/15'
-                            : 'border-emerald-400/35 text-emerald-200 hover:bg-emerald-500/15'
-                        }`}
-                      >
-                        {p.active ? 'Revoke' : 'Reactivate'}
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="lg:col-span-5 wm-surface-panel overflow-hidden">
-            <div className="px-5 py-3.5 border-b border-[color:var(--wm-hairline)] bg-[color:var(--wm-inset)] flex items-center gap-2">
-              <Users className="h-4 w-4 text-[color:var(--wm-accent)]" aria-hidden="true" />
-              <h2 className="text-sm font-semibold text-[color:var(--wm-ink)]">
-                Gate Verification Feed
-              </h2>
-            </div>
-            <div className="divide-y divide-[color:var(--wm-hairline)] max-h-[28rem] overflow-y-auto text-xs">
-              {data.attendanceScans.map((scan) => (
-                <div key={scan.id} className="px-5 py-3 space-y-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-semibold text-[color:var(--wm-ink)]">
-                      {scan.holderName}
-                    </span>
-                    <span
-                      className={`rounded border px-1.5 py-0.5 text-[10px] font-medium ${
-                        scan.result === 'valid_checkin'
-                          ? 'border-emerald-400/35 text-emerald-200'
-                          : scan.result === 'duplicate_recent'
-                            ? 'border-amber-400/35 text-amber-200'
-                            : 'border-rose-400/35 text-rose-200'
-                      }`}
-                    >
-                      {scan.result}
-                    </span>
-                  </div>
-                  <p className="font-mono text-[11px] text-[color:var(--wm-ink-secondary)]">
-                    {scan.gateLocation} · {scan.tokenScanned}
-                  </p>
-                  <p className="text-[11px] text-[color:var(--wm-ink-muted)] tabular-nums">
-                    By {scan.scannedBy} · {new Date(scan.scannedAt).toLocaleTimeString()}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </section>
         </div>
-      )}
+        <div className="flex flex-wrap gap-2">{!personalPass && <button type="button" disabled={busy || loading} onClick={()=>void issuePersonalPass()} className="inline-flex h-9 items-center gap-2 rounded bg-[#d4af37] px-4 text-xs font-semibold text-black disabled:opacity-50"><Plus className="h-3.5 w-3.5"/> Generate my pass</button>}{personalPass && <button type="button" onClick={()=>window.print()} className="inline-flex h-9 items-center gap-2 rounded border border-white/[0.1] px-3 text-xs text-neutral-300 hover:bg-white/[0.04]"><Download className="h-3.5 w-3.5"/> Print pass</button>}</div>
+      </div>
+      {!personalPass && <p className="mt-4 text-[10px] text-neutral-500">Generate your unique QR credential. Security can scan it at the entrance.</p>}
+    </section>}
 
-      {!canScan && !canManage && mode === 'attendance' && (
-        <div className="rounded-md border border-amber-400/30 bg-amber-500/[0.08] p-5 text-xs text-amber-100 flex items-center gap-2">
-          <ShieldAlert className="h-4 w-4 shrink-0" aria-hidden="true" />
-          <span>Full venue attendance controls are restricted to Security & Executive leadership.</span>
+    {canScan && <section className="overflow-hidden rounded-md border border-white/[0.08] bg-[#0c0c0f]">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] px-4 py-3"><div className="flex items-center gap-2"><ScanLine className="h-4 w-4 text-[#d4af37]"/><div><h2 className="text-xs font-semibold text-neutral-100">Security checkpoint scanner</h2><p className="mt-1 text-[10px] text-neutral-500">Camera scan or enter the pass token manually</p></div></div><button type="button" onClick={()=>{setScannerOpen(v=>!v);setScanError('');}} className="inline-flex h-8 items-center gap-2 rounded border border-[#d4af37]/30 px-3 text-[10px] text-[#e4c86c]">{scannerOpen?<><CameraOff className="h-3.5 w-3.5"/> Stop camera</>:<><Camera className="h-3.5 w-3.5"/> Open camera</>}</button></div>
+      <div className="grid gap-4 p-4 lg:grid-cols-2">
+        <div className="space-y-3">
+          {scannerOpen && <video ref={videoRef} muted playsInline className="aspect-video w-full rounded-md border border-white/[0.08] bg-black object-cover"/>}
+          <form onSubmit={(e)=>{e.preventDefault();if(scanInput.trim())void scanToken(scanInput.trim());}} className="space-y-3">
+            <label className="block text-[10px] text-neutral-400">QR token<input value={scanInput} onChange={e=>setScanInput(e.target.value)} placeholder="Scan or paste the pass token" className="mt-1 h-10 w-full rounded border border-white/[0.1] bg-black/20 px-3 font-mono text-xs text-neutral-100"/></label>
+            <label className="block text-[10px] text-neutral-400">Checkpoint location<select value={gateLocation} onChange={e=>setGateLocation(e.target.value)} className="mt-1 h-10 w-full rounded border border-white/[0.1] bg-[#111114] px-3 text-xs text-neutral-100"><option>Main Entrance</option><option>VIP Entrance</option><option>Committee Hall</option><option>Staff Entrance</option></select></label>
+            <button disabled={busy || !scanInput.trim()} className="h-9 w-full rounded bg-[#d4af37] px-4 text-xs font-semibold text-black disabled:opacity-50">{busy?'Verifying…':'Verify & check in'}</button>
+          </form>
+          {scanError && <p role="alert" className="text-[11px] text-rose-300">{scanError}</p>}
         </div>
-      )}
-    </div>
-  );
+        <div className="flex min-h-48 flex-col justify-center rounded-md border border-white/[0.06] bg-black/20 p-4">
+          {!lastResult ? <div className="text-center"><ShieldAlert className="mx-auto h-7 w-7 text-neutral-600"/><p className="mt-2 text-xs text-neutral-400">Waiting for a pass to be scanned</p></div> : <div className="text-center">
+            {lastResult.result==='valid_checkin'?<CheckCircle2 className="mx-auto h-9 w-9 text-emerald-400"/>:lastResult.result==='duplicate_recent'?<ShieldAlert className="mx-auto h-9 w-9 text-amber-300"/>:<XCircle className="mx-auto h-9 w-9 text-rose-400"/>}
+            <p className={'mt-3 text-sm font-semibold '+(lastResult.result==='valid_checkin'?'text-emerald-300':lastResult.result==='duplicate_recent'?'text-amber-200':'text-rose-300')}>{lastResult.result==='valid_checkin'?'CHECK-IN APPROVED':lastResult.result==='duplicate_recent'?'ALREADY CHECKED IN':lastResult.result==='revoked_pass'?'PASS REVOKED':'INVALID PASS'}</p>
+            <p className="mt-1 text-xs text-neutral-200">{lastResult.holder_name || 'No matching person found'}</p><p className="mt-1 text-[10px] text-neutral-500">{lastResult.role_label || ''} · {lastResult.gate_location || gateLocation}</p>
+          </div>}
+        </div>
+      </div>
+    </section>}
+
+    {canManage && <section className="overflow-hidden rounded-md border border-white/[0.08] bg-[#0c0c0f]">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] px-4 py-3"><div><h2 className="text-xs font-semibold text-neutral-100">Pass registry</h2><p className="mt-1 text-[10px] text-neutral-500">{passes.length} issued passes · {checkedIn} checked in</p></div><button type="button" disabled={busy} onClick={()=>void issueMissing()} className="inline-flex h-8 items-center gap-2 rounded border border-[#d4af37]/30 px-3 text-[10px] text-[#e4c86c] disabled:opacity-50"><RefreshCw className="h-3 w-3"/> Issue missing staff passes</button></div>
+      <form onSubmit={issueGuestPass} className="grid gap-2 border-b border-white/[0.06] p-4 sm:grid-cols-[1fr_1fr_1fr_auto]"><input value={newHolder} onChange={e=>setNewHolder(e.target.value)} required placeholder="Guest / delegate name" className="h-9 rounded border border-white/[0.1] bg-black/20 px-3 text-xs text-neutral-100"/><input value={newEmail} onChange={e=>setNewEmail(e.target.value)} type="email" placeholder="Email (optional)" className="h-9 rounded border border-white/[0.1] bg-black/20 px-3 text-xs text-neutral-100"/><input value={newRole} onChange={e=>setNewRole(e.target.value)} placeholder="Role label" className="h-9 rounded border border-white/[0.1] bg-black/20 px-3 text-xs text-neutral-100"/><button disabled={busy} className="h-9 rounded bg-[#d4af37] px-4 text-xs font-semibold text-black disabled:opacity-50">Issue pass</button></form>
+      <div className="divide-y divide-white/[0.05]">{passes.length===0?<p className="p-8 text-center text-xs text-neutral-500">No passes have been issued yet. Use “Issue missing staff passes” to create passes for existing accounts.</p>:passes.map(pass=><div key={pass.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"><div className="min-w-0"><p className="truncate text-xs font-medium text-neutral-100">{pass.holder_name}</p><p className="mt-0.5 truncate text-[10px] text-neutral-500">{pass.holder_email || pass.role_label} · {pass.category}</p><p className="mt-1 text-[9px] text-neutral-500">{pass.checked_in_at?'Checked in '+new Date(pass.checked_in_at).toLocaleString()+' · '+pass.checked_in_gate:'Not checked in'}</p></div><div className="flex items-center gap-2">{pass.token_value && <button type="button" onClick={()=>setIssuedPass(pass)} className="rounded border border-white/[0.1] px-2.5 py-1.5 text-[10px] text-neutral-300">View QR</button>}<span className={'rounded border px-2 py-1 text-[9px] '+(pass.active?'border-emerald-400/20 text-emerald-300':'border-rose-400/20 text-rose-300')}>{pass.active?'Active':'Revoked'}</span><button type="button" onClick={()=>void setPassActive(pass)} className="rounded border border-white/[0.1] px-2.5 py-1.5 text-[10px] text-neutral-300">{pass.active?'Revoke':'Reactivate'}</button></div></div>)}</div>
+    </section>}
+
+    {canManage && mode==='attendance' && <section className="overflow-hidden rounded-md border border-white/[0.08] bg-[#0c0c0f]"><div className="border-b border-white/[0.06] px-4 py-3"><h2 className="text-xs font-semibold text-neutral-100">Recent scan activity</h2><p className="mt-1 text-[10px] text-neutral-500">Latest 200 scanner events</p></div><div className="divide-y divide-white/[0.05]">{scans.length===0?<p className="p-6 text-center text-xs text-neutral-500">No scans recorded.</p>:scans.map(scan=><div key={scan.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3"><div><p className="text-xs text-neutral-200">{scan.holder_name || 'Unknown token'}</p><p className="mt-0.5 text-[10px] text-neutral-500">{scan.gate_location} · {new Date(scan.scanned_at).toLocaleString()}</p></div><span className={'rounded border px-2 py-1 text-[9px] uppercase '+(scan.result==='valid_checkin'?'border-emerald-400/20 text-emerald-300':scan.result==='duplicate_recent'?'border-amber-400/20 text-amber-200':'border-rose-400/20 text-rose-300')}>{scan.result.replaceAll('_',' ')}</span></div>)}</div></section>}
+
+    {issuedPass?.token_value && <div className="fixed inset-0 z-[120] grid place-items-center bg-black/80 p-4" role="dialog" aria-modal="true" aria-label="Issued QR pass"><div className="w-full max-w-sm rounded-lg border border-[#d4af37]/25 bg-[#101012] p-5 text-center"><button type="button" onClick={()=>setIssuedPass(null)} className="ml-auto block text-xs text-neutral-400 hover:text-white">Close</button><div className="mx-auto mt-3 inline-block rounded bg-white p-3"><QRCodeSVG value={issuedPass.token_value} size={220} level="H" includeMargin/></div><h3 className="mt-4 text-lg font-semibold text-neutral-100">{issuedPass.holder_name}</h3><p className="mt-1 text-xs text-neutral-400">{issuedPass.role_label}</p><p className="mt-3 break-all font-mono text-[10px] text-neutral-500">{issuedPass.token_value}</p><button type="button" onClick={()=>window.print()} className="mt-4 inline-flex h-9 items-center gap-2 rounded bg-[#d4af37] px-4 text-xs font-semibold text-black"><Download className="h-3.5 w-3.5"/> Print QR pass</button></div></div>}
+  </div>;
 }
