@@ -34,6 +34,13 @@ const PORTAL_META: Record<
     path: '/admin',
     shortLabel: 'Admin',
   },
+  executive_board: {
+    title: 'Executive Board Portal',
+    subtitle: 'Your assigned department workspace: tasks, shifts, stations, announcements, incident reports, and team structure.',
+    icon: Building2,
+    path: '/eb',
+    shortLabel: 'Executive Board',
+  },
   department_head: {
     title: 'Department Head Portal',
     subtitle:
@@ -115,7 +122,7 @@ export function PortalAuthView({ portal, onNavigate }: PortalAuthViewProps) {
             <p className="mt-2 text-sm text-[color:var(--wm-ink-secondary)] max-w-2xl">
               {meta
                 ? meta.subtitle
-                : 'Authenticate into Super Admin, Admin, or Department Head environments.'}
+                : 'Choose the correct staff portal and sign in with your assigned credentials.'}
             </p>
           </div>
 
