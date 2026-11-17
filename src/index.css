@@ -637,21 +637,21 @@ body.intro-on * {
    Willow MUN Administration Platform (.wm-admin) Design System Tokens & Base
    Scoped strictly to .wm-admin so public landing page styles stay untouched.
    ============================================================================ */
-:root {
-  --wm-canvas: #0d1108;
-  --wm-rail: #12170c;
-  --wm-surface: #171c0f;
-  --wm-inset: #1e2414;
-  --wm-overlay: #232a18;
-  --wm-hairline: rgba(237, 230, 202, 0.12);
-  --wm-hairline-strong: rgba(237, 230, 202, 0.24);
-  --wm-ink: #f1ecd4;
-  --wm-ink-secondary: #c7c1a6;
-  --wm-ink-muted: #9da388;
-  --wm-accent: #a9b47e;
-  --wm-focal: #ede6ca;
-  --font-admin-sans: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-admin-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+.wm-admin {
+  --wm-canvas: #070708;
+  --wm-rail: #09090b;
+  --wm-surface: #0c0c0f;
+  --wm-inset: #111114;
+  --wm-overlay: #18181b;
+  --wm-hairline: rgba(255, 255, 255, 0.075);
+  --wm-hairline-strong: rgba(255, 255, 255, 0.15);
+  --wm-ink: #f4f2ec;
+  --wm-ink-secondary: #c7c3b8;
+  --wm-ink-muted: #96938b;
+  --wm-accent: #d4af37;
+  --wm-focal: #e5c158;
+  --font-admin-sans: var(--font-body);
+  --font-admin-mono: var(--font-mono);
 }
 
 .wm-admin {
@@ -708,3 +708,14 @@ body.intro-on * {
   }
 }
 
+
+
+/* WEST-inspired Willow administration treatment: restrained black and gold. */
+.wm-admin { background-color:var(--wm-canvas); background-image:radial-gradient(900px 460px at 14% -10%,rgba(212,175,55,.055),transparent 62%),radial-gradient(720px 420px at 100% 0%,rgba(255,255,255,.018),transparent 58%); color:var(--wm-ink); font-family:var(--font-admin-sans); -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; }
+.wm-admin .wm-surface-panel,.wm-admin .wm-surface-inset { border-radius:7px; box-shadow:none; }
+.wm-admin .wm-surface-panel { background:#0c0c0f; border-color:rgba(255,255,255,.075); }
+.wm-admin .wm-surface-inset { background:#111114; border-color:rgba(255,255,255,.075); }
+.wm-admin button,.wm-admin a,.wm-admin input,.wm-admin select,.wm-admin textarea { -webkit-tap-highlight-color:transparent; }
+.wm-auth-page { background:#070708; background-image:none; }
+.wm-auth-page input:focus-visible { outline:1px solid rgba(212,175,55,.85); outline-offset:1px; }
+@media(max-width:1023px){.wm-auth-page{min-height:100dvh;}}
