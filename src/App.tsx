@@ -22,6 +22,7 @@ import { ToastViewport } from './components/admin/ToastViewport';
 import { AdminPortal } from './components/admin/portals/AdminPortal';
 import { DepartmentHeadPortal } from './components/admin/portals/DepartmentHeadPortal';
 import { SuperAdminPortal } from './components/admin/portals/SuperAdminPortal';
+import { ExecutiveBoardPortal } from './components/admin/portals/ExecutiveBoardPortal';
 import { AdminStoreProvider, useAdminStore } from './context/AdminStoreContext';
 import { canAccessPortal, getPortalHomeRoute } from './utils/adminPermissions';
 import type { PortalKey } from './types/admin';
@@ -94,22 +95,28 @@ function AdminRouter({ pathname, navigate }: { pathname: string; navigate: (path
   const requestedPortal: PortalKey | null =
     pathname === '/super-admin' || pathname.startsWith('/super-admin/') ? 'super_admin' :
     pathname === '/admin' || pathname.startsWith('/admin/') ? 'admin' :
-    pathname === '/head' || pathname.startsWith('/head/') ? 'department_head' : null;
+    pathname === '/head' || pathname.startsWith('/head/') ? 'department_head' :
+    pathname === '/eb' || pathname.startsWith('/eb/') ? 'executive_board' : null;
+  const loginPortal: PortalKey | undefined = pathname === '/admin-login' ? 'admin' : pathname === '/eb-login' ? 'executive_board' : undefined;
 
   useEffect(() => {
     if (!authReady) return;
     if (!currentUser && requestedPortal) {
-      navigate('/portal');
+      navigate(requestedPortal === 'executive_board' ? '/eb-login' : '/admin-login');
       return;
     }
-    if (currentUser && !requestedPortal) {
+    if (currentUser && loginPortal) {
+      navigate(getPortalHomeRoute(currentUser.role));
+      return;
+    }
+    if (currentUser && !requestedPortal && !loginPortal) {
       navigate(getPortalHomeRoute(currentUser.role));
       return;
     }
     if (currentUser && requestedPortal && !canAccessPortal(currentUser, requestedPortal)) {
       navigate(getPortalHomeRoute(currentUser.role));
     }
-  }, [authReady, currentUser, requestedPortal, navigate]);
+  }, [authReady, currentUser, requestedPortal, loginPortal, navigate]);
 
   if (!authReady) {
     return (
@@ -133,8 +140,10 @@ function AdminRouter({ pathname, navigate }: { pathname: string; navigate: (path
         <AdminPortal pathname={pathname} onNavigate={navigate} />
       ) : requestedPortal === 'department_head' ? (
         <DepartmentHeadPortal pathname={pathname} onNavigate={navigate} />
+      ) : requestedPortal === 'executive_board' ? (
+        <ExecutiveBoardPortal pathname={pathname} onNavigate={navigate} />
       ) : (
-        <PortalAuthView onNavigate={navigate} />
+        <PortalAuthView portal={loginPortal} onNavigate={navigate} />
       )}
       <ToastViewport />
     </>
