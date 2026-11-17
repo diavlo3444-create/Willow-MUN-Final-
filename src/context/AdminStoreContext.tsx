@@ -271,7 +271,7 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let active = true;
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (active) void loadAuthenticatedUser(session?.user ?? null);
+      if (active) window.setTimeout(() => { if (active) void loadAuthenticatedUser(session?.user ?? null); }, 0);
     });
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       if (active) void loadAuthenticatedUser(session?.user ?? null);
