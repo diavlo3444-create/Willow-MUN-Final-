@@ -238,7 +238,7 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
       password: undefined,
       role,
       roleDefinitionId: role,
-      title: profile.title || (role === 'super_admin' ? 'Super Admin' : role === 'admin' ? 'Administrator' : 'Department Head'),
+      title: profile.title || (role === 'super_admin' ? 'Super Admin' : role === 'admin' ? 'Administrator' : role === 'executive_board' ? 'Executive Board' : 'Department Head'),
       departmentId: profile.department_id ?? null,
       division: profile.division ?? null,
       avatarUrl: profile.avatar_url ?? null,
@@ -248,6 +248,8 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
       invitationToken: null,
       lastPasswordResetAt: null,
       permissions: ROLE_DEFAULT_PERMISSIONS[role],
+      ebPermissions: profile.eb_permissions ?? {},
+      ebRank: profile.eb_rank ?? 'member',
       createdAt: authUser.created_at ?? new Date().toISOString(),
       lastActiveAt: new Date().toISOString(),
     };
@@ -256,7 +258,7 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
   const loadAuthenticatedUser = useCallback(async (authUser: any) => {
     if (!authUser) { setCurrentUserId(null); setAuthReady(true); return; }
     const { data: profile, error } = await supabase.from('wm_profiles')
-      .select('user_id, full_name, role, department_id, is_active, title, division, avatar_url')
+      .select('user_id, full_name, role, department_id, is_active, title, division, avatar_url, eb_permissions, eb_rank')
       .eq('user_id', authUser.id).maybeSingle();
     if (error || !profile || profile.is_active !== true) {
       setCurrentUserId(null); setAuthReady(true); await supabase.auth.signOut(); return;
