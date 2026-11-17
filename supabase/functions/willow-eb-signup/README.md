@@ -1,0 +1,1 @@
+The willow-eb-signup Supabase Edge Function validates the submitted email against the private wm_eb_signup_allowlist, claims one roster entry, creates the Auth user, and provisions the matching executive_board profile. The deployed function source is maintained in Supabase until copied into this repository.
