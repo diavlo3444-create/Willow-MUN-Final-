@@ -223,7 +223,31 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
   );
 
   const refreshSnapshot = useCallback(() => {
-    setData(conferenceDataService.getSnapshot());
+    setData((previous) => ({
+      ...conferenceDataService.getSnapshot(),
+      users: previous.users,
+      departments: previous.departments,
+    }));
+  }, []);
+
+  const loadLiveDepartments = useCallback(async (): Promise<Department[]> => {
+    const { data: rows, error } = await supabase.from('wm_departments')
+      .select('id,slug,name,description,cluster,registration_open,capacity,positions,instructions,updated_at')
+      .order('name');
+    if (error) throw error;
+    return (rows ?? []).map((row: any) => ({
+      id: row.id,
+      slug: row.slug,
+      name: row.name,
+      description: row.description ?? '',
+      cluster: row.cluster as Department['cluster'],
+      headUserIds: [],
+      registrationOpen: row.registration_open === true,
+      capacity: row.capacity ?? 0,
+      positions: Array.isArray(row.positions) ? row.positions : [],
+      instructions: row.instructions ?? '',
+      updatedAt: row.updated_at,
+    }));
   }, []);
 
   const userFromProfile = useCallback((profile: any, authUser: any): AdminUser => {
@@ -264,9 +288,15 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
       setCurrentUserId(null); setAuthReady(true); await supabase.auth.signOut(); return;
     }
     const user = userFromProfile(profile, authUser);
-    setData((prev) => ({ ...prev, users: [...prev.users.filter((u) => u.id !== user.id), user] }));
+    try {
+      const departments = await loadLiveDepartments();
+      setData((prev) => ({ ...prev, users: [...prev.users.filter((u) => u.id !== user.id), user], departments }));
+    } catch (departmentError) {
+      console.error('Could not load Willow departments:', departmentError);
+      setData((prev) => ({ ...prev, users: [...prev.users.filter((u) => u.id !== user.id), user] }));
+    }
     setCurrentUserId(user.id); setAuthReady(true);
-  }, [userFromProfile]);
+  }, [userFromProfile, loadLiveDepartments]);
 
   useEffect(() => {
     let active = true;
@@ -297,11 +327,12 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
       if (expectedPortal === 'admin' && user.role !== 'admin' && user.role !== 'super_admin') {
         await supabase.auth.signOut(); return { ok: false, error: 'This account does not have access to the Admin portal.' };
       }
-      setData((prev) => ({ ...prev, users: [...prev.users.filter((u) => u.id !== user.id), user] }));
+      const departments = await loadLiveDepartments();
+      setData((prev) => ({ ...prev, users: [...prev.users.filter((u) => u.id !== user.id), user], departments }));
       setCurrentUserId(user.id); setTestModeHeadUserId(null); setAuthReady(true);
       pushToast({ tone: 'success', title: `Signed in as ${user.fullName}`, description: user.title });
       return { ok: true, data: user };
-    }, [pushToast, userFromProfile],
+    }, [pushToast, userFromProfile, loadLiveDepartments],
   );
 
   const signInAsDemoUser = useCallback(
