@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { AboutSection } from './components/AboutSection';
 import { AnnouncementBar } from './components/AnnouncementBar';
 import { ApplySection } from './components/ApplySection';
@@ -17,8 +17,15 @@ import {
   WillowIntroEmblem,
   type WillowIntroEmblemHandle,
 } from './components/WillowIntroEmblem';
+import { PortalAuthView } from './components/admin/PortalAuthView';
+import { ToastViewport } from './components/admin/ToastViewport';
+import { AdminPortal } from './components/admin/portals/AdminPortal';
+import { DepartmentHeadPortal } from './components/admin/portals/DepartmentHeadPortal';
+import { SuperAdminPortal } from './components/admin/portals/SuperAdminPortal';
+import { AdminStoreProvider } from './context/AdminStoreContext';
+import { isAdminRoute, usePathname } from './utils/router';
 
-export default function App() {
+function PublicWebsite() {
   const [showAnnouncement, setShowAnnouncement] = useState(true);
   const [introPlaying, setIntroPlaying] = useState(true);
   const [motionPaused, setMotionPaused] = useState(false);
@@ -77,5 +84,35 @@ export default function App() {
         onDismiss={() => setShowAnnouncement(false)}
       />
     </div>
+  );
+}
+
+export default function App() {
+  const [pathname, navigate] = usePathname();
+  const inAdminPortal = isAdminRoute(pathname);
+
+  useLayoutEffect(() => {
+    if (inAdminPortal) {
+      document.body.classList.remove('intro-on', 'intro-transitioning');
+    }
+  }, [inAdminPortal]);
+
+  if (!inAdminPortal) {
+    return <PublicWebsite />;
+  }
+
+  return (
+    <AdminStoreProvider>
+      {pathname === '/super-admin' || pathname.startsWith('/super-admin/') ? (
+        <SuperAdminPortal pathname={pathname} onNavigate={navigate} />
+      ) : pathname === '/admin' || pathname.startsWith('/admin/') ? (
+        <AdminPortal pathname={pathname} onNavigate={navigate} />
+      ) : pathname === '/head' || pathname.startsWith('/head/') ? (
+        <DepartmentHeadPortal pathname={pathname} onNavigate={navigate} />
+      ) : (
+        <PortalAuthView onNavigate={navigate} />
+      )}
+      <ToastViewport />
+    </AdminStoreProvider>
   );
 }

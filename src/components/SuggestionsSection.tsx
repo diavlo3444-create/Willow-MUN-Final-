@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { CONFERENCE_DATA } from '../data/conference';
+import { conferenceDataService } from '../services/mockDataService';
 import { InteractiveCard } from './InteractiveCard';
 import { RevealSection, SectionHeading } from './RevealSection';
 
@@ -32,6 +33,13 @@ export function SuggestionsSection() {
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!name.trim() || !message.trim()) return;
+
+    conferenceDataService.submitPublicInquiry({
+      name: name.trim(),
+      email: email.trim() || 'no-email@visitor.willowmun.org',
+      type,
+      message: message.trim(),
+    });
 
     setJustSent(true);
     setSubmittedNotice(true);

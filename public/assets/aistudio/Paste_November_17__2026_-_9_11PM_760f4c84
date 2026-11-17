@@ -1,0 +1,1115 @@
+# WILLOW MUN — COMPLETE ADMINISTRATION SYSTEM & CONFERENCE MANAGEMENT PLATFORM
+
+I want you to completely develop and expand the administrative infrastructure of Willow MUN.
+
+Live website:
+https://willow-mun.vercel.app/
+
+First, inspect the entire existing project and the live website. Understand its design, pages, navigation, committees, conference information, registration forms, images, content, and existing functionality.
+
+I want to transform the administrative system into a complete conference management platform with comprehensive website management capabilities.
+
+This is not a basic dashboard project. I want a professionally developed system that gives authorized administrators control over practically every aspect of the conference.
+
+IMPORTANT:
+- Inspect the existing codebase before making changes.
+- Preserve the existing public website and its branding.
+- Do not unnecessarily redesign the public-facing website.
+- Do not delete existing functionality.
+- Do not connect to, modify, or migrate Supabase yet.
+- Build the complete frontend and prepare it for later Supabase integration.
+- Use realistic mock data for development.
+- Implement actual working frontend interactions, not decorative buttons.
+- Do not leave incomplete pages or placeholder functionality.
+
+---
+
+# 1. FINAL ROLE STRUCTURE
+
+There must ONLY be three roles:
+
+1. Super Admin
+2. Admin
+3. Department Head
+
+Completely remove the IT role and every separate IT administrative environment.
+
+Remove:
+- IT login.
+- IT dashboard.
+- IT account type.
+- IT navigation.
+- IT role assignments.
+- IT-specific permission categories.
+
+All technical management and privileged operational tools must be incorporated into the main administrative system.
+
+## SUPER ADMIN
+
+Super Admins have unrestricted access to the entire platform.
+
+They can:
+- Manage every aspect of the conference.
+- Manage every application.
+- Manage all departments.
+- Manage all website content.
+- Manage all conference operations.
+- Manage administrator accounts.
+- Manage department head accounts.
+- Manage account permissions.
+- Manage registration.
+- Manage emails.
+- Manage reports.
+- Manage system settings.
+- Create, edit and delete role definitions.
+- Configure global permissions.
+- Access all administrative tools.
+
+## ADMIN
+
+Admins must have practically the same administrative capabilities as Super Admins.
+
+Their dashboard should contain almost all the same sections, tools, interfaces, and management capabilities.
+
+Admins can:
+- Manage all applications.
+- Accept and reject applicants.
+- Manage committees.
+- Manage the secretariat.
+- Manage the executive board.
+- Edit the entire public website.
+- Create and delete website pages.
+- Manage images and media.
+- Manage sponsors.
+- Manage announcements.
+- Manage departments and department operations.
+- Manage registration.
+- Manage forms and questions.
+- Manage email templates and authorized email operations.
+- Manage QR attendance.
+- Manage staff assignments and shifts.
+- Manage reports and analytics.
+- Manage conference settings.
+- Publish website changes.
+- Access activity logs.
+- Access all other operational features.
+
+However, there is ONE major restriction:
+
+**ADMINS CANNOT MANAGE USER ACCOUNTS OR ROLE DEFINITIONS.**
+
+They cannot create, edit, delete, suspend, reactivate, invite, or reset accounts.
+
+They cannot change user emails, passwords, account roles, or department assignments.
+
+They cannot create, edit, or delete role definitions.
+
+They can view the administrator and department head directories in read-only mode.
+
+## DEPARTMENT HEAD
+
+Department Heads have access to their assigned department only.
+
+They can:
+- View department applications.
+- Review applicant information.
+- View uploaded files.
+- Submit recommendations.
+- Add internal notes.
+- Manage authorized department records.
+- Create and manage department tasks.
+- Organize department teams.
+- Manage shifts and rosters where authorized.
+- View department statistics.
+- Access their department workspace.
+
+They must never access another department's confidential records.
+
+## CRITICAL ACCOUNT SECURITY
+
+ONLY Super Admins can:
+- Create administrator accounts.
+- Create department head accounts.
+- Edit account information.
+- Delete accounts.
+- Change account emails.
+- Change account roles.
+- Assign departments.
+- Suspend accounts.
+- Reactivate accounts.
+- Reset passwords.
+- Generate invitations.
+- Revoke invitations.
+- Create, edit and delete role definitions.
+- Configure global permission definitions.
+
+These restrictions must apply throughout the entire system.
+
+Do not simply hide buttons from Admins. Backend authorization must eventually enforce these restrictions too.
+
+Do not allow Admins to promote themselves or anyone else to Super Admin.
+
+Super Admin account operations must include confirmation dialogs and audit logs.
+
+---
+
+# 2. SUPER ADMIN AND ADMIN DASHBOARDS
+
+Create a polished administrative dashboard.
+
+Both roles should use essentially the same dashboard layout.
+
+The only significant difference should be that Super Admins see account management and role management tools that ordinary Admins cannot use.
+
+## Overview
+
+Include:
+- Total applications.
+- Total registered applicants.
+- Pending applications.
+- Accepted applications.
+- Rejected applications.
+- Waitlisted applications.
+- Applications by department.
+- Application trends.
+- Department performance.
+- Registration statistics.
+- Recent applications.
+- Recent administrative activity.
+- Pending tasks.
+- Website activity.
+- Quick actions.
+- System notifications.
+
+Use real underlying data structures rather than fabricated statistics.
+
+Include charts and a 14-day application submission timeline.
+
+## Dashboard interactions
+
+- Click statistics to open filtered application lists.
+- Click departments to open their management pages.
+- Click recent applications to view applicant profiles.
+- Click activity entries to inspect the relevant record.
+- Provide useful shortcuts to frequently used actions.
+
+---
+
+# 3. COMPLETE WEBSITE CONTENT MANAGEMENT SYSTEM
+
+THIS IS ONE OF THE MOST IMPORTANT PARTS.
+
+I want Admins and Super Admins to control practically the entire public-facing Willow MUN website through their dashboards.
+
+They should not need to edit source code for routine website changes.
+
+Inspect the actual website and build management interfaces for its existing content.
+
+Create a dedicated Website Management area.
+
+## A. Page Management
+
+Allow authorized users to:
+- View all website pages.
+- Create pages.
+- Edit pages.
+- Delete pages.
+- Duplicate pages.
+- Change page titles.
+- Change descriptions.
+- Edit URLs and slugs.
+- Publish and unpublish pages.
+- Reorder pages.
+- Preview pages.
+- Manage page visibility.
+
+## B. Section Management
+
+For every existing website section, allow administrators to:
+- Edit headings.
+- Edit paragraphs.
+- Replace images.
+- Upload images.
+- Remove images.
+- Change backgrounds.
+- Edit buttons.
+- Change links.
+- Reorder sections.
+- Add sections.
+- Delete sections.
+- Hide or publish sections.
+
+Create a visual editing experience so administrators understand which public-facing section they are changing.
+
+## C. Committee Management
+
+Build a comprehensive committee management system.
+
+Administrators must be able to:
+- Add committees.
+- Edit committees.
+- Delete committees.
+- Change committee names.
+- Change descriptions.
+- Upload logos.
+- Replace committee images.
+- Edit topics.
+- Manage committee information.
+- Assign chairs.
+- Assign vice chairs.
+- Reorder committees.
+- Publish or hide committees.
+
+Committee changes must eventually reflect automatically on the public website.
+
+## D. Secretariat Management
+
+Allow administrators to:
+- Add members.
+- Edit members.
+- Remove members.
+- Edit names.
+- Change titles and positions.
+- Upload profile pictures.
+- Replace photographs.
+- Edit biographies.
+- Organize members into categories.
+- Reorder members.
+- Control visibility.
+
+## E. Executive Board Management
+
+Allow administrators to:
+- Add members.
+- Edit members.
+- Remove members.
+- Change positions.
+- Upload photographs.
+- Edit biographies.
+- Reorder members.
+- Organize board categories.
+
+## F. Media Library
+
+Build a centralized media library.
+
+Include:
+- Image uploads.
+- Image previews.
+- File replacement.
+- File deletion.
+- Search.
+- Folders.
+- File renaming.
+- Image usage information.
+- Gallery management.
+- Banner and background management.
+
+## G. Sponsors
+
+Allow administrators to:
+- Add sponsors.
+- Edit sponsor information.
+- Upload logos.
+- Add sponsor links.
+- Delete sponsors.
+- Reorder sponsors.
+- Control visibility.
+
+## H. Announcements
+
+Include:
+- Create announcements.
+- Edit announcements.
+- Delete announcements.
+- Add images.
+- Set publication dates.
+- Publish and unpublish.
+- Control visibility.
+
+## I. Navigation
+
+Allow administrators to:
+- Add navigation items.
+- Edit navigation items.
+- Remove navigation items.
+- Reorder links.
+- Create dropdowns.
+- Change link destinations.
+- Control visibility.
+
+## J. Footer
+
+Allow administrators to edit:
+- Footer text.
+- Contact details.
+- Social media links.
+- Navigation links.
+- Copyright information.
+
+## K. SEO
+
+Include:
+- Page titles.
+- Meta descriptions.
+- Social sharing images.
+- Page slugs.
+- Indexing preferences.
+- Metadata previews.
+
+## L. Website Preview
+
+Provide:
+- Desktop preview.
+- Tablet preview.
+- Mobile preview.
+- Individual page preview.
+- Draft preview.
+
+## M. Website Version History
+
+Include:
+- Previous published versions.
+- Editor identity.
+- Publication dates.
+- Version previews.
+- Restore previous versions.
+- Confirmation before restoring.
+
+## N. Draft and Publishing System
+
+Use the following workflow:
+
+1. Admin edits website content.
+2. Changes are saved as a draft.
+3. Admin previews the changes.
+4. Admin publishes the changes.
+5. The public website displays the published version.
+
+Do not automatically publish changes while editing.
+
+---
+
+# 4. COMPLETE APPLICATION MANAGEMENT
+
+Create a comprehensive application management center.
+
+Include all actual Willow MUN application categories, inspecting the existing project to identify them.
+
+Support:
+- Delegate applications.
+- Staff applications.
+- Security applications.
+- Media applications.
+- Volunteer applications.
+- Any other existing categories.
+
+## Application table
+
+Display:
+- Applicant name.
+- Email.
+- Application ID.
+- Department.
+- Position.
+- Submission date.
+- Application status.
+- Available actions.
+
+## Application statuses
+
+- Pending.
+- Accepted.
+- Rejected.
+- Waitlisted.
+- Withdrawn.
+
+## Application management capabilities
+
+- View all applications.
+- Open individual applications.
+- View all submitted answers.
+- View applicant information.
+- View uploaded photographs.
+- View uploaded documents.
+- Accept applicants.
+- Reject applicants.
+- Change statuses.
+- Add internal notes.
+- Search by name.
+- Search by email.
+- Search by ID.
+- Filter by department.
+- Filter by position.
+- Filter by status.
+- Filter by submission date.
+- Sort records.
+- Paginate records.
+- Select multiple applications.
+- Perform bulk actions.
+- Export filtered applications.
+
+## Applicant profiles
+
+Opening an application should display a complete applicant dossier.
+
+Organize all information into readable sections.
+
+Do not truncate answers or omit submitted files.
+
+Include application history and internal notes.
+
+## Department recommendations
+
+Implement a two-stage decision workflow.
+
+Stage one:
+Department Head reviews an application and submits an approval or rejection recommendation.
+
+Stage two:
+Admin or Super Admin reviews the recommendation and makes the final decision.
+
+Record:
+- Recommendation.
+- Head notes.
+- Recommendation date.
+- Final decision.
+- Administrative notes.
+- Final decision date.
+
+Allow administrators to bulk approve applications recommended for acceptance.
+
+Never automatically accept an applicant based solely on a department head recommendation.
+
+## Bulk signup links
+
+Create a tool for generating account signup links for accepted applicants where account creation is required.
+
+Include:
+- Individual link generation.
+- Bulk link generation.
+- Copy individual links.
+- Copy all links.
+- View invitation status.
+- Revoke unused links.
+- Regenerate links.
+
+Do not automatically send emails without confirmation.
+
+---
+
+# 5. APPLICATION FORM BUILDER
+
+Create a full form management system.
+
+Administrators can:
+- Create forms.
+- Edit forms.
+- Delete forms.
+- Add questions.
+- Remove questions.
+- Reorder questions.
+- Configure required fields.
+- Create short-text questions.
+- Create long-text questions.
+- Create multiple-choice questions.
+- Create dropdowns.
+- Create file-upload questions.
+- Create conditional questions.
+- Preview forms.
+- Open and close forms.
+
+Preserve existing application submissions when forms are modified.
+
+Do not allow changes to questions to accidentally destroy historical applicant answers.
+
+---
+
+# 6. COMPLETE ACCOUNT MANAGEMENT
+
+This section is EXCLUSIVELY for Super Admins.
+
+Admins can only view account directories.
+
+Create two separate account-management sections:
+
+## Administrator Accounts
+
+Super Admins can:
+- Create administrators.
+- Edit administrator information.
+- Delete administrators.
+- Suspend administrators.
+- Reactivate administrators.
+- Change account emails.
+- Reset passwords.
+- Generate invitation links.
+- Revoke invitations.
+- View account status.
+- View account creation dates.
+- View account activity.
+
+## Department Head Accounts
+
+Super Admins can:
+- Create department heads.
+- Edit their information.
+- Delete department heads.
+- Assign departments.
+- Change department assignments.
+- Assign divisions.
+- Suspend and reactivate accounts.
+- Reset passwords.
+- Generate password-setup invitations.
+- Revoke invitations.
+- View account status.
+- View account activity.
+
+When creating accounts, include:
+- Full name.
+- Email.
+- Existing permitted role.
+- Department.
+- Division where applicable.
+- Authentication and invitation status.
+
+Prevent duplicate accounts.
+
+If an account is successfully created but department assignment fails, provide a retry mechanism that reuses the existing account.
+
+## Account security
+
+Only Super Admins can execute these operations.
+
+This must eventually be enforced through secure backend functions and database authorization.
+
+Never expose privileged API keys in frontend code.
+
+---
+
+# 7. ADVANCED DEPARTMENT OPERATIONS
+
+Department Heads need complete working spaces for managing their departments.
+
+Create reusable workspace modules.
+
+## Workspace sections
+
+- Tasks.
+- Campaigns.
+- Coverage planning.
+- Incident records.
+- Staff rosters.
+- Shift management.
+- Sponsor tasks.
+- Venue planning.
+- Run of show.
+- Directives.
+- Support tickets.
+- Department announcements.
+- Internal notes.
+
+Each module should support:
+- Create.
+- Edit.
+- Delete.
+- Search.
+- Filter.
+- Status.
+- Priority.
+- Deadlines.
+- Assigned personnel.
+- Internal notes.
+
+## Team management
+
+Allow authorized users to:
+- Create team groups.
+- Create custom staff positions.
+- Assign approved applicants to groups.
+- Assign supervisors.
+- Assign responsibilities.
+- Organize personnel.
+- Reassign members.
+- Manage team structures.
+
+## Shift management
+
+Include:
+- Shift creation.
+- Start and end times.
+- Assigned personnel.
+- Duty descriptions.
+- Locations.
+- Supervisors.
+- Shift status.
+- Coverage information.
+- Shift changes.
+- Roster management.
+
+## Deployment planner
+
+Create a visual deployment system for assigning personnel to:
+- Duties.
+- Stations.
+- Shifts.
+- Locations.
+- Sections.
+- Supervisors.
+
+Include a deployment roster with clear assignment information.
+
+---
+
+# 8. QR PASSES AND VENUE ATTENDANCE
+
+Build a complete QR-based attendance system.
+
+## Personal passes
+
+- Generate unique QR passes.
+- Display user names.
+- Display assigned roles.
+- Display relevant department information.
+- Provide a personal pass page.
+
+## Security scanner
+
+Create an authorized scanner interface.
+
+Include:
+- QR scanning.
+- Verification results.
+- Valid and invalid states.
+- Duplicate scan detection.
+- Entry timestamps.
+- Attendance records.
+- Searchable check-in history.
+
+## Venue attendance dashboard
+
+Display:
+- Currently checked-in people.
+- Names.
+- Departments.
+- Roles.
+- Last scan times.
+- Attendance totals.
+
+Restrict scanner access to authorized users.
+
+---
+
+# 9. EMAIL AND COMMUNICATION CENTER
+
+Create a shared email management system.
+
+Include:
+- Official email connection status.
+- Connection management.
+- Email templates.
+- Acceptance emails.
+- Rejection emails.
+- General announcements.
+- Individual emails.
+- Bulk emails.
+- Email previews.
+- Email history.
+- Sending status.
+
+Admins and Super Admins can access authorized email operations.
+
+Never expose email credentials or API secrets in frontend code.
+
+## Messages and inquiries
+
+Create an inquiry management center.
+
+Allow administrators to:
+- View contact submissions.
+- Search messages.
+- Filter messages.
+- Open individual inquiries.
+- Add internal notes.
+- Mark inquiries as resolved.
+- Track inquiry statuses.
+- View submission dates.
+
+## Notifications
+
+Include:
+- New application notifications.
+- Application status notifications.
+- Department notifications.
+- Website publishing notifications.
+- Administrative notifications.
+- System alerts.
+
+---
+
+# 10. REGISTRATION CONTROL CENTER
+
+Create a complete registration settings area.
+
+Include:
+- Master registration switch.
+- Individual department registration switches.
+- Registration deadlines.
+- Registration windows.
+- Application availability.
+- Registration statistics.
+- Submission monitoring.
+
+Allow administrators to open and close registration for individual departments without affecting other departments.
+
+Changes must eventually reflect on the public registration forms.
+
+---
+
+# 11. CALENDAR AND CONFERENCE MANAGEMENT
+
+Create a conference calendar.
+
+Allow authorized users to:
+- Create events.
+- Edit events.
+- Delete events.
+- Set dates and times.
+- Add descriptions.
+- Set locations.
+- Control visibility.
+
+Also include management of:
+- Conference information.
+- Conference dates.
+- Organizer details.
+- Contact information.
+- Registration fees where applicable.
+- Documents.
+- FAQs.
+- Gallery.
+- Terms and conditions.
+- Privacy policy.
+
+---
+
+# 12. REPORTS AND ANALYTICS
+
+Create a dedicated reporting dashboard.
+
+Include:
+- Total registrations.
+- Applications by department.
+- Applications by category.
+- Approval rates.
+- Rejection rates.
+- Pending applications.
+- Submission trends.
+- Department workload.
+- Staff allocation.
+- Registration activity.
+
+Include:
+- Date range selection.
+- Department filters.
+- Application category filters.
+- CSV summary exports.
+- Full application exports.
+- Department reports.
+- Registration reports.
+
+Use actual data from the configured data source. Do not fabricate statistics.
+
+---
+
+# 13. ACTIVITY LOGS AND AUDITING
+
+Create a comprehensive audit system.
+
+Record:
+- Account creation.
+- Account deletion.
+- Account suspension.
+- Role changes.
+- Department assignments.
+- Application decisions.
+- Website edits.
+- Website publishing.
+- Committee changes.
+- Registration changes.
+- Email operations.
+- QR attendance actions.
+- Operational changes.
+
+Every record should contain:
+- User who performed the action.
+- Action type.
+- Affected record.
+- Date and time.
+- Relevant details.
+
+Provide search and filtering.
+
+Admins and Super Admins can review activity logs.
+
+---
+
+# 14. SUPER ADMIN TESTING TOOLS
+
+Incorporate advanced administrative testing tools into the Super Admin dashboard.
+
+## Department access testing
+
+Allow Super Admins to preview the system as a selected department head.
+
+Include:
+- Clear test-mode indicator.
+- Isolated test sessions.
+- No duplicate account creation.
+- Audit logging.
+- Protection against accidental modification of live records.
+
+## System monitoring
+
+Include:
+- Website status.
+- Registration system status.
+- Error monitoring.
+- Technical configuration.
+- System activity.
+- Administrative diagnostics.
+
+These tools belong in the main administration system.
+
+There must be no separate IT role.
+
+---
+
+# 15. FINAL NAVIGATION STRUCTURE
+
+Use a unified navigation system.
+
+## Overview
+- Dashboard.
+
+## Applications
+- All Applications.
+- Delegates.
+- Staff.
+- Department Recommendations.
+- Application Forms.
+
+## Conference Management
+- Committees.
+- Secretariat.
+- Executive Board.
+- Departments.
+- Sponsors.
+- Schedule.
+- Announcements.
+- Documents.
+- FAQs.
+- Gallery.
+
+## Operations
+- Team Management.
+- Groups.
+- Shifts.
+- Deployment.
+- Rosters.
+- Venue Attendance.
+- QR Management.
+
+## Website
+- Website Editor.
+- Pages.
+- Sections.
+- Media Library.
+- Navigation.
+- SEO.
+- Version History.
+
+## Communication
+- Email Center.
+- Messages.
+- Notifications.
+
+## Administration
+- Registration Controls.
+- Statistics and Reports.
+- Activity Logs.
+- Conference Settings.
+- System Monitoring.
+
+## Super Admin Only
+- Administrator Accounts.
+- Department Head Accounts.
+- Role Management.
+- Permission Definitions.
+
+Admins should see account directories in read-only mode but must not see or execute account-management actions.
+
+Department Heads should have a separate `/head` portal with department-specific navigation.
+
+---
+
+# 16. DESIGN AND USER EXPERIENCE
+
+The entire administrative platform must look professionally developed.
+
+Use a consistent design system across Super Admin and Admin.
+
+The two dashboards should look almost identical.
+
+The difference should be based on permissions, not completely different layouts.
+
+Include:
+- Persistent sidebar.
+- Expandable navigation.
+- Top navigation.
+- Page titles.
+- Search.
+- User profile.
+- Notifications.
+- Statistics.
+- Professional tables.
+- Detailed application views.
+- Confirmation dialogs.
+- Modals.
+- Dropdown menus.
+- Toast notifications.
+- Loading states.
+- Empty states.
+- Responsive desktop layouts.
+- Responsive mobile layouts.
+
+Pay attention to:
+- Typography.
+- Spacing.
+- Alignment.
+- Sidebar proportions.
+- Table density.
+- Dashboard hierarchy.
+- Consistent button styles.
+- Modal behavior.
+
+Avoid:
+- Generic AI dashboard aesthetics.
+- Excessive gradients.
+- Random glowing effects.
+- Oversized cards.
+- Excessive rounded containers.
+- Unnecessary decorative elements.
+- Repetitive layouts.
+
+Use Willow MUN's existing branding and visual identity.
+
+The result should feel like a real, professionally engineered conference management platform.
+
+---
+
+# 17. TECHNICAL ARCHITECTURE AND FUTURE SUPABASE INTEGRATION
+
+Do not connect or modify Supabase yet.
+
+Prepare the application for future integration.
+
+Requirements:
+
+- Centralized role definitions.
+- Centralized permission definitions.
+- Reusable dashboard components.
+- Separate portal layouts.
+- Organized routing.
+- Reusable application management components.
+- Reusable website CMS components.
+- Reusable data services.
+- Consistent database-ready data structures.
+- Isolated mock data.
+- Separate frontend and backend logic.
+- Clear authentication interfaces.
+
+Create structured content models for:
+- Pages.
+- Sections.
+- Committees.
+- Secretariat members.
+- Executive Board members.
+- Sponsors.
+- Announcements.
+- Media.
+- FAQs.
+- Events.
+- Navigation.
+- Website settings.
+
+Do not make website editing dependent on changing hardcoded JSX.
+
+Prepare the content management system so the public website can eventually render dynamically from Supabase.
+
+## Security requirements
+
+When Supabase is integrated:
+
+- Enforce role restrictions through database policies.
+- Use secure server-side functions for privileged account operations.
+- Never expose service-role keys in the browser.
+- Prevent unauthorized access to other departments.
+- Prevent Admins from managing accounts.
+- Prevent Admins from modifying global role definitions.
+- Log important administrative actions.
+- Require confirmation for destructive operations.
+
+The frontend should clearly distinguish mock functionality from persistent backend operations.
+
+---
+
+# 18. FINAL TESTING AND EXECUTION
+
+Do not stop after building the dashboard homepage.
+
+Actually implement every section.
+
+Test the following:
+
+1. Super Admin has complete access.
+2. Admin has the same operational capabilities as Super Admin.
+3. Admin cannot create, edit, delete or manage accounts.
+4. Admin cannot modify role definitions.
+5. Super Admin can manage all accounts.
+6. Department Heads only access their assigned departments.
+7. Every navigation item works.
+8. Application management works.
+9. Website management works.
+10. Committees can be created, edited and removed.
+11. Secretariat members can be managed.
+12. Forms can be edited.
+13. Search and filters work.
+14. Bulk operations work.
+15. QR and attendance interfaces work with mock data.
+16. Department operations work.
+17. Email interfaces work with mock data.
+18. Website drafts and previews work.
+19. Version history works.
+20. Desktop and mobile layouts work.
+21. Existing public website functionality remains intact.
+
+Do not claim a feature is complete if it only has a visual interface.
+
+Do not leave dead buttons, nonfunctional navigation, or unfinished forms.
+
+# FINAL OBJECTIVE
+
+I want Willow MUN to have a complete conference management platform with extensive website editing capabilities.
+
+Super Admins control all accounts, roles, permissions and conference operations.
+
+Admins have virtually every operational capability Super Admins have, but absolutely no account-management or role-definition privileges.
+
+Department Heads have focused control over their assigned departments.
+
+There is no IT role.
+
+Every major aspect of the conference should eventually be manageable through the administration dashboard without requiring a developer to manually edit website code.
+
+Build the complete system, preserve the existing public website, and prepare everything for the next stage: full Supabase integration.

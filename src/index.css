@@ -632,3 +632,79 @@ body.intro-on * {
     opacity: 0 !important;
   }
 }
+
+/* ============================================================================
+   Willow MUN Administration Platform (.wm-admin) Design System Tokens & Base
+   Scoped strictly to .wm-admin so public landing page styles stay untouched.
+   ============================================================================ */
+:root {
+  --wm-canvas: #0d1108;
+  --wm-rail: #12170c;
+  --wm-surface: #171c0f;
+  --wm-inset: #1e2414;
+  --wm-overlay: #232a18;
+  --wm-hairline: rgba(237, 230, 202, 0.12);
+  --wm-hairline-strong: rgba(237, 230, 202, 0.24);
+  --wm-ink: #f1ecd4;
+  --wm-ink-secondary: #c7c1a6;
+  --wm-ink-muted: #9da388;
+  --wm-accent: #a9b47e;
+  --wm-focal: #ede6ca;
+  --font-admin-sans: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-admin-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.wm-admin {
+  font-family: var(--font-admin-sans);
+  background-color: var(--wm-canvas);
+  color: var(--wm-ink);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wm-admin .font-mono,
+.wm-admin code,
+.wm-admin pre {
+  font-family: var(--font-admin-mono);
+}
+
+.wm-admin .font-serif {
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+.wm-admin :focus-visible {
+  outline: 2px solid var(--wm-focal);
+  outline-offset: 2px;
+}
+
+.wm-surface-panel {
+  background-color: var(--wm-surface);
+  border: 1px solid var(--wm-hairline);
+  border-radius: 6px;
+}
+
+.wm-surface-inset {
+  background-color: var(--wm-inset);
+  border: 1px solid var(--wm-hairline);
+  border-radius: 6px;
+}
+
+.wm-section-kicker {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--wm-ink-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wm-admin *,
+  .wm-admin *::before,
+  .wm-admin *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+

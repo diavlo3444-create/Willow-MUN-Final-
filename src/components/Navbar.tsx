@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react';
 import { Menu, X } from 'lucide-react';
 import { CONFERENCE_DATA } from '../data/conference';
+import { usePublishedWebsite } from '../utils/usePublishedWebsite';
 import { MagneticWrap } from './MagneticWrap';
 
 /**
@@ -10,6 +11,12 @@ import { MagneticWrap } from './MagneticWrap';
  * - Highlights exactly one active nav link in view via IntersectionObserver
  */
 export function Navbar() {
+  const { published } = usePublishedWebsite();
+  const navLinks =
+    published.navigation.filter((n) => n.visible).length > 0
+      ? [...published.navigation].filter((n) => n.visible).sort((a, b) => a.order - b.order)
+      : CONFERENCE_DATA.navLinks;
+
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeHref, setActiveHref] = useState<string | null>(null);
   const [underline, setUnderline] = useState<{ left: number; width: number } | null>(null);
@@ -51,7 +58,7 @@ export function Navbar() {
 
   // Track single most-prominent section in viewport via IntersectionObserver
   useEffect(() => {
-    const sectionIds = CONFERENCE_DATA.navLinks.map((link) => link.href.slice(1));
+    const sectionIds = navLinks.map((link) => link.href.replace(/^#/, ''));
     const intersectingIds = new Set<string>();
 
     const pickActive = () => {
@@ -168,7 +175,7 @@ export function Navbar() {
             aria-label="Primary navigation"
             className="relative hidden md:flex items-center gap-7"
           >
-            {CONFERENCE_DATA.navLinks.map((link) => {
+            {navLinks.map((link) => {
               const isActive = activeHref === link.href;
               return (
                 <a
@@ -269,7 +276,7 @@ export function Navbar() {
           </div>
 
           <nav aria-label="Mobile links" className="flex flex-col gap-2 my-auto py-8">
-            {CONFERENCE_DATA.navLinks.map((link, idx) => {
+            {navLinks.map((link, idx) => {
               const isActive = activeHref === link.href;
               return (
                 <a
@@ -291,7 +298,7 @@ export function Navbar() {
           </nav>
 
           <div
-            style={{ animationDelay: `${CONFERENCE_DATA.navLinks.length * 45}ms` }}
+            style={{ animationDelay: `${navLinks.length * 45}ms` }}
             className="mun-mobile-link-enter"
           >
             <a

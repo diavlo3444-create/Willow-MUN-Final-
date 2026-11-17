@@ -1,11 +1,14 @@
 import { useState, type MouseEvent } from 'react';
 import { X } from 'lucide-react';
+import { usePublishedWebsite } from '../utils/usePublishedWebsite';
 import { TbaText } from './TbaText';
 
 interface AnnouncementBarProps {
   visible: boolean;
   onDismiss: () => void;
 }
+
+const DEFAULT_BANNER_TEXT = 'Committees Announced Soon · Willow MUN 2026 · Details TBA';
 
 /**
  * Slim dismissible announcement bar pinned to the bottom edge:
@@ -17,8 +20,13 @@ export function AnnouncementBar({
   onDismiss,
 }: AnnouncementBarProps) {
   const [isClosing, setIsClosing] = useState(false);
+  const { published } = usePublishedWebsite();
 
-  if (!visible) return null;
+  if (!visible || !published.bannerEnabled) return null;
+
+  const isDefaultText = published.bannerText === DEFAULT_BANNER_TEXT;
+  const linkHref = published.bannerLinkHref || '#committees';
+  const linkLabel = published.bannerLinkLabel || 'View Committees';
 
   const handleClose = () => {
     if (isClosing) return;
@@ -29,10 +37,12 @@ export function AnnouncementBar({
   };
 
   const handleLinkClick = (event: MouseEvent<HTMLAnchorElement>) => {
-    const target = document.querySelector('#committees');
-    if (target) {
-      event.preventDefault();
-      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (linkHref.startsWith('#')) {
+      const target = document.querySelector(linkHref);
+      if (target) {
+        event.preventDefault();
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
     }
   };
 
@@ -58,21 +68,25 @@ export function AnnouncementBar({
           <span className="text-[#a9b47e] shrink-0" aria-hidden="true">
             ✦
           </span>
-          <span className="truncate">
-            Committees Announced Soon <span aria-hidden="true">·</span> Willow MUN 2026{' '}
-            <span className="hidden sm:inline">
-              <span aria-hidden="true">·</span> Details <TbaText text="TBA" className="text-sm" />
+          {isDefaultText ? (
+            <span className="truncate">
+              Committees Announced Soon <span aria-hidden="true">·</span> Willow MUN 2026{' '}
+              <span className="hidden sm:inline">
+                <span aria-hidden="true">·</span> Details <TbaText text="TBA" className="text-sm" />
+              </span>
             </span>
-          </span>
+          ) : (
+            <span className="truncate">{published.bannerText}</span>
+          )}
           <span className="shrink-0" aria-hidden="true">
             ·
           </span>
           <a
-            href="#committees"
+            href={linkHref}
             onClick={handleLinkClick}
             className="mun-link-underline font-medium text-[#ede6ca] hover:opacity-85 transition-opacity duration-200 whitespace-nowrap shrink-0"
           >
-            View Committees
+            {linkLabel}
           </a>
         </div>
 

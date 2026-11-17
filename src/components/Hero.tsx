@@ -1,6 +1,7 @@
 import { useEffect, useRef, type MouseEvent } from 'react';
 import { CONFERENCE_DATA } from '../data/conference';
 import { useDesktopPointerEnabled } from '../utils/pointerEffects';
+import { usePublishedWebsite } from '../utils/usePublishedWebsite';
 import { MagneticWrap } from './MagneticWrap';
 import { TbaText } from './TbaText';
 
@@ -19,6 +20,12 @@ interface HeroProps {
 export function Hero({ cursorEffectsActive = true }: HeroProps) {
   const titleRef = useRef<HTMLSpanElement | null>(null);
   const desktopPointer = useDesktopPointerEnabled();
+  const { published, settings } = usePublishedWebsite();
+  const heroSec = published.sections.find((s) => s.sectionKey === 'hero');
+  const ctaHref = heroSec?.buttonHref || CONFERENCE_DATA.hero.ctaHref;
+  const ctaLabel = heroSec?.buttonLabel || CONFERENCE_DATA.hero.ctaLabel;
+  const fullTitle = heroSec?.heading || CONFERENCE_DATA.hero.fullTitle;
+  const hasPublishedCustomDates = settings.datesText !== 'TBA' || settings.venueText !== 'TBA';
 
   useEffect(() => {
     const titleEl = titleRef.current;
@@ -87,10 +94,12 @@ export function Hero({ cursorEffectsActive = true }: HeroProps) {
   }, [desktopPointer, cursorEffectsActive]);
 
   const handleCtaClick = (event: MouseEvent<HTMLAnchorElement>) => {
-    const target = document.querySelector(CONFERENCE_DATA.hero.ctaHref);
-    if (target) {
-      event.preventDefault();
-      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (ctaHref.startsWith('#')) {
+      const target = document.querySelector(ctaHref);
+      if (target) {
+        event.preventDefault();
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
     }
   };
 
@@ -102,7 +111,7 @@ export function Hero({ cursorEffectsActive = true }: HeroProps) {
     >
       <div className="chrome mun-hero-scrim relative mx-auto flex w-full max-w-[1200px] min-w-0 flex-col items-center text-center px-1 py-12 sm:px-6 sm:py-16">
         <p className="mun-hero-shadow text-[clamp(0.65rem,2.6vw,0.75rem)] font-medium uppercase tracking-[0.26em] text-[#cfc8aa] mb-5">
-          ✦ <span className="mx-2">{CONFERENCE_DATA.brand.year} Edition</span> ✦
+          ✦ <span className="mx-2">{settings.editionYear || CONFERENCE_DATA.brand.year} Edition</span> ✦
         </p>
 
         <h1 className="mun-hero-shadow font-serif uppercase text-[#ede6ca] select-none w-full flex justify-center min-w-0">
@@ -117,7 +126,7 @@ export function Hero({ cursorEffectsActive = true }: HeroProps) {
         <div className="mt-7 w-16 border-t border-[#ede6ca]/35" aria-hidden="true" />
 
         <p className="mun-hero-shadow mt-6 font-serif text-[clamp(1.1rem,3vw,1.6rem)] font-medium tracking-wide text-[#ede6ca] [text-wrap:balance]">
-          {CONFERENCE_DATA.hero.fullTitle}
+          {fullTitle}
         </p>
 
         <p className="mun-hero-shadow mt-2 text-[clamp(0.875rem,2.4vw,1rem)] text-[#cfc8aa]">
@@ -125,21 +134,35 @@ export function Hero({ cursorEffectsActive = true }: HeroProps) {
         </p>
 
         <p className="mun-hero-shadow mt-2 text-[clamp(0.7rem,2.6vw,0.875rem)] uppercase tracking-[0.18em] text-[#cfc8aa]">
-          Dates <TbaText text="TBA" className="normal-case text-base sm:text-lg" />
+          Dates{' '}
+          {hasPublishedCustomDates ? (
+            <span className="normal-case text-base sm:text-lg text-[#a9b47e]">
+              {settings.datesText}
+            </span>
+          ) : (
+            <TbaText text="TBA" className="normal-case text-base sm:text-lg" />
+          )}
           <span className="mx-2.5 text-[#ede6ca]/45" aria-hidden="true">
             ·
           </span>
-          Venue <TbaText text="TBA" className="normal-case text-base sm:text-lg" />
+          Venue{' '}
+          {hasPublishedCustomDates ? (
+            <span className="normal-case text-base sm:text-lg text-[#a9b47e]">
+              {settings.venueText}
+            </span>
+          ) : (
+            <TbaText text="TBA" className="normal-case text-base sm:text-lg" />
+          )}
         </p>
 
         <div className="mt-8">
           <MagneticWrap>
             <a
-              href={CONFERENCE_DATA.hero.ctaHref}
+              href={ctaHref}
               onClick={handleCtaClick}
               className="mun-btn-interactive inline-flex items-center justify-center min-h-[44px] rounded-full bg-[#ede6ca] px-7 py-3 text-sm font-medium text-[#232814] hover:opacity-90 whitespace-nowrap"
             >
-              {CONFERENCE_DATA.hero.ctaLabel}
+              {ctaLabel}
             </a>
           </MagneticWrap>
         </div>

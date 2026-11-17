@@ -1,0 +1,1061 @@
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
+import type {
+  ConferenceDataSnapshot,
+  CreateAccountInput,
+  CreateDepartmentInput,
+  PublicInquiryInput,
+  SendEmailPayload,
+  ServiceResult,
+  UpdateAccountInput,
+} from '../services/interfaces';
+import { conferenceDataService } from '../services/mockDataService';
+import type {
+  AdminNotification,
+  AdminUser,
+  AnnouncementRecord,
+  ApplicationFormDefinition,
+  ApplicationStatus,
+  AttendanceScanRecord,
+  CommitteeRecord,
+  ConferenceDocumentRecord,
+  ConferenceSettings,
+  Department,
+  EmailTemplate,
+  ExecutiveBoardMember,
+  FaqRecord,
+  GalleryItemRecord,
+  InquiryRecord,
+  MediaAssetRecord,
+  PermissionDefinition,
+  PermissionKey,
+  PortalKey,
+  QrPassRecord,
+  RecommendationDecision,
+  RoleDefinition,
+  ScheduleEventRecord,
+  SecretariatMember,
+  ShiftRecord,
+  SponsorRecord,
+  TeamGroupRecord,
+  TechnicalConfig,
+  ToastMessage,
+  WebsiteContentSnapshot,
+  WorkspaceRecord,
+} from '../types/admin';
+
+const SESSION_STORAGE_KEY = 'willow_mun_admin_session_uid_v3';
+const TEST_HEAD_STORAGE_KEY = 'willow_mun_test_head_uid_v3';
+
+interface AdminStoreContextValue {
+  data: ConferenceDataSnapshot;
+  currentUser: AdminUser | null;
+  testModeHeadUser: AdminUser | null;
+  toasts: ToastMessage[];
+  notifications: AdminNotification[];
+  pushToast: (toast: Omit<ToastMessage, 'id'>) => void;
+  dismissToast: (id: string) => void;
+  signInWithCredentials: (
+    email: string,
+    password: string,
+    expectedPortal?: PortalKey,
+  ) => ServiceResult<AdminUser>;
+  signInAsDemoUser: (userId: string) => ServiceResult<AdminUser>;
+  signOut: () => void;
+  enterDepartmentTestMode: (headUserId: string) => boolean;
+  exitDepartmentTestMode: () => void;
+  resetDemoData: () => void;
+  refreshSnapshot: () => void;
+
+  // Applications & Forms
+  updateApplicationStatus: (
+    applicationId: string,
+    status: ApplicationStatus,
+    decisionNotes?: string,
+  ) => boolean;
+  submitHeadRecommendation: (
+    applicationId: string,
+    recommendation: RecommendationDecision,
+    notes: string,
+  ) => boolean;
+  bulkUpdateApplicationStatus: (applicationIds: string[], status: ApplicationStatus) => boolean;
+  bulkApproveRecommended: (departmentId?: string) => boolean;
+  addApplicationNote: (applicationId: string, content: string) => boolean;
+  generateSignupLink: (applicationId: string) => boolean;
+  bulkGenerateSignupLinks: (applicationIds: string[]) => boolean;
+  revokeSignupLink: (applicationId: string) => boolean;
+  saveApplicationForm: (form: ApplicationFormDefinition) => boolean;
+  deleteApplicationForm: (formId: string) => boolean;
+
+  // Departments & Operations
+  createDepartment: (input: CreateDepartmentInput) => boolean;
+  updateDepartment: (departmentId: string, patch: Partial<Department>) => boolean;
+  assignDepartmentHead: (departmentId: string, headUserId: string, assigned: boolean) => boolean;
+  saveWorkspaceRecord: (record: WorkspaceRecord) => boolean;
+  deleteWorkspaceRecord: (recordId: string) => boolean;
+  saveTeamGroup: (group: TeamGroupRecord) => boolean;
+  deleteTeamGroup: (groupId: string) => boolean;
+  saveShift: (shift: ShiftRecord) => boolean;
+  deleteShift: (shiftId: string) => boolean;
+  saveQrPass: (pass: QrPassRecord) => boolean;
+  scanQrToken: (token: string, gateLocation: string) => ServiceResult<AttendanceScanRecord>;
+
+  // Super Admin Accounts & Roles
+  createAccount: (input: CreateAccountInput) => boolean;
+  updateAccount: (userId: string, patch: UpdateAccountInput) => boolean;
+  suspendAccount: (userId: string) => boolean;
+  reactivateAccount: (userId: string) => boolean;
+  resetAccountPassword: (userId: string, newPassword: string) => boolean;
+  manageAccountInvitation: (userId: string, action: 'generate' | 'revoke') => boolean;
+  deleteAccount: (userId: string) => boolean;
+  retryDepartmentAssignment: (userId: string, departmentId: string) => boolean;
+  saveRoleDefinition: (role: RoleDefinition) => boolean;
+  deleteRoleDefinition: (roleId: string) => boolean;
+  updatePermissionDefinition: (key: PermissionKey, patch: Partial<PermissionDefinition>) => boolean;
+
+  // Conference Content CMS
+  saveCommittee: (item: CommitteeRecord) => boolean;
+  deleteCommittee: (committeeId: string) => boolean;
+  saveSecretariatMember: (member: SecretariatMember) => boolean;
+  deleteSecretariatMember: (memberId: string) => boolean;
+  saveExecutiveBoardMember: (member: ExecutiveBoardMember) => boolean;
+  deleteExecutiveBoardMember: (memberId: string) => boolean;
+  saveSponsor: (sponsor: SponsorRecord) => boolean;
+  deleteSponsor: (sponsorId: string) => boolean;
+  saveAnnouncement: (announcement: AnnouncementRecord) => boolean;
+  deleteAnnouncement: (announcementId: string) => boolean;
+  saveScheduleEvent: (event: ScheduleEventRecord) => boolean;
+  deleteScheduleEvent: (eventId: string) => boolean;
+  saveConferenceDocument: (doc: ConferenceDocumentRecord) => boolean;
+  deleteConferenceDocument: (docId: string) => boolean;
+  saveFaq: (faq: FaqRecord) => boolean;
+  deleteFaq: (faqId: string) => boolean;
+  saveGalleryItem: (item: GalleryItemRecord) => boolean;
+  deleteGalleryItem: (itemId: string) => boolean;
+
+  // Website CMS & Media Library
+  updateWebsiteDraft: (
+    updater: (draft: WebsiteContentSnapshot) => WebsiteContentSnapshot,
+    summary: string,
+  ) => boolean;
+  publishWebsiteChanges: (summary: string) => boolean;
+  restoreWebsiteVersion: (versionId: string, publishImmediately?: boolean) => boolean;
+  saveMediaAsset: (asset: MediaAssetRecord) => boolean;
+  deleteMediaAsset: (assetId: string) => boolean;
+
+  // Communication, Inquiries, Settings & Monitoring
+  saveEmailTemplate: (template: EmailTemplate) => boolean;
+  sendEmails: (payload: SendEmailPayload) => boolean;
+  submitPublicInquiry: (input: PublicInquiryInput) => boolean;
+  updateInquiry: (inquiryId: string, patch: Partial<InquiryRecord>) => boolean;
+  updateSettings: (patch: Partial<ConferenceSettings>) => boolean;
+  resolveErrorLog: (errorId: string) => boolean;
+  updateTechnicalConfig: (patch: Partial<TechnicalConfig>) => boolean;
+  runHealthChecks: () => boolean;
+  markNotificationsRead: () => void;
+  recordSecurityViolation: (targetType: string, targetId: string, details: string) => void;
+}
+
+const AdminStoreContext = createContext<AdminStoreContextValue | null>(null);
+
+export function AdminStoreProvider({ children }: { children: ReactNode }) {
+  const [data, setData] = useState<ConferenceDataSnapshot>(() =>
+    conferenceDataService.getSnapshot(),
+  );
+  const [currentUserId, setCurrentUserId] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    try {
+      return window.localStorage.getItem(SESSION_STORAGE_KEY);
+    } catch {
+      return null;
+    }
+  });
+  const [testModeHeadUserId, setTestModeHeadUserId] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    try {
+      return window.localStorage.getItem(TEST_HEAD_STORAGE_KEY);
+    } catch {
+      return null;
+    }
+  });
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+
+  const currentUser = useMemo(() => {
+    if (!currentUserId) return null;
+    const found = data.users.find((u) => u.id === currentUserId);
+    return found && found.isActive && found.status === 'active' ? found : null;
+  }, [currentUserId, data.users]);
+
+  const testModeHeadUser = useMemo(() => {
+    if (!currentUser || currentUser.role !== 'super_admin' || !testModeHeadUserId) return null;
+    return data.users.find((u) => u.id === testModeHeadUserId && u.role === 'department_head') ?? null;
+  }, [currentUser, data.users, testModeHeadUserId]);
+
+  const currentUserRef = useRef<AdminUser | null>(currentUser);
+  currentUserRef.current = currentUser;
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      if (currentUserId) window.localStorage.setItem(SESSION_STORAGE_KEY, currentUserId);
+      else window.localStorage.removeItem(SESSION_STORAGE_KEY);
+    } catch {
+      // Ignore storage error
+    }
+  }, [currentUserId]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      if (testModeHeadUserId) window.localStorage.setItem(TEST_HEAD_STORAGE_KEY, testModeHeadUserId);
+      else window.localStorage.removeItem(TEST_HEAD_STORAGE_KEY);
+    } catch {
+      // Ignore storage error
+    }
+  }, [testModeHeadUserId]);
+
+  const dismissToast = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
+  const pushToast = useCallback(
+    (toast: Omit<ToastMessage, 'id'>) => {
+      const id = `toast-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+      setToasts((prev) => [...prev.slice(-3), { ...toast, id }]);
+      window.setTimeout(() => dismissToast(id), 4200);
+    },
+    [dismissToast],
+  );
+
+  const refreshSnapshot = useCallback(() => {
+    setData(conferenceDataService.getSnapshot());
+  }, []);
+
+  const signInWithCredentials = useCallback(
+    (email: string, password: string, expectedPortal?: PortalKey): ServiceResult<AdminUser> => {
+      const res = conferenceDataService.authenticate(email, password, expectedPortal);
+      if (!res.ok || !res.data) return { ok: false, error: res.error };
+      setCurrentUserId(res.data.user.id);
+      setTestModeHeadUserId(null);
+      refreshSnapshot();
+      pushToast({
+        tone: 'success',
+        title: `Signed in as ${res.data.user.fullName}`,
+        description: res.data.user.title,
+      });
+      return { ok: true, data: res.data.user };
+    },
+    [pushToast, refreshSnapshot],
+  );
+
+  const signInAsDemoUser = useCallback(
+    (userId: string): ServiceResult<AdminUser> => {
+      const res = conferenceDataService.signInDemoUser(userId);
+      if (!res.ok || !res.data) {
+        pushToast({ tone: 'error', title: res.error ?? 'Could not sign in.' });
+        return { ok: false, error: res.error };
+      }
+      setCurrentUserId(res.data.user.id);
+      setTestModeHeadUserId(null);
+      refreshSnapshot();
+      pushToast({
+        tone: 'success',
+        title: `Signed in as ${res.data.user.fullName}`,
+        description: res.data.user.title,
+      });
+      return { ok: true, data: res.data.user };
+    },
+    [pushToast, refreshSnapshot],
+  );
+
+  const signOut = useCallback(() => {
+    setCurrentUserId(null);
+    setTestModeHeadUserId(null);
+    pushToast({ tone: 'info', title: 'Signed out of Willow MUN administration' });
+  }, [pushToast]);
+
+  const enterDepartmentTestMode = useCallback(
+    (headUserId: string) => {
+      if (!currentUser || currentUser.role !== 'super_admin') return false;
+      const target = data.users.find((u) => u.id === headUserId && u.role === 'department_head');
+      if (!target) {
+        pushToast({ tone: 'error', title: 'Select a Department Head account to test' });
+        return false;
+      }
+      setTestModeHeadUserId(target.id);
+      pushToast({
+        tone: 'info',
+        title: `Testing Mode Active: ${target.fullName}`,
+        description: `Viewing /head isolated as ${target.title}.`,
+      });
+      return true;
+    },
+    [currentUser, data.users, pushToast],
+  );
+
+  const exitDepartmentTestMode = useCallback(() => {
+    setTestModeHeadUserId(null);
+    pushToast({ tone: 'info', title: 'Exited Department Access Testing Mode' });
+  }, [pushToast]);
+
+  const resetDemoData = useCallback(() => {
+    const fresh = conferenceDataService.resetDemoData();
+    setData(fresh);
+    setTestModeHeadUserId(null);
+    pushToast({ tone: 'info', title: 'Demo conference dataset restored' });
+  }, [pushToast]);
+
+  const handleResult = useCallback(
+    <T,>(res: ServiceResult<T>, successTitle: string, successDesc?: string): boolean => {
+      if (!res.ok) {
+        refreshSnapshot();
+        pushToast({ tone: 'error', title: 'Action blocked', description: res.error });
+        return false;
+      }
+      refreshSnapshot();
+      if (res.warning) {
+        pushToast({ tone: 'warning', title: successTitle, description: res.warning });
+      } else {
+        pushToast({ tone: 'success', title: successTitle, description: successDesc });
+      }
+      return true;
+    },
+    [pushToast, refreshSnapshot],
+  );
+
+  // =========================================================
+  // MUTATION WRAPPERS
+  // =========================================================
+
+  const updateApplicationStatus = useCallback(
+    (applicationId: string, status: ApplicationStatus, decisionNotes?: string) => {
+      if (!currentUser) return false;
+      return handleResult(
+        conferenceDataService.updateApplicationStatus(currentUser, applicationId, status, decisionNotes),
+        'Final decision recorded',
+      );
+    },
+    [currentUser, handleResult],
+  );
+
+  const submitHeadRecommendation = useCallback(
+    (applicationId: string, recommendation: RecommendationDecision, notes: string) => {
+      if (!currentUser) return false;
+      const actingActor = testModeHeadUser ?? currentUser;
+      return handleResult(
+        conferenceDataService.submitHeadRecommendation(actingActor, applicationId, recommendation, notes),
+        'Stage 1 recommendation saved',
+        'Queued for Stage 2 Admin confirmation.',
+      );
+    },
+    [currentUser, testModeHeadUser, handleResult],
+  );
+
+  const bulkUpdateApplicationStatus = useCallback(
+    (applicationIds: string[], status: ApplicationStatus) => {
+      if (!currentUser) return false;
+      const res = conferenceDataService.bulkUpdateApplicationStatus(currentUser, applicationIds, status);
+      return handleResult(res, `Updated ${res.data?.length ?? 0} applications`);
+    },
+    [currentUser, handleResult],
+  );
+
+  const bulkApproveRecommended = useCallback(
+    (departmentId?: string) => {
+      if (!currentUser) return false;
+      const res = conferenceDataService.bulkApproveRecommended(currentUser, departmentId);
+      return handleResult(
+        res,
+        `Approved ${res.data?.length ?? 0} recommended applicant(s)`,
+      );
+    },
+    [currentUser, handleResult],
+  );
+
+  const addApplicationNote = useCallback(
+    (applicationId: string, content: string) => {
+      if (!currentUser) return false;
+      const actingActor = testModeHeadUser ?? currentUser;
+      return handleResult(
+        conferenceDataService.addApplicationNote(actingActor, applicationId, content),
+        'Evaluation note saved',
+      );
+    },
+    [currentUser, testModeHeadUser, handleResult],
+  );
+
+  const generateSignupLink = useCallback(
+    (applicationId: string) => {
+      if (!currentUser) return false;
+      return handleResult(
+        conferenceDataService.generateSignupLink(currentUser, applicationId),
+        'Signup link generated',
+      );
+    },
+    [currentUser, handleResult],
+  );
+
+  const bulkGenerateSignupLinks = useCallback(
+    (applicationIds: string[]) => {
+      if (!currentUser) return false;
+      const res = conferenceDataService.bulkGenerateSignupLinks(currentUser, applicationIds);
+      return handleResult(res, `Generated ${res.data?.length ?? 0} signup link(s)`);
+    },
+    [currentUser, handleResult],
+  );
+
+  const revokeSignupLink = useCallback(
+    (applicationId: string) => {
+      if (!currentUser) return false;
+      return handleResult(
+        conferenceDataService.revokeSignupLink(currentUser, applicationId),
+        'Signup link revoked',
+      );
+    },
+    [currentUser, handleResult],
+  );
+
+  const saveApplicationForm = useCallback(
+    (form: ApplicationFormDefinition) => {
+      if (!currentUser) return false;
+      return handleResult(
+        conferenceDataService.saveApplicationForm(currentUser, form),
+        'Application form saved',
+        'Historical answers remain untouched.',
+      );
+    },
+    [currentUser, handleResult],
+  );
+
+  const deleteApplicationForm = useCallback(
+    (formId: string) => {
+      if (!currentUser) return false;
+      return handleResult(
+        conferenceDataService.deleteApplicationForm(currentUser, formId),
+        'Application form deleted',
+      );
+    },
+    [currentUser, handleResult],
+  );
+
+  const createDepartment = useCallback(
+    (input: CreateDepartmentInput) => {
+      if (!currentUser) return false;
+      return handleResult(conferenceDataService.createDepartment(currentUser, input), 'Department created');
+    },
+    [currentUser, handleResult],
+  );
+
+  const updateDepartment = useCallback(
+    (departmentId: string, patch: Partial<Department>) => {
+      if (!currentUser) return false;
+      const actingActor = testModeHeadUser ?? currentUser;
+      return handleResult(
+        conferenceDataService.updateDepartment(actingActor, departmentId, patch),
+        'Department updated',
+      );
+    },
+    [currentUser, testModeHeadUser, handleResult],
+  );
+
+  const assignDepartmentHead = useCallback(
+    (departmentId: string, headUserId: string, assigned: boolean) => {
+      if (!currentUser) return false;
+      return handleResult(
+        conferenceDataService.assignDepartmentHead(currentUser, departmentId, headUserId, assigned),
+        assigned ? 'Department Head assigned' : 'Department Head removed',
+      );
+    },
+    [currentUser, handleResult],
+  );
+
+  const saveWorkspaceRecord = useCallback(
+    (record: WorkspaceRecord) => {
+      if (!currentUser) return false;
+      const actingActor = testModeHeadUser ?? currentUser;
+      return handleResult(
+        conferenceDataService.saveWorkspaceRecord(actingActor, record),
+        'Workspace item saved',
+      );
+    },
+    [currentUser, testModeHeadUser, handleResult],
+  );
+
+  const deleteWorkspaceRecord = useCallback(
+    (recordId: string) => {
+      if (!currentUser) return false;
+      const actingActor = testModeHeadUser ?? currentUser;
+      return handleResult(
+        conferenceDataService.deleteWorkspaceRecord(actingActor, recordId),
+        'Workspace item removed',
+      );
+    },
+    [currentUser, testModeHeadUser, handleResult],
+  );
+
+  const saveTeamGroup = useCallback(
+    (group: TeamGroupRecord) => {
+      if (!currentUser) return false;
+      const actingActor = testModeHeadUser ?? currentUser;
+      return handleResult(conferenceDataService.saveTeamGroup(actingActor, group), 'Team group saved');
+    },
+    [currentUser, testModeHeadUser, handleResult],
+  );
+
+  const deleteTeamGroup = useCallback(
+    (groupId: string) => {
+      if (!currentUser) return false;
+      const actingActor = testModeHeadUser ?? currentUser;
+      return handleResult(conferenceDataService.deleteTeamGroup(actingActor, groupId), 'Team group deleted');
+    },
+    [currentUser, testModeHeadUser, handleResult],
+  );
+
+  const saveShift = useCallback(
+    (shift: ShiftRecord) => {
+      if (!currentUser) return false;
+      const actingActor = testModeHeadUser ?? currentUser;
+      return handleResult(conferenceDataService.saveShift(actingActor, shift), 'Shift & deployment saved');
+    },
+    [currentUser, testModeHeadUser, handleResult],
+  );
+
+  const deleteShift = useCallback(
+    (shiftId: string) => {
+      if (!currentUser) return false;
+      const actingActor = testModeHeadUser ?? currentUser;
+      return handleResult(conferenceDataService.deleteShift(actingActor, shiftId), 'Shift deleted');
+    },
+    [currentUser, testModeHeadUser, handleResult],
+  );
+
+  const saveQrPass = useCallback(
+    (pass: QrPassRecord) => {
+      if (!currentUser) return false;
+      return handleResult(conferenceDataService.saveQrPass(currentUser, pass), 'QR pass saved');
+    },
+    [currentUser, handleResult],
+  );
+
+  const scanQrToken = useCallback(
+    (token: string, gateLocation: string): ServiceResult<AttendanceScanRecord> => {
+      if (!currentUser) return { ok: false, error: 'Not authenticated.' };
+      const actingActor = testModeHeadUser ?? currentUser;
+      const res = conferenceDataService.scanQrToken(actingActor, token, gateLocation);
+      refreshSnapshot();
+      pushToast({
+        tone: res.ok ? 'success' : res.data?.result === 'duplicate_recent' ? 'warning' : 'error',
+        title: res.ok ? 'Valid Check-In Recorded' : 'Scan Attention',
+        description: res.error ?? `${res.data?.holderName} checked in.`,
+      });
+      return res;
+    },
+    [currentUser, testModeHeadUser, pushToast, refreshSnapshot],
+  );
+
+  // Super Admin Account & Role Management
+  const createAccount = useCallback(
+    (input: CreateAccountInput) => {
+      if (!currentUser) return false;
+      return handleResult(conferenceDataService.createAccount(currentUser, input), 'Account created');
+    },
+    [currentUser, handleResult],
+  );
+
+  const updateAccount = useCallback(
+    (userId: string, patch: UpdateAccountInput) => {
+      if (!currentUser) return false;
+      return handleResult(conferenceDataService.updateAccount(currentUser, userId, patch), 'Account updated');
+    },
+    [currentUser, handleResult],
+  );
+
+  const suspendAccount = useCallback(
+    (userId: string) => {
+      if (!currentUser) return false;
+      return handleResult(conferenceDataService.suspendAccount(currentUser, userId), 'Account suspended');
+    },
+    [currentUser, handleResult],
+  );
+
+  const reactivateAccount = useCallback(
+    (userId: string) => {
+      if (!currentUser) return false;
+      return handleResult(conferenceDataService.reactivateAccount(currentUser, userId), 'Account reactivated');
+    },
+    [currentUser, handleResult],
+  );
+
+  const resetAccountPassword = useCallback(
+    (userId: string, newPassword: string) => {
+      if (!currentUser) return false;
+      return handleResult(
+        conferenceDataService.resetAccountPassword(currentUser, userId, newPassword),
+        'Temporary password set',
+      );
+    },
+    [currentUser, handleResult],
+  );
+
+  const manageAccountInvitation = useCallback(
+    (userId: string, action: 'generate' | 'revoke') => {
+      if (!currentUser) return false;
+      return handleResult(
+        conferenceDataService.manageAccountInvitation(currentUser, userId, action),
+        action === 'generate' ? 'Invitation token generated' : 'Invitation revoked',
+      );
+    },
+    [currentUser, handleResult],
+  );
+
+  const deleteAccount = useCallback(
+    (userId: string) => {
+      if (!currentUser) return false;
+      return handleResult(conferenceDataService.deleteAccount(currentUser, userId), 'Account deleted');
+    },
+    [currentUser, handleResult],
+  );
+
+  const retryDepartmentAssignment = useCallback(
+    (userId: string, departmentId: string) => {
+      if (!currentUser) return false;
+      return handleResult(
+        conferenceDataService.retryDepartmentAssignment(currentUser, userId, departmentId),
+        'Department link completed',
+      );
+    },
+    [currentUser, handleResult],
+  );
+
+  const saveRoleDefinition = useCallback(
+    (role: RoleDefinition) => {
+      if (!currentUser) return false;
+      return handleResult(conferenceDataService.saveRoleDefinition(currentUser, role), 'Role definition saved');
+    },
+    [currentUser, handleResult],
+  );
+
+  const deleteRoleDefinition = useCallback(
+    (roleId: string) => {
+      if (!currentUser) return false;
+      return handleResult(conferenceDataService.deleteRoleDefinition(currentUser, roleId), 'Role deleted');
+    },
+    [currentUser, handleResult],
+  );
+
+  const updatePermissionDefinition = useCallback(
+    (key: PermissionKey, patch: Partial<PermissionDefinition>) => {
+      if (!currentUser) return false;
+      return handleResult(
+        conferenceDataService.updatePermissionDefinition(currentUser, key, patch),
+        'Permission rule updated',
+      );
+    },
+    [currentUser, handleResult],
+  );
+
+  // Conference CMS
+  const saveCommittee = useCallback(
+    (item: CommitteeRecord) => {
+      if (!currentUser) return false;
+      return handleResult(conferenceDataService.saveCommittee(currentUser, item), 'Committee saved');
+    },
+    [currentUser, handleResult],
+  );
+
+  const deleteCommittee = useCallback(
+    (committeeId: string) => {
+      if (!currentUser) return false;
+      return handleResult(conferenceDataService.deleteCommittee(currentUser, committeeId), 'Committee removed');
+    },
+    [currentUser, handleResult],
+  );
+
+  const saveSecretariatMember = useCallback(
+    (member: SecretariatMember) => {
+      if (!currentUser) return false;
+      return handleResult(
+        conferenceDataService.saveSecretariatMember(currentUser, member),
+        'Secretariat member saved',
+      );
+    },
+    [currentUser, handleResult],
+  );
+
+  const deleteSecretariatMember = useCallback(
+    (memberId: string) => {
+      if (!currentUser) return false;
+      return handleResult(
+        conferenceDataService.deleteSecretariatMember(currentUser, memberId),
+        'Secretariat member removed',
+      );
+    },
+    [currentUser, handleResult],
+  );
+
+  const saveExecutiveBoardMember = useCallback(
+    (member: ExecutiveBoardMember) => {
+      if (!currentUser) return false;
+      return handleResult(
+        conferenceDataService.saveExecutiveBoardMember(currentUser, member),
+        'Executive Board member saved',
+      );
+    },
+    [currentUser, handleResult],
+  );
+
+  const deleteExecutiveBoardMember = useCallback(
+    (memberId: string) => {
+      if (!currentUser) return false;
+      return handleResult(
+        conferenceDataService.deleteExecutiveBoardMember(currentUser, memberId),
+        'Executive Board member removed',
+      );
+    },
+    [currentUser, handleResult],
+  );
+
+  const saveSponsor = useCallback(
+    (sponsor: SponsorRecord) => {
+      if (!currentUser) return false;
+      return handleResult(conferenceDataService.saveSponsor(currentUser, sponsor), 'Sponsor saved');
+    },
+    [currentUser, handleResult],
+  );
+
+  const deleteSponsor = useCallback(
+    (sponsorId: string) => {
+      if (!currentUser) return false;
+      return handleResult(conferenceDataService.deleteSponsor(currentUser, sponsorId), 'Sponsor deleted');
+    },
+    [currentUser, handleResult],
+  );
+
+  const saveAnnouncement = useCallback(
+    (announcement: AnnouncementRecord) => {
+      if (!currentUser) return false;
+      return handleResult(
+        conferenceDataService.saveAnnouncement(currentUser, announcement),
+        'Announcement saved',
+      );
+    },
+    [currentUser, handleResult],
+  );
+
+  const deleteAnnouncement = useCallback(
+    (announcementId: string) => {
+      if (!currentUser) return false;
+      return handleResult(
+        conferenceDataService.deleteAnnouncement(currentUser, announcementId),
+        'Announcement deleted',
+      );
+    },
+    [currentUser, handleResult],
+  );
+
+  const saveScheduleEvent = useCallback(
+    (event: ScheduleEventRecord) => {
+      if (!currentUser) return false;
+      return handleResult(conferenceDataService.saveScheduleEvent(currentUser, event), 'Schedule event saved');
+    },
+    [currentUser, handleResult],
+  );
+
+  const deleteScheduleEvent = useCallback(
+    (eventId: string) => {
+      if (!currentUser) return false;
+      return handleResult(conferenceDataService.deleteScheduleEvent(currentUser, eventId), 'Event deleted');
+    },
+    [currentUser, handleResult],
+  );
+
+  const saveConferenceDocument = useCallback(
+    (doc: ConferenceDocumentRecord) => {
+      if (!currentUser) return false;
+      return handleResult(conferenceDataService.saveConferenceDocument(currentUser, doc), 'Document saved');
+    },
+    [currentUser, handleResult],
+  );
+
+  const deleteConferenceDocument = useCallback(
+    (docId: string) => {
+      if (!currentUser) return false;
+      return handleResult(conferenceDataService.deleteConferenceDocument(currentUser, docId), 'Document deleted');
+    },
+    [currentUser, handleResult],
+  );
+
+  const saveFaq = useCallback(
+    (faq: FaqRecord) => {
+      if (!currentUser) return false;
+      return handleResult(conferenceDataService.saveFaq(currentUser, faq), 'FAQ item saved');
+    },
+    [currentUser, handleResult],
+  );
+
+  const deleteFaq = useCallback(
+    (faqId: string) => {
+      if (!currentUser) return false;
+      return handleResult(conferenceDataService.deleteFaq(currentUser, faqId), 'FAQ deleted');
+    },
+    [currentUser, handleResult],
+  );
+
+  const saveGalleryItem = useCallback(
+    (item: GalleryItemRecord) => {
+      if (!currentUser) return false;
+      return handleResult(conferenceDataService.saveGalleryItem(currentUser, item), 'Gallery item saved');
+    },
+    [currentUser, handleResult],
+  );
+
+  const deleteGalleryItem = useCallback(
+    (itemId: string) => {
+      if (!currentUser) return false;
+      return handleResult(conferenceDataService.deleteGalleryItem(currentUser, itemId), 'Gallery item deleted');
+    },
+    [currentUser, handleResult],
+  );
+
+  // Website CMS
+  const updateWebsiteDraft = useCallback(
+    (updater: (draft: WebsiteContentSnapshot) => WebsiteContentSnapshot, summary: string) => {
+      if (!currentUser) return false;
+      return handleResult(
+        conferenceDataService.updateWebsiteDraft(currentUser, updater, summary),
+        'Saved to Website Draft',
+        'Preview changes before publishing live.',
+      );
+    },
+    [currentUser, handleResult],
+  );
+
+  const publishWebsiteChanges = useCallback(
+    (summary: string) => {
+      if (!currentUser) return false;
+      return handleResult(
+        conferenceDataService.publishWebsiteChanges(currentUser, summary),
+        'Website changes published live',
+      );
+    },
+    [currentUser, handleResult],
+  );
+
+  const restoreWebsiteVersion = useCallback(
+    (versionId: string, publishImmediately = false) => {
+      if (!currentUser) return false;
+      return handleResult(
+        conferenceDataService.restoreWebsiteVersion(currentUser, versionId, publishImmediately),
+        publishImmediately ? 'Version restored & published live' : 'Version loaded into Website Draft',
+      );
+    },
+    [currentUser, handleResult],
+  );
+
+  const saveMediaAsset = useCallback(
+    (asset: MediaAssetRecord) => {
+      if (!currentUser) return false;
+      return handleResult(conferenceDataService.saveMediaAsset(currentUser, asset), 'Media asset saved');
+    },
+    [currentUser, handleResult],
+  );
+
+  const deleteMediaAsset = useCallback(
+    (assetId: string) => {
+      if (!currentUser) return false;
+      return handleResult(conferenceDataService.deleteMediaAsset(currentUser, assetId), 'Media asset deleted');
+    },
+    [currentUser, handleResult],
+  );
+
+  // Communication & Admin
+  const saveEmailTemplate = useCallback(
+    (template: EmailTemplate) => {
+      if (!currentUser) return false;
+      return handleResult(conferenceDataService.saveEmailTemplate(currentUser, template), 'Template saved');
+    },
+    [currentUser, handleResult],
+  );
+
+  const sendEmails = useCallback(
+    (payload: SendEmailPayload) => {
+      if (!currentUser) return false;
+      const res = conferenceDataService.sendEmails(currentUser, payload);
+      return handleResult(res, `Dispatched ${res.data?.length ?? 0} email(s)`);
+    },
+    [currentUser, handleResult],
+  );
+
+  const submitPublicInquiry = useCallback(
+    (input: PublicInquiryInput) => {
+      const res = conferenceDataService.submitPublicInquiry(input);
+      refreshSnapshot();
+      return res.ok;
+    },
+    [refreshSnapshot],
+  );
+
+  const updateInquiry = useCallback(
+    (inquiryId: string, patch: Partial<InquiryRecord>) => {
+      if (!currentUser) return false;
+      return handleResult(conferenceDataService.updateInquiry(currentUser, inquiryId, patch), 'Inquiry updated');
+    },
+    [currentUser, handleResult],
+  );
+
+  const updateSettings = useCallback(
+    (patch: Partial<ConferenceSettings>) => {
+      if (!currentUser) return false;
+      return handleResult(conferenceDataService.updateSettings(currentUser, patch), 'Conference settings saved');
+    },
+    [currentUser, handleResult],
+  );
+
+  const resolveErrorLog = useCallback(
+    (errorId: string) => {
+      if (!currentUser) return false;
+      return handleResult(conferenceDataService.resolveErrorLog(currentUser, errorId), 'Alert status updated');
+    },
+    [currentUser, handleResult],
+  );
+
+  const updateTechnicalConfig = useCallback(
+    (patch: Partial<TechnicalConfig>) => {
+      if (!currentUser) return false;
+      return handleResult(
+        conferenceDataService.updateTechnicalConfig(currentUser, patch),
+        'Technical configuration saved',
+      );
+    },
+    [currentUser, handleResult],
+  );
+
+  const runHealthChecks = useCallback(() => {
+    if (!currentUser) return false;
+    return handleResult(conferenceDataService.runHealthChecks(currentUser), 'Service health verified');
+  }, [currentUser, handleResult]);
+
+  const markNotificationsRead = useCallback(() => {
+    conferenceDataService.markAllNotificationsRead();
+    refreshSnapshot();
+  }, [refreshSnapshot]);
+
+  const recordSecurityViolation = useCallback(
+    (targetType: string, targetId: string, details: string) => {
+      const actor = currentUserRef.current;
+      if (!actor) return;
+      conferenceDataService.recordSecurityAttempt(actor, targetType, targetId, details);
+      refreshSnapshot();
+    },
+    [refreshSnapshot],
+  );
+
+  const notifications = useMemo(() => {
+    if (!currentUser) return [];
+    const scopedUser = testModeHeadUser ?? currentUser;
+    if (scopedUser.role === 'department_head') {
+      return data.notifications.filter(
+        (n) => n.departmentId === null || n.departmentId === scopedUser.departmentId,
+      );
+    }
+    return data.notifications;
+  }, [currentUser, testModeHeadUser, data.notifications]);
+
+  const value: AdminStoreContextValue = {
+    data,
+    currentUser,
+    testModeHeadUser,
+    toasts,
+    notifications,
+    pushToast,
+    dismissToast,
+    signInWithCredentials,
+    signInAsDemoUser,
+    signOut,
+    enterDepartmentTestMode,
+    exitDepartmentTestMode,
+    resetDemoData,
+    refreshSnapshot,
+    updateApplicationStatus,
+    submitHeadRecommendation,
+    bulkUpdateApplicationStatus,
+    bulkApproveRecommended,
+    addApplicationNote,
+    generateSignupLink,
+    bulkGenerateSignupLinks,
+    revokeSignupLink,
+    saveApplicationForm,
+    deleteApplicationForm,
+    createDepartment,
+    updateDepartment,
+    assignDepartmentHead,
+    saveWorkspaceRecord,
+    deleteWorkspaceRecord,
+    saveTeamGroup,
+    deleteTeamGroup,
+    saveShift,
+    deleteShift,
+    saveQrPass,
+    scanQrToken,
+    createAccount,
+    updateAccount,
+    suspendAccount,
+    reactivateAccount,
+    resetAccountPassword,
+    manageAccountInvitation,
+    deleteAccount,
+    retryDepartmentAssignment,
+    saveRoleDefinition,
+    deleteRoleDefinition,
+    updatePermissionDefinition,
+    saveCommittee,
+    deleteCommittee,
+    saveSecretariatMember,
+    deleteSecretariatMember,
+    saveExecutiveBoardMember,
+    deleteExecutiveBoardMember,
+    saveSponsor,
+    deleteSponsor,
+    saveAnnouncement,
+    deleteAnnouncement,
+    saveScheduleEvent,
+    deleteScheduleEvent,
+    saveConferenceDocument,
+    deleteConferenceDocument,
+    saveFaq,
+    deleteFaq,
+    saveGalleryItem,
+    deleteGalleryItem,
+    updateWebsiteDraft,
+    publishWebsiteChanges,
+    restoreWebsiteVersion,
+    saveMediaAsset,
+    deleteMediaAsset,
+    saveEmailTemplate,
+    sendEmails,
+    submitPublicInquiry,
+    updateInquiry,
+    updateSettings,
+    resolveErrorLog,
+    updateTechnicalConfig,
+    runHealthChecks,
+    markNotificationsRead,
+    recordSecurityViolation,
+  };
+
+  return <AdminStoreContext.Provider value={value}>{children}</AdminStoreContext.Provider>;
+}
+
+export function useAdminStore(): AdminStoreContextValue {
+  const ctx = useContext(AdminStoreContext);
+  if (!ctx) throw new Error('useAdminStore must be used inside AdminStoreProvider');
+  return ctx;
+}
