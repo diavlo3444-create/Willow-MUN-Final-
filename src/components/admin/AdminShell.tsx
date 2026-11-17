@@ -196,6 +196,10 @@ export function AdminShell({
   const actingUser =
     portal === 'department_head' && testModeHeadUser ? testModeHeadUser : currentUser;
   const navGroups = getNavigationGroups(actingUser, portal);
+  const activeGroupId = navGroups.find((group) => group.items.some((item) => item.id === activeNavId))?.id ?? navGroups[0]?.id;
+  useEffect(() => {
+    setCollapsedGroups(Object.fromEntries(navGroups.map((group) => [group.id, group.id !== activeGroupId])));
+  }, [activeGroupId]);
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   const assignedDepartment = actingUser?.departmentId
@@ -403,7 +407,7 @@ export function AdminShell({
 
   return (
     <div className="wm-admin min-h-[100dvh] bg-[color:var(--wm-canvas)] text-[color:var(--wm-ink)] flex">
-      <aside className="hidden lg:block w-[280px] shrink-0 border-r border-[color:var(--wm-hairline)] sticky top-0 h-[100dvh] overflow-hidden">
+      <aside className="hidden lg:block w-[17.5rem] shrink-0 border-r border-[color:var(--wm-hairline)] sticky top-0 h-[100dvh] overflow-hidden">
         {sidebarContent}
       </aside>
 
