@@ -545,380 +545,75 @@ export function getNavigationGroups(
 ): NavGroupConfig[] {
   if (!user || !canAccessPortal(user, portal)) return [];
 
-  if (portal === 'department_head') {
-    const headGroups: NavGroupConfig[] = [
-      {
-        id: 'overview',
-        label: 'Department Workspace',
-        items: [
-          { id: 'overview', label: 'Overview', path: '/head' },
-          {
-            id: 'applications',
-            label: 'Applications',
-            path: '/head/applications',
-            requiredPermission: 'applications.view',
-          },
-          {
-            id: 'workspace',
-            label: 'Operations Hub',
-            path: '/head/workspace',
-            requiredPermission: 'departments.workspace',
-          },
-          {
-            id: 'teams',
-            label: 'Teams & Groups',
-            path: '/head/teams',
-            requiredPermission: 'operations.teams',
-          },
-          {
-            id: 'shifts',
-            label: 'Shifts & Deployment',
-            path: '/head/shifts',
-            requiredPermission: 'operations.shifts',
-          },
-          {
-            id: 'qr',
-            label: 'My QR Pass',
-            path: '/head/qr',
-            requiredPermission: 'qr.view_pass',
-          },
-          { id: 'department', label: 'My Department', path: '/head/department' },
-        ],
-      },
-    ];
-    return headGroups
-      .map((g) => ({
-        ...g,
-        items: g.items.filter(
-          (i) => !i.requiredPermission || hasPermission(user, i.requiredPermission),
-        ),
-      }))
-      .filter((g) => g.items.length > 0);
-  }
-
-  const base = portal === 'super_admin' ? '/super-admin' : '/admin';
+  const base = getPortalBasePath(portal);
   const isSuper = user.role === 'super_admin';
 
+  if (portal === 'department_head') {
+    const items: NavItemConfig[] = [
+      { id: 'overview', label: 'Overview', path: '/head' },
+      { id: 'applications', label: 'Applications', path: '/head/applications', requiredPermission: 'applications.view' },
+      { id: 'workspace', label: 'Workspace', path: '/head/workspace', requiredPermission: 'departments.workspace' },
+      { id: 'teams', label: 'Groups', path: '/head/teams', requiredPermission: 'operations.teams' },
+      { id: 'shifts', label: 'Shifts & Roster', path: '/head/shifts', requiredPermission: 'operations.shifts' },
+    ];
+    const visible = items.filter((item) => !item.requiredPermission || hasPermission(user, item.requiredPermission));
+    return visible.length ? [{ id: 'department-workspace', label: 'Department Workspace', items: visible }] : [];
+  }
+
   const groups: NavGroupConfig[] = [
-    {
-      id: 'overview',
-      label: 'Overview',
-      items: [{ id: 'dashboard', label: 'Dashboard', path: base }],
-    },
-    {
-      id: 'applications',
-      label: 'Applications',
-      items: [
-        {
-          id: 'applications',
-          label: 'All Applications',
-          path: `${base}/applications`,
-          requiredPermission: 'applications.view',
-        },
-        {
-          id: 'delegates',
-          label: 'Delegates',
-          path: `${base}/delegates`,
-          requiredPermission: 'applications.view',
-        },
-        {
-          id: 'staff-apps',
-          label: 'Staff & Ops',
-          path: `${base}/staff-apps`,
-          requiredPermission: 'applications.view',
-        },
-        {
-          id: 'recommendations',
-          label: 'Department Recommendations',
-          path: `${base}/recommendations`,
-          requiredPermission: 'applications.review',
-        },
-        {
-          id: 'forms',
-          label: 'Application Forms',
-          path: `${base}/forms`,
-          requiredPermission: 'forms.manage',
-        },
-      ],
-    },
-    {
-      id: 'conference',
-      label: 'Conference Management',
-      items: [
-        {
-          id: 'committees',
-          label: 'Committees',
-          path: `${base}/committees`,
-          requiredPermission: 'committees.manage',
-        },
-        {
-          id: 'secretariat',
-          label: 'Secretariat',
-          path: `${base}/secretariat`,
-          requiredPermission: 'secretariat.view',
-        },
-        {
-          id: 'executive-board',
-          label: 'Executive Board',
-          path: `${base}/executive-board`,
-          requiredPermission: 'executive_board.manage',
-        },
-        {
-          id: 'departments',
-          label: 'Departments',
-          path: `${base}/departments`,
-          requiredPermission: 'departments.view_all',
-        },
-        {
-          id: 'sponsors',
-          label: 'Sponsors',
-          path: `${base}/sponsors`,
-          requiredPermission: 'sponsors.manage',
-        },
-        {
-          id: 'schedule',
-          label: 'Schedule',
-          path: `${base}/schedule`,
-          requiredPermission: 'schedule.manage',
-        },
-        {
-          id: 'announcements',
-          label: 'Announcements',
-          path: `${base}/announcements`,
-          requiredPermission: 'website.edit',
-        },
-        {
-          id: 'documents',
-          label: 'Documents',
-          path: `${base}/documents`,
-          requiredPermission: 'content.conference_assets',
-        },
-        {
-          id: 'faqs',
-          label: 'FAQs',
-          path: `${base}/faqs`,
-          requiredPermission: 'content.conference_assets',
-        },
-        {
-          id: 'gallery',
-          label: 'Gallery',
-          path: `${base}/gallery`,
-          requiredPermission: 'content.conference_assets',
-        },
-      ],
-    },
     {
       id: 'operations',
       label: 'Operations',
       items: [
-        {
-          id: 'teams',
-          label: 'Team Management',
-          path: `${base}/teams`,
-          requiredPermission: 'operations.teams',
-        },
-        {
-          id: 'groups',
-          label: 'Groups & Workspace',
-          path: `${base}/groups`,
-          requiredPermission: 'departments.workspace',
-        },
-        {
-          id: 'shifts',
-          label: 'Shifts',
-          path: `${base}/shifts`,
-          requiredPermission: 'operations.shifts',
-        },
-        {
-          id: 'deployment',
-          label: 'Deployment',
-          path: `${base}/deployment`,
-          requiredPermission: 'operations.deployment',
-        },
-        {
-          id: 'rosters',
-          label: 'Rosters',
-          path: `${base}/rosters`,
-          requiredPermission: 'operations.teams',
-        },
-        {
-          id: 'attendance',
-          label: 'Venue Attendance',
-          path: `${base}/attendance`,
-          requiredPermission: 'qr.manage',
-        },
-        {
-          id: 'qr',
-          label: 'QR Management',
-          path: `${base}/qr`,
-          requiredPermission: 'qr.view_pass',
-        },
+        { id: 'dashboard', label: 'Overview', path: base },
+        { id: 'applications', label: 'Registrations', path: base + '/applications', requiredPermission: 'applications.view' },
+        { id: 'executive-board', label: 'Executive Board', path: base + '/executive-board', requiredPermission: 'executive_board.manage' },
+        { id: 'heads', label: 'Heads', path: base + '/heads', requiredPermission: 'accounts.view' },
+        { id: 'departments', label: 'Departments', path: base + '/departments', requiredPermission: 'departments.view_all' },
+        { id: 'reports', label: 'Reports', path: base + '/reports', requiredPermission: 'reports.view' },
+        { id: 'attendance', label: 'Checked-In People', path: base + '/attendance', requiredPermission: 'qr.manage' },
+        { id: 'qr', label: 'Security Website', path: base + '/qr', requiredPermission: 'qr.view_pass' },
+      ],
+    },
+    ...(isSuper ? [{
+      id: 'access-systems',
+      label: 'Access & Systems',
+      items: [
+        { id: 'admins', label: 'Admin Accounts', path: base + '/admins', requiredPermission: 'accounts.view', superAdminOnly: true },
+        { id: 'eb-accounts', label: 'EB Signup & Accounts', path: base + '/eb-accounts', superAdminOnly: true },
+        { id: 'testing', label: 'Head Access Testing', path: base + '/testing', requiredPermission: 'testing.impersonate_head', superAdminOnly: true },
+      ],
+    }] : []),
+    {
+      id: 'communications',
+      label: 'Communications',
+      items: [
+        { id: 'messages', label: 'Inquiries', path: base + '/messages', requiredPermission: 'inquiries.manage' },
+        { id: 'settings', label: 'Settings', path: base + '/settings', requiredPermission: 'system.settings' },
       ],
     },
     {
-      id: 'website',
-      label: 'Website CMS',
+      id: 'website-content',
+      label: 'Website CMS & Content',
       items: [
-        {
-          id: 'website-editor',
-          label: 'Website Editor',
-          path: `${base}/website-editor`,
-          requiredPermission: 'website.view',
-        },
-        {
-          id: 'pages',
-          label: 'Pages',
-          path: `${base}/pages`,
-          requiredPermission: 'website.view',
-        },
-        {
-          id: 'sections',
-          label: 'Sections',
-          path: `${base}/sections`,
-          requiredPermission: 'website.view',
-        },
-        {
-          id: 'media',
-          label: 'Media Library',
-          path: `${base}/media`,
-          requiredPermission: 'media.manage',
-        },
-        {
-          id: 'navigation',
-          label: 'Navigation & Footer',
-          path: `${base}/navigation`,
-          requiredPermission: 'website.view',
-        },
-        {
-          id: 'seo',
-          label: 'SEO',
-          path: `${base}/seo`,
-          requiredPermission: 'website.view',
-        },
-        {
-          id: 'versions',
-          label: 'Version History',
-          path: `${base}/versions`,
-          requiredPermission: 'website.view',
-        },
-      ],
-    },
-    {
-      id: 'communication',
-      label: 'Communication',
-      items: [
-        {
-          id: 'email',
-          label: 'Email Center',
-          path: `${base}/email`,
-          requiredPermission: 'email.view',
-        },
-        {
-          id: 'messages',
-          label: 'Messages',
-          path: `${base}/messages`,
-          requiredPermission: 'inquiries.manage',
-        },
-        {
-          id: 'notifications',
-          label: 'Notifications',
-          path: `${base}/notifications`,
-        },
-      ],
-    },
-    {
-      id: 'administration',
-      label: 'Administration',
-      items: [
-        {
-          id: 'registration',
-          label: 'Registration Controls',
-          path: `${base}/registration`,
-          requiredPermission: 'registration.view',
-        },
-        {
-          id: 'reports',
-          label: 'Statistics & Reports',
-          path: `${base}/reports`,
-          requiredPermission: 'reports.view',
-        },
-        {
-          id: 'logs',
-          label: 'Activity Logs',
-          path: `${base}/logs`,
-          requiredPermission: 'logs.view',
-        },
-        {
-          id: 'settings',
-          label: 'Conference Settings',
-          path: `${base}/settings`,
-          requiredPermission: 'system.settings',
-        },
-        {
-          id: 'monitoring',
-          label: 'System Monitoring',
-          path: `${base}/monitoring`,
-          requiredPermission: 'system.monitoring',
-        },
-      ],
-    },
-    {
-      id: 'super-admin-only',
-      label: isSuper ? 'Super Admin Only' : 'Directories (Read-Only)',
-      items: [
-        {
-          id: 'admins',
-          label: 'Administrator Accounts',
-          path: `${base}/admins`,
-          requiredPermission: 'accounts.view',
-          readOnlyHint: !isSuper,
-        },
-        {
-          id: 'heads',
-          label: 'Department Head Accounts',
-          path: `${base}/heads`,
-          requiredPermission: 'accounts.view',
-          readOnlyHint: !isSuper,
-        },
-        {
-          id: 'eb-accounts',
-          label: 'Executive Board Accounts',
-          path: `${base}/eb-accounts`,
-          superAdminOnly: true,
-        },
-        {
-          id: 'roles',
-          label: 'Role Management',
-          path: `${base}/roles`,
-          requiredPermission: 'accounts.view',
-          readOnlyHint: !isSuper,
-        },
-        {
-          id: 'permission-defs',
-          label: 'Permission Definitions',
-          path: `${base}/permission-defs`,
-          requiredPermission: 'permissions.manage',
-          superAdminOnly: true,
-        },
-        {
-          id: 'testing',
-          label: 'Dept Access Testing',
-          path: `${base}/testing`,
-          requiredPermission: 'testing.impersonate_head',
-          superAdminOnly: true,
-        },
+        { id: 'website-editor', label: 'Live Visual Editor', path: base + '/website-editor', requiredPermission: 'website.view' },
+        { id: 'committees', label: 'Committees', path: base + '/committees', requiredPermission: 'committees.manage' },
+        { id: 'secretariat', label: 'Secretariat', path: base + '/secretariat', requiredPermission: 'secretariat.view' },
+        { id: 'sponsors', label: 'Sponsors', path: base + '/sponsors', requiredPermission: 'sponsors.manage' },
+        { id: 'schedule', label: 'Schedule', path: base + '/schedule', requiredPermission: 'schedule.manage' },
+        { id: 'announcements', label: 'Announcements', path: base + '/announcements', requiredPermission: 'website.edit' },
+        { id: 'documents', label: 'Documents', path: base + '/documents', requiredPermission: 'content.conference_assets' },
+        { id: 'faqs', label: 'FAQs', path: base + '/faqs', requiredPermission: 'content.conference_assets' },
       ],
     },
   ];
 
-  return groups
-    .map((group) => ({
-      ...group,
-      items: group.items.filter((item) => {
-        if (item.superAdminOnly && !isSuper) return false;
-        if (!item.requiredPermission) return true;
-        return hasPermission(user, item.requiredPermission);
-      }),
-    }))
-    .filter((group) => group.items.length > 0);
+  return groups.map((group) => ({
+    ...group,
+    items: group.items.filter((item) => {
+      if (item.superAdminOnly && !isSuper) return false;
+      if (!item.requiredPermission) return true;
+      return hasPermission(user, item.requiredPermission);
+    }),
+  })).filter((group) => group.items.length > 0);
 }
