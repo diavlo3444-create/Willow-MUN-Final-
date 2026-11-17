@@ -48,6 +48,6 @@ export function isAdminRoute(pathname: string): boolean {
     pathname === '/head' ||
     pathname.startsWith('/head/') ||
     pathname === '/eb' || pathname.startsWith('/eb/') ||
-    pathname === '/admin-login' || pathname === '/eb-login' || pathname === '/eb-signup'
+    pathname === '/admin-login' || pathname === '/eb-login' || pathname === '/head-login' || pathname === '/super-admin-login' || pathname === '/eb-signup'
   );
 }
