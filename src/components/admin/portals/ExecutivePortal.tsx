@@ -238,8 +238,15 @@ export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePorta
   const isSuperAdmin = canManageAccountsOrRoles(currentUser);
 
   // Record security violation if an Admin directly visits a Super Admin-only route
-  const isSuperOnlyRoute = section === 'permission-defs' || section === 'testing' || section === 'eb-accounts';
+  const isSuperOnlyRoute = section === 'admins' || section === 'testing' || section === 'eb-accounts';
   const attemptedForbiddenSuperRoute = authorizedForPortal && !isSuperAdmin && isSuperOnlyRoute;
+  const westPortalSections = new Set([
+    'dashboard', 'applications', 'executive-board', 'heads', 'departments', 'reports',
+    'attendance', 'qr', 'website-editor', 'committees', 'secretariat', 'sponsors',
+    'schedule', 'announcements', 'documents', 'faqs', 'messages', 'settings',
+    'admins', 'eb-accounts', 'testing',
+  ]);
+  const unsupportedPortalSection = !westPortalSections.has(section);
 
   const loggedViolationRef = useRef<string | null>(null);
   useEffect(() => {
@@ -309,7 +316,9 @@ export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePorta
       globalSearch={searchableSection ? globalSearch : undefined}
       onGlobalSearchChange={searchableSection ? setGlobalSearch : undefined}
     >
-      {attemptedForbiddenSuperRoute ? (
+      {unsupportedPortalSection ? (
+        renderDenied('This section is not part of the WEST-style Willow management portal.')
+      ) : attemptedForbiddenSuperRoute ? (
         renderDenied(
           'This governance area is strictly restricted to Super Admin accounts. This navigation attempt has been recorded in the security audit log.',
         )
