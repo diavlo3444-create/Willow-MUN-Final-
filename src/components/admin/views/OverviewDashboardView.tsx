@@ -46,7 +46,7 @@ export function OverviewDashboardView({ basePath, onNavigate, onFilterApplicatio
     });
     return 'conic-gradient(' + stops.join(', ') + ')';
   })();
-  const firstName = (currentUser?.fullName || currentUser?.email || 'organiser').split(/[\\s@]/)[0];
+  const firstName = (currentUser?.fullName || currentUser?.email || 'organiser').split(/[\s@]/)[0];
   const today = new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const reviewed = applications.filter((app) => ['accepted', 'rejected', 'waitlisted', 'withdrawn'].includes(app.status)).length;
   const completion = stats.total ? Math.round(reviewed / stats.total * 100) : 0;
@@ -120,7 +120,7 @@ export function OverviewDashboardView({ basePath, onNavigate, onFilterApplicatio
           <div className="flex items-center justify-between border-b border-white/[0.06] px-4 py-3"><div><h2 className="text-xs font-semibold text-neutral-100">Recent applications</h2><p className="mt-1 text-[10px] text-neutral-500">Latest candidates across the conference</p></div><button type="button" onClick={() => onFilterApplications('all')} className="inline-flex items-center gap-1 text-[10px] text-[#d4af37] hover:text-[#f3e5ab]">View all <ArrowRight className="h-3 w-3" /></button></div>
           {recent.length ? <ul className="divide-y divide-white/[0.045]">
             {recent.map((app) => <li key={app.id} className="flex items-center gap-3 px-4 py-3 hover:bg-white/[0.025]">
-              <span className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.03] text-[9px] font-semibold text-neutral-300 sm:flex">{app.applicantName.split(/\\s+/).map((part) => part[0]).join('').slice(0,2).toUpperCase()}</span>
+              <span className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.03] text-[9px] font-semibold text-neutral-300 sm:flex">{app.applicantName.split(/\s+/).map((part) => part[0]).join('').slice(0,2).toUpperCase()}</span>
               <div className="min-w-0 flex-1"><button type="button" onClick={() => onSelectApplication(app.id)} className="block max-w-full truncate text-left text-xs font-medium text-neutral-100 hover:text-[#d4af37]">{app.applicantName}</button><p className="mt-0.5 truncate text-[10px] text-neutral-500">{app.position} · {app.applicationCode}</p></div>
               <StatusBadge status={app.status} />
             </li>)}
