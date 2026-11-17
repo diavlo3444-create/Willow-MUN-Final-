@@ -323,6 +323,7 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
   );
 
   const signOut = useCallback(() => {
+    void supabase.auth.signOut();
     setCurrentUserId(null);
     setTestModeHeadUserId(null);
     pushToast({ tone: 'info', title: 'Signed out of Willow MUN administration' });
@@ -1018,6 +1019,7 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
   const value: AdminStoreContextValue = {
     data,
     currentUser,
+    authReady,
     testModeHeadUser,
     toasts,
     notifications,
