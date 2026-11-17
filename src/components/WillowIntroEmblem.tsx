@@ -86,11 +86,6 @@ export const WillowIntroEmblem = forwardRef<WillowIntroEmblemHandle, WillowIntro
         }, 2200);
 
         const video = videoRef.current;
-        window.dispatchEvent(
-          new CustomEvent('willow-intro-finished', {
-            detail: { currentTime: video?.currentTime ?? 0 },
-          }),
-        );
         if (video) {
           if (options?.seekToEnd) {
             seekToWatermarkFrame(video);
