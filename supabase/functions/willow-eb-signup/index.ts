@@ -42,7 +42,7 @@ Deno.serve(async (req: Request) => {
     .eq("member_key", candidate.member_key)
     .is("claimed_at", null)
     .or(`claim_started_at.is.null,claim_started_at.lt.${cutoff}`)
-    .select("email,member_key,full_name,title,department_id,avatar_url,eb_rank,eb_permissions")
+    .select("email,member_key,full_name,title,phone_number,department_id,avatar_url,eb_rank,eb_permissions")
     .maybeSingle();
 
   if (claimError) return json({ error: "Could not reserve this signup. Try again later." }, 500);
