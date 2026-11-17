@@ -154,7 +154,7 @@ export function DepartmentHeadPortal({ pathname, onNavigate }: DepartmentHeadPor
       pageSubtitle={`Isolated scope: ${assignedDepartment.name} (${assignedDepartment.cluster}). Stage 1 Recommendations only.`}
       activeNavId={activeNavId}
       onNavigate={onNavigate}
-      topActions={<a href="/pass" className="rounded-md border border-[#d4af37]/35 px-3 py-2 text-xs font-medium text-[#bfa04a] hover:bg-[#d4af37]/10">My QR Pass</a>}
+      topActions={<a href="/head/qr" className="rounded-md border border-[#d4af37]/35 px-3 py-2 text-xs font-medium text-[#bfa04a] hover:bg-[#d4af37]/10">My QR Pass</a>}
       globalSearch={activeNavId === 'applications' ? globalSearch : undefined}
       onGlobalSearchChange={activeNavId === 'applications' ? setGlobalSearch : undefined}
     >
