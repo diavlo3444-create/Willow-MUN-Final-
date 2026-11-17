@@ -301,7 +301,7 @@ export function AdminShell({
             type="button"
             onClick={() => setMobileNavOpen(false)}
             aria-label="Close navigation menu"
-            className="inline-flex h-11 w-11 items-center justify-center rounded text-[color:var(--wm-ink-secondary)] hover:bg-[#ede6ca]/10 lg:hidden cursor-pointer"
+            className="inline-flex h-11 w-11 items-center justify-center rounded text-[color:var(--wm-ink-secondary)] hover:bg-[#d4af37]/10 lg:hidden cursor-pointer"
           >
             <X className="h-4 w-4" aria-hidden="true" />
           </button>
@@ -351,8 +351,8 @@ export function AdminShell({
                           aria-current={isActive ? 'page' : undefined}
                           className={`flex w-full min-h-[40px] lg:min-h-[34px] items-center justify-between gap-2 rounded px-2.5 py-1.5 text-left text-[13px] font-medium transition-colors duration-150 whitespace-nowrap cursor-pointer ${
                             isActive
-                              ? 'bg-[#ede6ca]/12 text-[color:var(--wm-ink)]'
-                              : 'text-[color:var(--wm-ink-secondary)] hover:bg-[#ede6ca]/[0.05] hover:text-[color:var(--wm-ink)]'
+                              ? 'bg-[#d4af37]/12 text-[color:var(--wm-ink)]'
+                              : 'text-[color:var(--wm-ink-secondary)] hover:bg-[#d4af37]/[0.05] hover:text-[color:var(--wm-ink)]'
                           }`}
                         >
                           <span className="flex items-center gap-2.5 min-w-0">
@@ -384,7 +384,7 @@ export function AdminShell({
         <button
           type="button"
           onClick={() => onNavigate('/portal')}
-          className="flex w-full min-h-[38px] items-center justify-between rounded px-2.5 py-1.5 text-xs font-medium text-[color:var(--wm-ink-secondary)] hover:bg-[#ede6ca]/[0.06] hover:text-[color:var(--wm-ink)] cursor-pointer transition-colors duration-150"
+          className="flex w-full min-h-[38px] items-center justify-between rounded px-2.5 py-1.5 text-xs font-medium text-[color:var(--wm-ink-secondary)] hover:bg-[#d4af37]/[0.06] hover:text-[color:var(--wm-ink)] cursor-pointer transition-colors duration-150"
         >
           <span>Switch Portal</span>
           <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
@@ -392,7 +392,7 @@ export function AdminShell({
         <button
           type="button"
           onClick={() => onNavigate('/')}
-          className="flex w-full min-h-[38px] items-center justify-between rounded px-2.5 py-1.5 text-xs font-medium text-[color:var(--wm-ink-secondary)] hover:bg-[#ede6ca]/[0.06] hover:text-[color:var(--wm-ink)] cursor-pointer transition-colors duration-150"
+          className="flex w-full min-h-[38px] items-center justify-between rounded px-2.5 py-1.5 text-xs font-medium text-[color:var(--wm-ink-secondary)] hover:bg-[#d4af37]/[0.06] hover:text-[color:var(--wm-ink)] cursor-pointer transition-colors duration-150"
         >
           <span>Public Website</span>
           <Globe className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
@@ -403,7 +403,7 @@ export function AdminShell({
 
   return (
     <div className="wm-admin min-h-[100dvh] bg-[color:var(--wm-canvas)] text-[color:var(--wm-ink)] flex">
-      <aside className="hidden lg:block w-[268px] shrink-0 border-r border-[color:var(--wm-hairline)] sticky top-0 h-[100dvh] overflow-hidden">
+      <aside className="hidden lg:block w-[280px] shrink-0 border-r border-[color:var(--wm-hairline)] sticky top-0 h-[100dvh] overflow-hidden">
         {sidebarContent}
       </aside>
 
@@ -440,7 +440,7 @@ export function AdminShell({
                   exitDepartmentTestMode();
                   onNavigate('/super-admin/testing');
                 }}
-                className="min-h-[32px] rounded border border-amber-200/35 bg-[#12170c] px-3 text-xs font-medium text-amber-100 hover:bg-[#1e2414] cursor-pointer transition-colors duration-150"
+                className="min-h-[32px] rounded border border-amber-200/35 bg-[#080809] px-3 text-xs font-medium text-amber-100 hover:bg-[#1e2414] cursor-pointer transition-colors duration-150"
               >
                 Exit Testing Mode
               </button>
@@ -455,7 +455,7 @@ export function AdminShell({
                 type="button"
                 onClick={() => setMobileNavOpen(true)}
                 aria-label="Open navigation sidebar"
-                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded border border-[color:var(--wm-hairline)] text-[color:var(--wm-ink)] hover:bg-[#ede6ca]/10 lg:hidden cursor-pointer"
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded border border-[color:var(--wm-hairline)] text-[color:var(--wm-ink)] hover:bg-[#d4af37]/10 lg:hidden cursor-pointer"
               >
                 <Menu className="h-5 w-5" aria-hidden="true" />
               </button>
@@ -525,7 +525,7 @@ export function AdminShell({
                 >
                   <Bell className="h-4 w-4" aria-hidden="true" />
                   {unreadCount > 0 && (
-                    <span className="absolute -right-1 -top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[color:var(--wm-focal)] px-1 font-mono text-[10px] font-semibold text-[#12170c] tabular-nums">
+                    <span className="absolute -right-1 -top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[color:var(--wm-focal)] px-1 font-mono text-[10px] font-semibold text-[#080809] tabular-nums">
                       {unreadCount}
                     </span>
                   )}
@@ -556,7 +556,7 @@ export function AdminShell({
                         notifications.map((n) => (
                           <div
                             key={n.id}
-                            className={`px-4 py-3 ${n.read ? 'opacity-70' : 'bg-[#ede6ca]/[0.03]'}`}
+                            className={`px-4 py-3 ${n.read ? 'opacity-70' : 'bg-[#d4af37]/[0.03]'}`}
                           >
                             <p className="text-xs font-medium text-[color:var(--wm-ink)]">
                               {n.title}
@@ -641,7 +641,7 @@ export function AdminShell({
                             setAccountOpen(false);
                             onNavigate('/portal');
                           }}
-                          className="flex w-full min-h-[36px] items-center justify-between rounded px-2.5 text-xs text-[color:var(--wm-ink)] hover:bg-[#ede6ca]/10 cursor-pointer"
+                          className="flex w-full min-h-[36px] items-center justify-between rounded px-2.5 text-xs text-[color:var(--wm-ink)] hover:bg-[#d4af37]/10 cursor-pointer"
                         >
                           <span>Switch Role / Portal</span>
                           <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
@@ -652,7 +652,7 @@ export function AdminShell({
                             setAccountOpen(false);
                             onNavigate('/');
                           }}
-                          className="flex w-full min-h-[36px] items-center justify-between rounded px-2.5 text-xs text-[color:var(--wm-ink)] hover:bg-[#ede6ca]/10 cursor-pointer"
+                          className="flex w-full min-h-[36px] items-center justify-between rounded px-2.5 text-xs text-[color:var(--wm-ink)] hover:bg-[#d4af37]/10 cursor-pointer"
                         >
                           <span>Public Conference Site</span>
                           <Globe className="h-3.5 w-3.5" aria-hidden="true" />
@@ -747,7 +747,7 @@ export function AdminShell({
                         onNavigate(item.path);
                         setPaletteOpen(false);
                       }}
-                      className="flex w-full items-center justify-between gap-3 rounded px-2.5 py-2 text-left text-xs hover:bg-[#ede6ca]/10 cursor-pointer"
+                      className="flex w-full items-center justify-between gap-3 rounded px-2.5 py-2 text-left text-xs hover:bg-[#d4af37]/10 cursor-pointer"
                     >
                       <span className="flex items-center gap-2.5 text-[color:var(--wm-ink)]">
                         <span className="text-[color:var(--wm-accent)]">{getNavIcon(item.id)}</span>
@@ -776,7 +776,7 @@ export function AdminShell({
                         onNavigate(`${basePath}/applications/${app.id}`);
                         setPaletteOpen(false);
                       }}
-                      className="flex w-full items-center justify-between gap-3 rounded px-2.5 py-2 text-left text-xs hover:bg-[#ede6ca]/10 cursor-pointer"
+                      className="flex w-full items-center justify-between gap-3 rounded px-2.5 py-2 text-left text-xs hover:bg-[#d4af37]/10 cursor-pointer"
                     >
                       <div className="min-w-0">
                         <p className="font-medium text-[color:var(--wm-ink)] truncate">
