@@ -99,7 +99,19 @@ function MemberNodeButton({
           isActive ? 'z-20 border-[#ede6ca]/80' : 'z-10'
         }`}
       >
-        <LeafGlyph />
+        {member.photo ? (
+          <img
+            src={member.photo.startsWith('/') ? member.photo : `/${member.photo}`}
+            alt=""
+            loading="lazy"
+            className="h-10 w-10 shrink-0 rounded-full border border-[#c9d98a]/35 object-cover"
+            style={{ objectPosition: member.objectPosition }}
+          />
+        ) : (
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#c9d98a]/25 bg-[#202414]">
+            <LeafGlyph />
+          </span>
+        )}
         <span className="min-w-0 flex-1">
           <span className="block font-serif text-[1.06rem] sm:text-[1.12rem] font-medium leading-tight text-[#ede6ca] break-words">
             {member.name}
