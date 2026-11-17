@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { CalendarDays, CheckSquare, ClipboardList, Megaphone, MapPin, ShieldAlert, Users, RefreshCw, Plus, LogOut } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { useAdminStore } from '../../../context/AdminStoreContext';
@@ -28,6 +28,8 @@ const TABS: { id: Tab; label: string; icon: typeof ClipboardList }[] = [
 ];
 
 export function ExecutiveBoardPortal({ pathname, onNavigate }: { pathname: string; onNavigate: (path: string) => void }) {
+  void pathname;
+  void onNavigate;
   const { currentUser, signOut, pushToast } = useAdminStore();
   const [records, setRecords] = useState<EbRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,7 +39,6 @@ export function ExecutiveBoardPortal({ pathname, onNavigate }: { pathname: strin
   const [taskDeadline, setTaskDeadline] = useState('');
   const [incidentTitle, setIncidentTitle] = useState('');
   const [incidentDetails, setIncidentDetails] = useState('');
-  const [swapReason, setSwapReason] = useState('');
   const [shiftTitle, setShiftTitle] = useState('');
   const [shiftDate, setShiftDate] = useState('');
   const [announcementTitle, setAnnouncementTitle] = useState('');
@@ -48,7 +49,6 @@ export function ExecutiveBoardPortal({ pathname, onNavigate }: { pathname: strin
   const rank = currentUser?.ebRank ?? 'member';
   const canManage = permissions.manage_department === true;
   const canManageShifts = canManage || permissions.manage_shifts === true;
-  const canManageStations = canManage || permissions.manage_stations === true;
   const canPublish = canManage || permissions.publish_announcements === true;
   const departmentId = currentUser?.departmentId;
 
@@ -104,7 +104,7 @@ export function ExecutiveBoardPortal({ pathname, onNavigate }: { pathname: strin
   const hierarchy = records.filter((r) => r.record_type === 'hierarchy');
   const openTasks = scopedTasks.filter((r) => r.payload.status !== 'completed');
 
-  const submitTask = async (event: React.FormEvent) => {
+  const submitTask = async (event: FormEvent) => {
     event.preventDefault();
     if (!taskTitle.trim()) return;
     await createRecord('task', taskTitle.trim(), { status: 'not_started', priority: 'normal', deadline: taskDeadline || null, assigned_to_user_id: currentUser?.id, assigned_to_name: currentUser?.fullName, checklist: [], completion_note: '' });
