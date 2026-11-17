@@ -549,15 +549,21 @@ export function getNavigationGroups(
   const isSuper = user.role === 'super_admin';
 
   if (portal === 'department_head') {
-    const items: NavItemConfig[] = [
+    const workspaceItems: NavItemConfig[] = [
       { id: 'overview', label: 'Overview', path: '/head' },
       { id: 'applications', label: 'Applications', path: '/head/applications', requiredPermission: 'applications.view' },
+    ];
+    const operationsItems: NavItemConfig[] = [
       { id: 'workspace', label: 'Workspace', path: '/head/workspace', requiredPermission: 'departments.workspace' },
       { id: 'teams', label: 'Groups', path: '/head/teams', requiredPermission: 'operations.teams' },
       { id: 'shifts', label: 'Shifts & Roster', path: '/head/shifts', requiredPermission: 'operations.shifts' },
     ];
-    const visible = items.filter((item) => !item.requiredPermission || hasPermission(user, item.requiredPermission));
-    return visible.length ? [{ id: 'department-workspace', label: 'Department Workspace', items: visible }] : [];
+    const visibleWorkspace = workspaceItems.filter((item) => !item.requiredPermission || hasPermission(user, item.requiredPermission));
+    const visibleOperations = operationsItems.filter((item) => !item.requiredPermission || hasPermission(user, item.requiredPermission));
+    return [
+      ...(visibleWorkspace.length ? [{ id: 'department-workspace', label: 'Department Workspace', items: visibleWorkspace }] : []),
+      ...(visibleOperations.length ? [{ id: 'operations', label: 'Operations', items: visibleOperations }] : []),
+    ];
   }
 
   const groups: NavGroupConfig[] = [
@@ -580,8 +586,7 @@ export function getNavigationGroups(
       label: 'Access & Systems',
       items: [
         { id: 'admins', label: 'Admin Accounts', path: base + '/admins', requiredPermission: 'accounts.view', superAdminOnly: true },
-        { id: 'eb-accounts', label: 'EB Signup & Accounts', path: base + '/eb-accounts', superAdminOnly: true },
-        { id: 'testing', label: 'Head Access Testing', path: base + '/testing', requiredPermission: 'testing.impersonate_head', superAdminOnly: true },
+        { id: 'testing', label: 'IT Super Admin', path: base + '/testing', requiredPermission: 'testing.impersonate_head', superAdminOnly: true },
       ],
     }] : []),
     {
