@@ -62,7 +62,7 @@ import type {
 } from './interfaces';
 import { createInitialSnapshot } from './mockDatabase';
 
-const STORAGE_KEY = 'willow_mun_platform_snapshot_v3';
+const STORAGE_KEY = 'willow_mun_platform_snapshot_v4';
 
 function makeId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
