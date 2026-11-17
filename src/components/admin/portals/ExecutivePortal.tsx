@@ -33,6 +33,7 @@ import { DepartmentTestingView, RolesPermissionsView } from '../views/RolesPermi
 import { SecretariatView } from '../views/SecretariatView';
 import { WebsiteCmsView } from '../views/WebsiteCmsView';
 import { WorkspaceModulesView } from '../views/WorkspaceModulesView';
+import { ExecutiveBoardAccountsView } from '../views/ExecutiveBoardAccountsView';
 
 interface ExecutivePortalProps {
   portal: 'super_admin' | 'admin';
@@ -209,6 +210,10 @@ const SECTION_META: Record<string, { title: string; subtitle: string }> = {
     title: 'Permission Definitions',
     subtitle: 'Global RBAC capability catalog and Super Admin enforcement rules.',
   },
+  'eb-accounts': {
+    title: 'Executive Board Accounts',
+    subtitle: 'Create EB logins and assign department-specific responsibilities and access levels.',
+  },
   testing: {
     title: 'Department Access Testing Mode',
     subtitle: 'Preview /head isolated as any selected Department Head account.',
@@ -233,7 +238,7 @@ export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePorta
   const isSuperAdmin = canManageAccountsOrRoles(currentUser);
 
   // Record security violation if an Admin directly visits a Super Admin-only route
-  const isSuperOnlyRoute = section === 'permission-defs' || section === 'testing';
+  const isSuperOnlyRoute = section === 'permission-defs' || section === 'testing' || section === 'eb-accounts';
   const attemptedForbiddenSuperRoute = authorizedForPortal && !isSuperAdmin && isSuperOnlyRoute;
 
   const loggedViolationRef = useRef<string | null>(null);
@@ -414,6 +419,8 @@ export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePorta
         <RolesPermissionsView section="roles" />
       ) : section === 'permission-defs' ? (
         <RolesPermissionsView section="permission-defs" />
+      ) : section === 'eb-accounts' ? (
+        <ExecutiveBoardAccountsView />
       ) : section === 'testing' ? (
         <DepartmentTestingView onEnterTestingMode={() => onNavigate('/head')} />
       ) : (
