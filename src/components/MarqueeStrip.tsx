@@ -162,9 +162,9 @@ export function MarqueeStrip({ paused = false }: MarqueeStripProps) {
     <div
       ref={containerRef}
       aria-label="Conference ticker"
-      className="relative z-10 w-full overflow-x-clip border-y border-[#ede6ca]/18 bg-[#14180a]/85 py-3"
+      className="relative z-[1] w-full overflow-x-clip border-y border-[#ede6ca]/18 bg-transparent py-3"
     >
-      <div ref={trackRef} className="flex w-max will-change-transform">
+      <div ref={trackRef} className="flex w-max">
         <div ref={firstHalfRef} className="flex items-center shrink-0">
           {MARQUEE_ITEMS.map((idx) => (
             <MarqueePhrase key={`a-${idx}`} />

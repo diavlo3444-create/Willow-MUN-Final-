@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   buildWillowCanvasGeometry,
+  configureWillowCanvasContext,
   drawWillowCanvasFrame,
   type CanvasRenderContext2D,
 } from './willowCanvasIntro';
@@ -13,14 +14,33 @@ function createMockCanvasContext() {
   let moveToCalls = 0;
   let bezierCalls = 0;
   let lineToCalls = 0;
+  let quadraticCalls = 0;
+  let fillStyleChanges = 0;
+  let strokeStyleChanges = 0;
+
+  let currentFillStyle: string | CanvasGradient | CanvasPattern = '#000';
+  let currentStrokeStyle: string | CanvasGradient | CanvasPattern = '#000';
 
   const ctx: CanvasRenderContext2D = {
-    fillStyle: '#000',
-    strokeStyle: '#000',
+    get fillStyle() {
+      return currentFillStyle;
+    },
+    set fillStyle(val) {
+      currentFillStyle = val;
+      fillStyleChanges++;
+    },
+    get strokeStyle() {
+      return currentStrokeStyle;
+    },
+    set strokeStyle(val) {
+      currentStrokeStyle = val;
+      strokeStyleChanges++;
+    },
     lineWidth: 1,
     lineCap: 'butt',
     lineJoin: 'miter',
     globalAlpha: 1,
+    imageSmoothingEnabled: true,
     save: () => {},
     restore: () => {},
     beginPath: () => {
@@ -32,7 +52,9 @@ function createMockCanvasContext() {
     lineTo: () => {
       lineToCalls++;
     },
-    quadraticCurveTo: () => {},
+    quadraticCurveTo: () => {
+      quadraticCalls++;
+    },
     bezierCurveTo: () => {
       bezierCalls++;
     },
@@ -56,6 +78,9 @@ function createMockCanvasContext() {
       moveToCalls,
       bezierCalls,
       lineToCalls,
+      quadraticCalls,
+      fillStyleChanges,
+      strokeStyleChanges,
     }),
     resetCounts: () => {
       strokeCalls = 0;
@@ -64,6 +89,9 @@ function createMockCanvasContext() {
       moveToCalls = 0;
       bezierCalls = 0;
       lineToCalls = 0;
+      quadraticCalls = 0;
+      fillStyleChanges = 0;
+      strokeStyleChanges = 0;
     },
   };
 }
@@ -82,23 +110,26 @@ test('builds deterministic weeping willow canvas geometry matching 74 strands an
   assert.deepEqual(a.frontAndLaurelLeaves[10], b.frontAndLaurelLeaves[10]);
 });
 
-test('batches all canvas stroke calls into a single stroke() per frame across animation progress', () => {
+test('uses a single beginPath, single fill, single stroke, quadraticCurveTo, and zero per-frame style changes', () => {
   const geometry = buildWillowCanvasGeometry();
   const mock = createMockCanvasContext();
 
+  configureWillowCanvasContext(mock.ctx);
+  assert.equal(mock.ctx.imageSmoothingEnabled, false);
+
   for (const progress of [0.15, 0.5, 0.85, 1.0]) {
     mock.resetCounts();
+    mock.ctx.imageSmoothingEnabled = true;
     drawWillowCanvasFrame(mock.ctx, geometry, progress);
     const counts = mock.getCounts();
 
-    assert.equal(
-      counts.strokeCalls,
-      1,
-      `Expected exactly 1 batched ctx.stroke() call at progress=${progress}, got ${counts.strokeCalls}`,
-    );
-    assert.ok(
-      counts.fillCalls <= 4,
-      `Expected <=4 batched ctx.fill() calls at progress=${progress}, got ${counts.fillCalls}`,
-    );
+    assert.equal(mock.ctx.imageSmoothingEnabled, false);
+    assert.equal(counts.beginPathCalls, 1);
+    assert.equal(counts.fillCalls, 1);
+    assert.equal(counts.strokeCalls, 1);
+    assert.equal(counts.fillStyleChanges, 0);
+    assert.equal(counts.strokeStyleChanges, 0);
+    assert.equal(counts.lineToCalls, 0);
+    assert.ok(counts.quadraticCalls > 0);
   }
 });

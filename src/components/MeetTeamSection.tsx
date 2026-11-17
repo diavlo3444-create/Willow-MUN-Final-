@@ -25,11 +25,11 @@ export function MeetTeamSection() {
       <div className="space-y-12">
         {CONFERENCE_DATA.team.groups.map((group) => (
           <div key={group.id}>
-            <div className="mb-5 flex items-center gap-4">
-              <h3 className="text-[clamp(10px,2.9vw,14px)] font-medium uppercase tracking-[0.2em] text-[#cfc8aa] whitespace-nowrap">
+            <div className="mb-5 flex items-center gap-4 min-w-0">
+              <h3 className="text-[clamp(0.6875rem,2.6vw,0.875rem)] font-medium uppercase tracking-[0.2em] text-[#cfc8aa] break-words">
                 {group.title}
               </h3>
-              <div className="h-px flex-1 bg-[#ede6ca]/15" aria-hidden="true" />
+              <div className="h-px flex-1 min-w-[24px] bg-[#ede6ca]/15" aria-hidden="true" />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -41,12 +41,12 @@ export function MeetTeamSection() {
                     staggerIndex={idx % 4}
                     className="p-5 sm:p-6"
                   >
-                    <article className="h-full flex flex-col justify-between gap-4">
-                      <div>
-                        <h4 className="font-serif text-[clamp(1.15rem,2.4vw,1.5rem)] font-medium text-[#ede6ca] whitespace-nowrap">
+                    <article className="h-full min-w-0 flex flex-col justify-between gap-4">
+                      <div className="min-w-0">
+                        <h4 className="font-serif text-[clamp(1.2rem,2.4vw,1.5rem)] font-medium text-[#ede6ca] break-words">
                           {dept.name}
                         </h4>
-                        <p className="mt-1 text-[clamp(10px,2.5vw,12px)] uppercase tracking-[0.14em] text-[#cfc8aa] whitespace-nowrap">
+                        <p className="mt-1 text-[clamp(0.65rem,2.3vw,0.75rem)] uppercase tracking-[0.14em] text-[#cfc8aa] break-words">
                           {dept.role}
                         </p>
                       </div>

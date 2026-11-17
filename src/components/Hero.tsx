@@ -98,17 +98,17 @@ export function Hero({ cursorEffectsActive = true }: HeroProps) {
     <section
       id="top"
       aria-label="Willow Model United Nations overview"
-      className="relative min-h-[100dvh] flex items-center justify-center px-3 sm:px-8 md:px-12 pt-24 pb-20"
+      className="relative z-[1] min-h-[100dvh] flex items-center justify-center bg-transparent px-[clamp(16px,4vw,48px)] pt-24 pb-20"
     >
-      <div className="chrome mun-hero-scrim relative mx-auto flex w-full max-w-[1280px] flex-col items-center text-center px-2 py-12 sm:px-8 sm:py-16">
-        <p className="mun-hero-shadow text-[clamp(10px,2.8vw,12px)] font-medium uppercase tracking-[0.26em] text-[#cfc8aa] mb-5 whitespace-nowrap">
+      <div className="chrome mun-hero-scrim relative mx-auto flex w-full max-w-[1200px] min-w-0 flex-col items-center text-center px-1 py-12 sm:px-6 sm:py-16">
+        <p className="mun-hero-shadow text-[clamp(0.65rem,2.6vw,0.75rem)] font-medium uppercase tracking-[0.26em] text-[#cfc8aa] mb-5">
           ✦ <span className="mx-2">{CONFERENCE_DATA.brand.year} Edition</span> ✦
         </p>
 
-        <h1 className="mun-hero-shadow font-serif uppercase text-[#ede6ca] select-none w-full flex justify-center">
+        <h1 className="mun-hero-shadow font-serif uppercase text-[#ede6ca] select-none w-full flex justify-center min-w-0">
           <span
             ref={titleRef}
-            className="block will-change-transform whitespace-nowrap text-[clamp(2.4rem,10vw,9.5rem)] leading-[0.95] font-medium tracking-[0.03em]"
+            className="block whitespace-nowrap text-[clamp(2.25rem,8.8vw,8.75rem)] leading-[0.95] font-medium tracking-[0.03em]"
           >
             WILLOW MUN
           </span>
@@ -116,15 +116,15 @@ export function Hero({ cursorEffectsActive = true }: HeroProps) {
 
         <div className="mt-7 w-16 border-t border-[#ede6ca]/35" aria-hidden="true" />
 
-        <p className="mun-hero-shadow mt-6 font-serif text-[clamp(1.15rem,3vw,1.6rem)] font-medium tracking-wide text-[#ede6ca] whitespace-nowrap">
+        <p className="mun-hero-shadow mt-6 font-serif text-[clamp(1.1rem,3vw,1.6rem)] font-medium tracking-wide text-[#ede6ca] [text-wrap:balance]">
           {CONFERENCE_DATA.hero.fullTitle}
         </p>
 
-        <p className="mun-hero-shadow mt-2 text-sm sm:text-base text-[#cfc8aa] whitespace-nowrap">
+        <p className="mun-hero-shadow mt-2 text-[clamp(0.875rem,2.4vw,1rem)] text-[#cfc8aa]">
           Tagline <TbaText text="TBA" className="text-lg sm:text-xl" />
         </p>
 
-        <p className="mun-hero-shadow mt-2 text-[clamp(11px,2.8vw,14px)] uppercase tracking-[0.18em] text-[#cfc8aa] whitespace-nowrap">
+        <p className="mun-hero-shadow mt-2 text-[clamp(0.7rem,2.6vw,0.875rem)] uppercase tracking-[0.18em] text-[#cfc8aa]">
           Dates <TbaText text="TBA" className="normal-case text-base sm:text-lg" />
           <span className="mx-2.5 text-[#ede6ca]/45" aria-hidden="true">
             ·
@@ -137,7 +137,7 @@ export function Hero({ cursorEffectsActive = true }: HeroProps) {
             <a
               href={CONFERENCE_DATA.hero.ctaHref}
               onClick={handleCtaClick}
-              className="mun-btn-interactive inline-flex items-center justify-center min-h-[44px] rounded-full bg-[#ede6ca] px-7 py-3 text-sm font-medium text-[#232814] hover:bg-[#cfc8aa] whitespace-nowrap"
+              className="mun-btn-interactive inline-flex items-center justify-center min-h-[44px] rounded-full bg-[#ede6ca] px-7 py-3 text-sm font-medium text-[#232814] hover:opacity-90 whitespace-nowrap"
             >
               {CONFERENCE_DATA.hero.ctaLabel}
             </a>

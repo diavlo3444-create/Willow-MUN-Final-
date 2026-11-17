@@ -2,21 +2,17 @@ import { useCallback, useRef, useState } from 'react';
 import { AboutSection } from './components/AboutSection';
 import { AnnouncementBar } from './components/AnnouncementBar';
 import { ApplySection } from './components/ApplySection';
-import { BackgroundVideo } from './components/BackgroundVideo';
 import { CommitteesSection } from './components/CommitteesSection';
-import {
-  ExecutiveBoardSection,
-  type LeafFocusRequest,
-} from './components/ExecutiveBoardSection';
+import { ExecutiveBoardSection } from './components/ExecutiveBoardSection';
 import { Footer } from './components/Footer';
 import { Hero } from './components/Hero';
 import { MarqueeStrip } from './components/MarqueeStrip';
 import { MeetTeamSection } from './components/MeetTeamSection';
 import { Navbar } from './components/Navbar';
 import { ScrollProgressBar } from './components/ScrollProgressBar';
-import { SecretariatSection } from './components/SecretariatSection';
 import { SuggestionsSection } from './components/SuggestionsSection';
 import { UpdatesSection } from './components/UpdatesSection';
+import { WillowBackground } from './components/WillowBackground';
 import {
   WillowIntroEmblem,
   type WillowIntroEmblemHandle,
@@ -25,7 +21,7 @@ import {
 export default function App() {
   const [showAnnouncement, setShowAnnouncement] = useState(true);
   const [introPlaying, setIntroPlaying] = useState(true);
-  const [focusLeafRequest, setFocusLeafRequest] = useState<LeafFocusRequest | null>(null);
+  const [motionPaused, setMotionPaused] = useState(false);
 
   const introEmblemRef = useRef<WillowIntroEmblemHandle | null>(null);
 
@@ -33,25 +29,24 @@ export default function App() {
     introEmblemRef.current?.replay();
   }, []);
 
-  const handleFindOnTree = useCallback((memberIndex: number) => {
-    setFocusLeafRequest((prev) => ({
-      index: memberIndex,
-      nonce: (prev?.nonce ?? 0) + 1,
-    }));
+  const handleTogglePause = useCallback(() => {
+    setMotionPaused((prev) => !prev);
   }, []);
 
   return (
-    <div className="relative min-h-[100dvh] text-[#ede6ca]">
+    <div className="relative min-h-[100dvh] pb-[calc(6.5rem+env(safe-area-inset-bottom))] text-[#ede6ca]">
       {/* Fixed 2px cream top scroll progress bar */}
       <ScrollProgressBar />
 
-      {/* Fixed full-viewport looping video (#bgVideo) and constant 0.40 -> 0.75 #14180a scrim */}
-      <BackgroundVideo
+      {/* Fixed full-screen looping video background */}
+      <WillowBackground
         hasAnnouncementBar={showAnnouncement}
         introPlaying={introPlaying}
+        paused={motionPaused}
+        onTogglePause={handleTogglePause}
       />
 
-      {/* Unified 60 FPS canvas intro that transitions into the background emblem behind WILLOW MUN */}
+      {/* Opening emblem intro that fades out cleanly to reveal the hero and looping video background */}
       <WillowIntroEmblem
         ref={introEmblemRef}
         introPlaying={introPlaying}
@@ -62,14 +57,13 @@ export default function App() {
       <Navbar />
 
       {/* Main single-page editorial flow */}
-      <main className="relative z-10">
+      <main className="relative z-[1] bg-transparent">
         <Hero cursorEffectsActive={!introPlaying} />
         <MarqueeStrip paused={introPlaying} />
 
         <AboutSection />
         <CommitteesSection />
-        <SecretariatSection onFindOnTree={handleFindOnTree} />
-        <ExecutiveBoardSection focusLeafRequest={focusLeafRequest} />
+        <ExecutiveBoardSection />
         <MeetTeamSection />
         <UpdatesSection />
         <ApplySection />

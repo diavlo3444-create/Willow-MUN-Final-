@@ -3,17 +3,14 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
-  useMemo,
   useRef,
 } from 'react';
-import {
-  CANVAS_VIEWBOX_H,
-  CANVAS_VIEWBOX_W,
-  buildWillowCanvasGeometry,
-  drawWillowCanvasFrame,
-} from '../utils/willowCanvasIntro';
+import { CONFERENCE_DATA } from '../data/conference';
 
-const INTRO_DURATION_MS = 3200;
+const INTRO_TRANSITION_TIME_S = 7.2;
+const INTRO_FALLBACK_TIMEOUT_MS = 12000;
+const INTRO_WATERMARK_FALLBACK_DURATION_S = 8.4;
+const REPLAY_FADE_OUT_MS = 560;
 
 export interface WillowIntroEmblemHandle {
   replay: () => void;
@@ -25,164 +22,156 @@ interface WillowIntroEmblemProps {
 }
 
 /**
- * Unified intro & background emblem canvas:
- * - Renders the seeded weeping willow + laurel wreath onto a DPR-aware <canvas>
- *   at a locked 60 FPS with all strokes batched into ONE path per frame.
- * - Lives inside a single unified fixed container (`.willow-emblem-container`) that
- *   transitions seamlessly via CSS `transform: scale(0.92)` and `opacity: 0.22` with a
- *   `1.6s cubic-bezier(0.16, 1, 0.3, 1)` curve into the background emblem behind 'WILLOW MUN'.
+ * Full-bleed intro <video> (44.mp4) with mix-blend-mode: screen:
+ * - Plays at full opacity (scale 1, z-index 50) over the olive backdrop
+ * - At 7.2s (or on Skip), smoothly dissolves into the background watermark
+ *   (opacity: 0.24, transform: scale(0.96), z-index: 1) while revealing the hero UI
+ * - Supports Replay intro by fading out text, bringing the video back to scale 1 / opacity 1,
+ *   playing from the beginning, and dissolving back into the background
  */
 export const WillowIntroEmblem = forwardRef<WillowIntroEmblemHandle, WillowIntroEmblemProps>(
   function WillowIntroEmblem({ introPlaying, onIntroStateChange }, ref) {
-    const containerRef = useRef<HTMLDivElement | null>(null);
-    const canvasRef = useRef<HTMLCanvasElement | null>(null);
-
-    const geometry = useMemo(() => buildWillowCanvasGeometry(), []);
-
+    const videoRef = useRef<HTMLVideoElement | null>(null);
     const rafIdRef = useRef<number>(0);
+    const fallbackTimerRef = useRef<number>(0);
+    const replayTimerRef = useRef<number>(0);
     const finishedRef = useRef<boolean>(false);
-    const progressRef = useRef<number>(0);
-    const canvasScaleRef = useRef<{
-      widthPx: number;
-      heightPx: number;
-      scale: number;
-      offsetX: number;
-      offsetY: number;
-    }>({
-      widthPx: 0,
-      heightPx: 0,
-      scale: 1,
-      offsetX: 0,
-      offsetY: 0,
-    });
+    const pendingWatermarkSeekRef = useRef<boolean>(false);
 
-    const paintAtProgress = useCallback(
-      (progress: number) => {
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-
-        const { widthPx, heightPx, scale, offsetX, offsetY } = canvasScaleRef.current;
-        if (widthPx <= 0 || heightPx <= 0) return;
-
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
-        ctx.clearRect(0, 0, widthPx, heightPx);
-
-        if (progress <= 0) return;
-
-        ctx.setTransform(scale, 0, 0, scale, offsetX, offsetY);
-        drawWillowCanvasFrame(ctx, geometry, progress);
-      },
-      [geometry],
-    );
-
-    const syncCanvasBackingStore = useCallback(() => {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-
-      const rect = canvas.getBoundingClientRect();
-      if (rect.width <= 0 || rect.height <= 0) return;
-
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      const widthPx = Math.max(1, Math.round(rect.width * dpr));
-      const heightPx = Math.max(1, Math.round(rect.height * dpr));
-
-      if (canvas.width !== widthPx || canvas.height !== heightPx) {
-        canvas.width = widthPx;
-        canvas.height = heightPx;
-      }
-
-      const scale = Math.min(widthPx / CANVAS_VIEWBOX_W, heightPx / CANVAS_VIEWBOX_H);
-      const offsetX = (widthPx - CANVAS_VIEWBOX_W * scale) / 2;
-      const offsetY = (heightPx - CANVAS_VIEWBOX_H * scale) / 2;
-
-      canvasScaleRef.current = { widthPx, heightPx, scale, offsetX, offsetY };
-      paintAtProgress(progressRef.current);
-    }, [paintAtProgress]);
-
-    const finishIntro = useCallback(() => {
-      if (finishedRef.current) return;
-      finishedRef.current = true;
-
+    const clearTimers = useCallback(() => {
       if (rafIdRef.current !== 0) {
         window.cancelAnimationFrame(rafIdRef.current);
         rafIdRef.current = 0;
       }
+      if (fallbackTimerRef.current !== 0) {
+        window.clearTimeout(fallbackTimerRef.current);
+        fallbackTimerRef.current = 0;
+      }
+      if (replayTimerRef.current !== 0) {
+        window.clearTimeout(replayTimerRef.current);
+        replayTimerRef.current = 0;
+      }
+    }, []);
 
-      progressRef.current = 1;
-      paintAtProgress(1);
+    const seekToWatermarkFrame = useCallback((video: HTMLVideoElement) => {
+      const duration =
+        Number.isFinite(video.duration) && video.duration > 0
+          ? video.duration
+          : INTRO_WATERMARK_FALLBACK_DURATION_S;
+      const targetTime = Math.max(INTRO_TRANSITION_TIME_S, duration - 0.05);
 
-      const bg = document.getElementById('bgVideo') as HTMLVideoElement | null;
-      if (bg) {
-        bg.muted = true;
-        bg.play().catch(() => {});
+      video.pause();
+      if (video.readyState >= 1) {
+        try {
+          video.currentTime = targetTime;
+          pendingWatermarkSeekRef.current = false;
+        } catch {
+          pendingWatermarkSeekRef.current = true;
+        }
+      } else {
+        pendingWatermarkSeekRef.current = true;
+      }
+    }, []);
+
+    const finishIntro = useCallback(
+      (options?: { seekToEnd?: boolean }) => {
+        if (finishedRef.current) return;
+        finishedRef.current = true;
+        clearTimers();
+
+        const video = videoRef.current;
+        if (video) {
+          if (options?.seekToEnd) {
+            seekToWatermarkFrame(video);
+          } else {
+            window.setTimeout(() => {
+              if (finishedRef.current && videoRef.current) {
+                videoRef.current.pause();
+              }
+            }, 1850);
+          }
+        }
+
+        document.body.classList.remove('intro-on');
+        onIntroStateChange(false);
+      },
+      [clearTimers, onIntroStateChange, seekToWatermarkFrame],
+    );
+
+    const beginVideoPlayback = useCallback(() => {
+      const video = videoRef.current;
+      if (video) {
+        video.muted = true;
+        video.defaultMuted = true;
+        try {
+          video.currentTime = 0;
+        } catch {
+          // Ignore seek error prior to metadata
+        }
+        const playPromise = video.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(() => {
+            // Autoplay fallback timer/user click will handle transition if blocked
+          });
+        }
       }
 
-      document.body.classList.remove('intro-on');
-      onIntroStateChange(false);
-    }, [onIntroStateChange, paintAtProgress]);
+      const checkPlayback = () => {
+        if (document.hidden) {
+          rafIdRef.current = 0;
+          return;
+        }
+        if (finishedRef.current) return;
+        const currentVideo = videoRef.current;
+        if (currentVideo && currentVideo.currentTime >= INTRO_TRANSITION_TIME_S) {
+          rafIdRef.current = 0;
+          finishIntro();
+          return;
+        }
+        rafIdRef.current = window.requestAnimationFrame(checkPlayback);
+      };
+
+      rafIdRef.current = window.requestAnimationFrame(checkPlayback);
+      fallbackTimerRef.current = window.setTimeout(() => {
+        finishIntro();
+      }, INTRO_FALLBACK_TIMEOUT_MS);
+    }, [finishIntro]);
 
     const startIntro = useCallback(
       (isReplay: boolean) => {
-        if (rafIdRef.current !== 0) {
-          window.cancelAnimationFrame(rafIdRef.current);
-          rafIdRef.current = 0;
-        }
-
+        clearTimers();
         finishedRef.current = false;
+        pendingWatermarkSeekRef.current = false;
         onIntroStateChange(true);
-
-        const docEl = document.documentElement;
-        const prevScrollBehavior = docEl.style.scrollBehavior;
-        docEl.style.scrollBehavior = 'auto';
-        window.scrollTo(0, 0);
-        docEl.style.scrollBehavior = prevScrollBehavior;
-
-        const bg = document.getElementById('bgVideo') as HTMLVideoElement | null;
-        if (bg) {
-          bg.pause();
-          try {
-            bg.currentTime = 0;
-          } catch {
-            // Ignore seek error prior to metadata
-          }
-        }
-
-        const container = containerRef.current;
-        if (isReplay && container) {
-          container.classList.add('willow-emblem-instant');
-        }
 
         document.body.classList.add('intro-on');
 
-        if (isReplay && container) {
-          void container.offsetWidth;
-          container.classList.remove('willow-emblem-instant');
+        if (!isReplay) {
+          const docEl = document.documentElement;
+          const prevScrollBehavior = docEl.style.scrollBehavior;
+          docEl.style.scrollBehavior = 'auto';
+          window.scrollTo(0, 0);
+          docEl.style.scrollBehavior = prevScrollBehavior;
+
+          beginVideoPlayback();
+          return;
         }
 
-        progressRef.current = 0;
-        paintAtProgress(0);
-
-        const startTime = performance.now();
-        const tick = (now: number) => {
+        // Smooth replay: let text fade out & intro dissolve back in before resetting scroll & playing from 0
+        replayTimerRef.current = window.setTimeout(() => {
+          replayTimerRef.current = 0;
           if (finishedRef.current) return;
-          const elapsed = now - startTime;
-          const nextProgress = Math.min(1, elapsed / INTRO_DURATION_MS);
-          progressRef.current = nextProgress;
-          paintAtProgress(nextProgress);
 
-          if (nextProgress >= 1) {
-            rafIdRef.current = 0;
-            finishIntro();
-            return;
-          }
-          rafIdRef.current = window.requestAnimationFrame(tick);
-        };
+          const docEl = document.documentElement;
+          const prevScrollBehavior = docEl.style.scrollBehavior;
+          docEl.style.scrollBehavior = 'auto';
+          window.scrollTo(0, 0);
+          docEl.style.scrollBehavior = prevScrollBehavior;
 
-        rafIdRef.current = window.requestAnimationFrame(tick);
+          beginVideoPlayback();
+        }, REPLAY_FADE_OUT_MS);
       },
-      [finishIntro, onIntroStateChange, paintAtProgress],
+      [beginVideoPlayback, clearTimers, onIntroStateChange],
     );
 
     useImperativeHandle(
@@ -197,17 +186,47 @@ export const WillowIntroEmblem = forwardRef<WillowIntroEmblemHandle, WillowIntro
     );
 
     useEffect(() => {
-      syncCanvasBackingStore();
+      const video = videoRef.current;
 
-      const canvas = canvasRef.current;
-      let resizeObserver: ResizeObserver | null = null;
-      if (canvas && typeof ResizeObserver !== 'undefined') {
-        resizeObserver = new ResizeObserver(() => {
-          syncCanvasBackingStore();
-        });
-        resizeObserver.observe(canvas);
+      const handleLoadedMetadata = () => {
+        if (!video) return;
+        if (pendingWatermarkSeekRef.current) {
+          seekToWatermarkFrame(video);
+        }
+      };
+
+      const handleCanPlay = () => {
+        if (!video || finishedRef.current || replayTimerRef.current !== 0 || !video.paused) {
+          return;
+        }
+        video.muted = true;
+        video.play().catch(() => {});
+      };
+
+      const handleTimeUpdate = () => {
+        if (!video || finishedRef.current || replayTimerRef.current !== 0) return;
+        if (video.currentTime >= INTRO_TRANSITION_TIME_S) {
+          finishIntro();
+        }
+      };
+
+      const handleEnded = () => {
+        if (!finishedRef.current && replayTimerRef.current === 0) {
+          finishIntro();
+        }
+      };
+
+      const handleError = () => {
+        finishIntro();
+      };
+
+      if (video) {
+        video.addEventListener('loadedmetadata', handleLoadedMetadata);
+        video.addEventListener('canplay', handleCanPlay);
+        video.addEventListener('timeupdate', handleTimeUpdate);
+        video.addEventListener('ended', handleEnded);
+        video.addEventListener('error', handleError);
       }
-      window.addEventListener('resize', syncCanvasBackingStore, { passive: true });
 
       const onKeyDown = (event: KeyboardEvent) => {
         if (
@@ -220,46 +239,84 @@ export const WillowIntroEmblem = forwardRef<WillowIntroEmblemHandle, WillowIntro
       };
       document.addEventListener('keydown', onKeyDown);
 
-      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      const onVisibilityChange = () => {
+        if (document.hidden || finishedRef.current || replayTimerRef.current !== 0) return;
+        if (video && video.currentTime >= INTRO_TRANSITION_TIME_S) {
+          finishIntro();
+          return;
+        }
+        if (video && video.paused) {
+          video.muted = true;
+          video.play().catch(() => {});
+        }
+        if (rafIdRef.current === 0) {
+          const resumeCheck = () => {
+            if (document.hidden) {
+              rafIdRef.current = 0;
+              return;
+            }
+            if (finishedRef.current) return;
+            const currentVideo = videoRef.current;
+            if (currentVideo && currentVideo.currentTime >= INTRO_TRANSITION_TIME_S) {
+              rafIdRef.current = 0;
+              finishIntro();
+              return;
+            }
+            rafIdRef.current = window.requestAnimationFrame(resumeCheck);
+          };
+          rafIdRef.current = window.requestAnimationFrame(resumeCheck);
+        }
+      };
+      document.addEventListener('visibilitychange', onVisibilityChange);
+
+      const isAutostart =
+        new URLSearchParams(window.location.search).get('autostart') === '1';
+
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || isAutostart) {
         finishedRef.current = false;
-        finishIntro();
+        finishIntro({ seekToEnd: true });
       } else {
         startIntro(false);
       }
 
       return () => {
-        if (rafIdRef.current !== 0) {
-          window.cancelAnimationFrame(rafIdRef.current);
-          rafIdRef.current = 0;
+        clearTimers();
+        if (video) {
+          video.removeEventListener('loadedmetadata', handleLoadedMetadata);
+          video.removeEventListener('canplay', handleCanPlay);
+          video.removeEventListener('timeupdate', handleTimeUpdate);
+          video.removeEventListener('ended', handleEnded);
+          video.removeEventListener('error', handleError);
         }
-        resizeObserver?.disconnect();
-        window.removeEventListener('resize', syncCanvasBackingStore);
         document.removeEventListener('keydown', onKeyDown);
+        document.removeEventListener('visibilitychange', onVisibilityChange);
       };
-    }, [finishIntro, startIntro, syncCanvasBackingStore]);
+    }, [clearTimers, finishIntro, seekToWatermarkFrame, startIntro]);
 
     return (
       <>
-        {/* Olive gradient backdrop during the intro (fades smoothly into #bgVideo + scrim at handoff) */}
+        {/* Olive gradient backdrop during the intro (cross-dissolves into #bgVideo + scrim at handoff) */}
         <div className="willow-intro-backdrop" aria-hidden="true" />
 
-        {/* Unified container: stays mounted, gliding from scale(1)/opacity(1) -> scale(0.92)/opacity(0.22) behind WILLOW MUN */}
-        <div
-          ref={containerRef}
-          className="willow-emblem-container"
+        {/* Full-bleed seamless <video> with mix-blend-mode: screen */}
+        <video
+          ref={videoRef}
+          src={CONFERENCE_DATA.brand.introVideoSrc}
+          autoPlay
+          muted
+          playsInline
+          preload="auto"
+          disablePictureInPicture
           aria-hidden="true"
-        >
-          <canvas
-            ref={canvasRef}
-            className="block w-[min(92vw,92vh)] max-w-[940px] aspect-[10/9] pointer-events-none"
-          />
-        </div>
+          tabIndex={-1}
+          className="willow-intro-video select-none"
+        />
 
         {/* Click/Skip interaction layer active only while intro is playing */}
         <div
           id="intro"
           aria-hidden={!introPlaying}
-          onClick={introPlaying ? finishIntro : undefined}
+          onClick={introPlaying ? () => finishIntro() : undefined}
           className={`willow-intro-controls ${introPlaying ? 'is-active' : ''}`}
         >
           <button

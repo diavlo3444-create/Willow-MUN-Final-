@@ -51,11 +51,11 @@ export function AnnouncementBar({
             }
           : undefined
       }
-      className="chrome mun-announcement-bg fixed bottom-0 inset-x-0 z-30 border-t border-[#ede6ca]/15 px-4 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]"
+      className="chrome mun-announcement-bg fixed bottom-0 inset-x-0 z-30 border-t border-[#ede6ca]/15 px-[clamp(16px,4vw,48px)] py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]"
     >
-      <div className="mx-auto flex max-w-[1200px] items-center justify-between gap-3 text-[11px] sm:text-xs text-[#cfc8aa]">
-        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 min-w-0">
-          <span className="text-[#a9b47e]" aria-hidden="true">
+      <div className="mx-auto flex max-w-[1200px] items-center justify-between gap-2 sm:gap-3 text-[11px] sm:text-xs text-[#cfc8aa]">
+        <div className="flex flex-1 flex-nowrap items-center gap-2 sm:gap-2.5 min-w-0 overflow-hidden whitespace-nowrap">
+          <span className="text-[#a9b47e] shrink-0" aria-hidden="true">
             ✦
           </span>
           <span className="truncate">
@@ -64,11 +64,13 @@ export function AnnouncementBar({
               <span aria-hidden="true">·</span> Details <TbaText text="TBA" className="text-sm" />
             </span>
           </span>
-          <span aria-hidden="true">·</span>
+          <span className="shrink-0" aria-hidden="true">
+            ·
+          </span>
           <a
             href="#committees"
             onClick={handleLinkClick}
-            className="mun-link-underline font-medium text-[#ede6ca] hover:text-[#a9b47e] transition-colors duration-200 whitespace-nowrap shrink-0"
+            className="mun-link-underline font-medium text-[#ede6ca] hover:opacity-85 transition-opacity duration-200 whitespace-nowrap shrink-0"
           >
             View Committees
           </a>
@@ -78,7 +80,7 @@ export function AnnouncementBar({
           type="button"
           onClick={handleClose}
           aria-label="Dismiss announcement"
-          className="mun-btn-interactive inline-flex h-8 w-8 items-center justify-center rounded-sm text-[#cfc8aa] hover:text-[#ede6ca] shrink-0 cursor-pointer"
+          className="mun-btn-interactive inline-flex h-9 w-9 items-center justify-center rounded-sm text-[#cfc8aa] hover:text-[#ede6ca] shrink-0 cursor-pointer"
         >
           <X className="h-4 w-4" aria-hidden="true" />
         </button>

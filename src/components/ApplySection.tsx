@@ -19,10 +19,9 @@ export function ApplySection() {
               italicWord="APPLICATIONS"
               period
             />
-            <p className="text-base sm:text-[17px] leading-[1.7] text-[#cfc8aa]">
-              Applications for delegates, chairs, and secretariat roles are not open yet. Opening
-              dates, delegate fees, and eligibility details are{' '}
-              <TbaText text="TBA" className="text-xl" />.
+            <p className="text-[clamp(0.95rem,2vw,1.0625rem)] leading-[1.7] text-[#cfc8aa]">
+              Applications for delegates and chairs are not open yet. Opening dates, delegate fees,
+              and eligibility details are <TbaText text="TBA" className="text-xl" />.
             </p>
           </div>
 
@@ -31,7 +30,7 @@ export function ApplySection() {
               type="button"
               disabled
               aria-disabled="true"
-              className="inline-flex items-center justify-center min-h-[44px] rounded-full border border-[#ede6ca]/40 bg-transparent px-7 py-3 text-sm font-medium text-[#ede6ca]/85 cursor-not-allowed whitespace-nowrap"
+              className="mun-btn-interactive inline-flex items-center justify-center min-h-[44px] rounded-full border border-[#ede6ca]/40 bg-transparent px-6 sm:px-7 py-3 text-xs sm:text-sm font-medium text-[#ede6ca]/85 cursor-not-allowed whitespace-nowrap"
             >
               {CONFERENCE_DATA.apply.buttonLabel}
             </button>

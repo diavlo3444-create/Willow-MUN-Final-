@@ -1,0 +1,316 @@
+{
+  "groups": [
+    {
+      "id": "secretariat",
+      "label": "Secretariat",
+      "side": "center"
+    },
+    {
+      "id": "media",
+      "label": "Media",
+      "side": "left",
+      "cluster": "Communications & Creative"
+    },
+    {
+      "id": "press",
+      "label": "Press",
+      "side": "left",
+      "cluster": "Communications & Creative"
+    },
+    {
+      "id": "marketing",
+      "label": "Marketing",
+      "side": "left",
+      "cluster": "Communications & Creative"
+    },
+    {
+      "id": "design",
+      "label": "Design",
+      "side": "left",
+      "cluster": "Communications & Creative"
+    },
+    {
+      "id": "security",
+      "label": "Security",
+      "side": "right",
+      "cluster": "Operations"
+    },
+    {
+      "id": "it",
+      "label": "Information Technology",
+      "side": "right",
+      "cluster": "Operations"
+    },
+    {
+      "id": "hr",
+      "label": "Human Resources",
+      "side": "right",
+      "cluster": "Operations"
+    },
+    {
+      "id": "delegate-affairs",
+      "label": "Delegate Affairs",
+      "side": "right",
+      "cluster": "Operations"
+    },
+    {
+      "id": "volunteers",
+      "label": "Volunteers",
+      "side": "right",
+      "cluster": "Operations"
+    }
+  ],
+  "members": [
+    {
+      "id": "naya-barakat",
+      "name": "Naya Barakat",
+      "role": "Deputy Secretary-General",
+      "group": "secretariat",
+      "quote": "Leadership is not about having a voice above others, but about creating a space where every voice is heard",
+      "quoteBy": null,
+      "photo": "photos/naya-barakat.jpg",
+      "focus": [
+        25,
+        45
+      ]
+    },
+    {
+      "id": "jad-yassin",
+      "name": "Jad Yassin",
+      "role": "Under Secretary-General",
+      "group": "secretariat",
+      "quote": "We have two lives, and the second begins when we realize we have one",
+      "quoteBy": null,
+      "photo": null,
+      "focus": null
+    },
+    {
+      "id": "abdullah-ahmer",
+      "name": "Abdullah Ahmer",
+      "role": "General Chief Advisor",
+      "group": "secretariat",
+      "quote": "Just give up on your dreams and die",
+      "quoteBy": "Levi",
+      "photo": "photos/abdullah-ahmer.jpg",
+      "focus": [
+        75,
+        40
+      ]
+    },
+    {
+      "id": "nasser-alqassem",
+      "name": "Nasser Alqassem",
+      "role": null,
+      "group": "secretariat",
+      "quote": "At the end of the day its night",
+      "quoteBy": null,
+      "photo": "photos/nasser-alqassem.jpg",
+      "focus": [
+        35,
+        45
+      ]
+    },
+    {
+      "id": "alya-ismail",
+      "name": "Alya Ismail",
+      "role": "Head of Media",
+      "group": "media",
+      "quote": "You have to try every time. You can’t quit because you’re afraid you might fail.",
+      "quoteBy": null,
+      "photo": "photos/alya-ismail.jpg",
+      "focus": [
+        35,
+        40
+      ]
+    },
+    {
+      "id": "yousef-saifi",
+      "name": "Yousef Saifi",
+      "role": "Head of Media",
+      "group": "media",
+      "quote": "Behind every great story is someone who knew where to look",
+      "quoteBy": null,
+      "photo": "photos/yousef-saifi.jpg",
+      "focus": [
+        72,
+        35
+      ]
+    },
+    {
+      "id": "hala-tellawi",
+      "name": "Hala Tellawi",
+      "role": "Head of Press",
+      "group": "press",
+      "quote": "What good are wings without the courage to fly",
+      "quoteBy": null,
+      "photo": "photos/hala-tellawi.jpg",
+      "focus": [
+        45,
+        35
+      ]
+    },
+    {
+      "id": "fahad-alkendi",
+      "name": "Fahad Alkendi",
+      "role": "Head of Press",
+      "group": "press",
+      "quote": "The future depends on what you do today.",
+      "quoteBy": null,
+      "photo": "photos/fahad-alkendi.jpg",
+      "focus": [
+        80,
+        72
+      ]
+    },
+    {
+      "id": "amer-musa",
+      "name": "Amer Musa",
+      "role": "Head of Marketing",
+      "group": "marketing",
+      "quote": "Making sure great debates never happen in an empty room.",
+      "quoteBy": null,
+      "photo": "photos/amer-musa.jpg",
+      "focus": [
+        50,
+        35
+      ]
+    },
+    {
+      "id": "rital-marwan",
+      "name": "Rital Marwan",
+      "role": "Head of Marketing",
+      "group": "marketing",
+      "quote": "I love cats.",
+      "quoteBy": null,
+      "photo": "photos/rital-marwan.jpg",
+      "focus": [
+        45,
+        35
+      ]
+    },
+    {
+      "id": "abdullah-zaidi",
+      "name": "Abdullah Zaidi",
+      "role": "Head of Marketing",
+      "group": "marketing",
+      "quote": "Happiness is not something readymade. It comes from your own actions",
+      "quoteBy": null,
+      "photo": "photos/abdullah-zaidi.jpg",
+      "focus": [
+        55,
+        85
+      ]
+    },
+    {
+      "id": "dana-jradi",
+      "name": "Dana Jradi",
+      "role": "Head of Design",
+      "group": "design",
+      "quote": "Don’t let anyone ruin your peace just because they can’t find theirs",
+      "quoteBy": null,
+      "photo": "photos/dana-jradi.jpg",
+      "focus": [
+        55,
+        40
+      ]
+    },
+    {
+      "id": "aziz-ladhari",
+      "name": "Aziz Ladhari",
+      "role": "Head of Design and Animations",
+      "group": "design",
+      "quote": "History is written by the victors.",
+      "quoteBy": null,
+      "photo": "photos/aziz-ladhari.jpg",
+      "focus": [
+        50,
+        40
+      ]
+    },
+    {
+      "id": "abdalrahman-abdallah",
+      "name": "AbdalRahman AbdAllah",
+      "role": "Head of Security",
+      "group": "security",
+      "quote": "AlhamduAllah",
+      "quoteBy": null,
+      "photo": null,
+      "focus": null
+    },
+    {
+      "id": "wed-abdulrhman-sidahmed",
+      "name": "Wed Abdulrhman Sidahmed",
+      "role": "Head of Security",
+      "group": "security",
+      "quote": "Life is what happens when you’re busy making other plans",
+      "quoteBy": "John Lennon",
+      "photo": "photos/wed-abdulrhman-sidahmed.jpg",
+      "focus": [
+        30,
+        50
+      ]
+    },
+    {
+      "id": "mohammed-magdi",
+      "name": "Mohammed Magdi",
+      "role": "Head of IT",
+      "group": "it",
+      "quote": "Everyone has something they're good at. It's just a matter of finding it.",
+      "quoteBy": null,
+      "photo": "photos/mohammed-magdi.jpg",
+      "focus": [
+        50,
+        30
+      ]
+    },
+    {
+      "id": "saleh-samaha",
+      "name": "Saleh Samaha",
+      "role": "Head of IT",
+      "group": "it",
+      "quote": "God's plan is better than yours.",
+      "quoteBy": null,
+      "photo": null,
+      "focus": null
+    },
+    {
+      "id": "muaz-tagelsir",
+      "name": "Muaz Tagelsir",
+      "role": "Head of HR",
+      "group": "hr",
+      "quote": "Hi",
+      "quoteBy": null,
+      "photo": "photos/muaz-tagelsir.jpg",
+      "focus": [
+        60,
+        45
+      ]
+    },
+    {
+      "id": "lelas-almadi",
+      "name": "Lelas Almadi",
+      "role": "Head of Delegate Affairs",
+      "group": "delegate-affairs",
+      "quote": "Believe you can and you're halfway there.",
+      "quoteBy": "Theodore Roosevelt",
+      "photo": "photos/lelas-almadi.jpg",
+      "focus": [
+        25,
+        80
+      ]
+    },
+    {
+      "id": "hayady-alsuwaigh",
+      "name": "Hayady Alsuwaigh",
+      "role": "Co-head of Volunteers",
+      "group": "volunteers",
+      "quote": "God gave you what you could handle",
+      "quoteBy": null,
+      "photo": "photos/hayady-alsuwaigh.jpg",
+      "focus": [
+        55,
+        35
+      ]
+    }
+  ]
+}

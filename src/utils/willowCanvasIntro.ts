@@ -10,8 +10,17 @@ import {
 export const CANVAS_VIEWBOX_W = 800;
 export const CANVAS_VIEWBOX_H = 720;
 
+export interface QuadraticSegment {
+  x0: number;
+  y0: number;
+  cx: number;
+  cy: number;
+  x1: number;
+  y1: number;
+}
+
 export interface WillowStrandSpec {
-  curve: CubicBezier;
+  segments: [QuadraticSegment, QuadraticSegment];
   layer: DepthLayer;
   startAt: number;
   endAt: number;
@@ -21,22 +30,18 @@ export interface WillowLeafSpec {
   layer: DepthLayer | 'laurel';
   x0: number;
   y0: number;
-  dx1: number;
-  dy1: number;
-  dx2: number;
-  dy2: number;
+  rcx: number;
+  rcy: number;
   dtx: number;
   dty: number;
-  dx3: number;
-  dy3: number;
-  dx4: number;
-  dy4: number;
+  lcx: number;
+  lcy: number;
   revealStart: number;
   revealEnd: number;
 }
 
 export interface WillowLimbSpec {
-  curve: CubicBezier;
+  segments: [QuadraticSegment, QuadraticSegment];
   startAt: number;
   endAt: number;
 }
@@ -88,6 +93,7 @@ export interface CanvasRenderContext2D {
   lineCap: CanvasLineCap;
   lineJoin: CanvasLineJoin;
   globalAlpha: number;
+  imageSmoothingEnabled?: boolean;
 }
 
 function clamp01(value: number): number {
@@ -102,9 +108,35 @@ function easeOutCubic(t: number): number {
 }
 
 /**
- * Precomputes world-space control deltas for a slender willow leaf anchored at (x0, y0)
- * so per-frame growth scaling requires zero trigonometry or canvas state changes.
- * Local symbol (0,0)->(0,28) rotated by `angleDeg` (0 deg = +Y down).
+ * Splits a cubic Bezier into two C1-continuous quadratic Bezier curves
+ * so trunk, limbs, and drooping strands render via `quadraticCurveTo`.
+ */
+function cubicToTwoQuadratics(b: CubicBezier): [QuadraticSegment, QuadraticSegment] {
+  const mid = evalCubicBezier(b, 0.5);
+  const p01x = (b.x0 + b.cx1) * 0.5;
+  const p01y = (b.y0 + b.cy1) * 0.5;
+  const p23x = (b.cx2 + b.x1) * 0.5;
+  const p23y = (b.cy2 + b.y1) * 0.5;
+
+  const c1x = b.x0 + 0.75 * (b.cx1 - b.x0);
+  const c1y = b.y0 + 0.75 * (b.cy1 - b.y0);
+  const c2x = b.x1 + 0.75 * (b.cx2 - b.x1);
+  const c2y = b.y1 + 0.75 * (b.cy2 - b.y1);
+
+  const q1cx = (c1x + p01x) * 0.5;
+  const q1cy = (c1y + p01y) * 0.5;
+  const q2cx = (c2x + p23x) * 0.5;
+  const q2cy = (c2y + p23y) * 0.5;
+
+  return [
+    { x0: b.x0, y0: b.y0, cx: q1cx, cy: q1cy, x1: mid.x, y1: mid.y },
+    { x0: mid.x, y0: mid.y, cx: q2cx, cy: q2cy, x1: b.x1, y1: b.y1 },
+  ];
+}
+
+/**
+ * Precomputes world-space quadratic control deltas for a slender willow leaf anchored at (x0, y0)
+ * so per-frame growth scaling requires zero trigonometry or canvas style changes.
  */
 function createLeafSpec(
   layer: DepthLayer | 'laurel',
@@ -119,28 +151,35 @@ function createLeafSpec(
   const cos = Math.cos(rad) * scale;
   const sin = Math.sin(rad) * scale;
 
-  // Map local point (lx, ly) with pivot at stem base (0, 0) to world delta (dx, dy)
   const rx = (lx: number, ly: number) => lx * cos - ly * sin;
   const ry = (lx: number, ly: number) => lx * sin + ly * cos;
 
-  // Slender leaf contour matching #willow-leaf-decor (half-width ~3.3, length ~26.6)
   return {
     layer,
     x0,
     y0,
-    dx1: rx(3.1, 5.8),
-    dy1: ry(3.1, 5.8),
-    dx2: rx(3.4, 15.9),
-    dy2: ry(3.4, 15.9),
+    rcx: rx(6.2, 12.8),
+    rcy: ry(6.2, 12.8),
     dtx: rx(0, 26.6),
     dty: ry(0, 26.6),
-    dx3: rx(-3.4, 15.9),
-    dy3: ry(-3.4, 15.9),
-    dx4: rx(-3.1, 5.8),
-    dy4: ry(-3.1, 5.8),
+    lcx: rx(-6.2, 12.8),
+    lcy: ry(-6.2, 12.8),
     revealStart,
     revealEnd,
   };
+}
+
+/**
+ * Configures canvas stroke and fill styles once before the animation loop starts.
+ */
+export function configureWillowCanvasContext(ctx: CanvasRenderContext2D): void {
+  ctx.imageSmoothingEnabled = false;
+  ctx.fillStyle = '#ede6ca';
+  ctx.strokeStyle = '#ede6ca';
+  ctx.lineWidth = 1.45;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.globalAlpha = 0.78;
 }
 
 /**
@@ -171,8 +210,8 @@ export function buildWillowCanvasGeometry(): WillowCanvasGeometry {
   };
 
   const laurelArcs: WillowLimbSpec[] = [
-    { curve: leftLaurel, startAt: 0.03, endAt: 0.48 },
-    { curve: rightLaurel, startAt: 0.03, endAt: 0.48 },
+    { segments: cubicToTwoQuadratics(leftLaurel), startAt: 0.03, endAt: 0.48 },
+    { segments: cubicToTwoQuadratics(rightLaurel), startAt: 0.03, endAt: 0.48 },
   ];
 
   const frontAndLaurelLeaves: WillowLeafSpec[] = [];
@@ -197,7 +236,7 @@ export function buildWillowCanvasGeometry(): WillowCanvasGeometry {
   }
 
   const limbs: WillowLimbSpec[] = BOARD_ARCHING_LIMBS.map((limb, i) => ({
-    curve: limb.curve,
+    segments: cubicToTwoQuadratics(limb.curve),
     startAt: 0.14 + (i % 3) * 0.04,
     endAt: 0.36 + (i % 3) * 0.04,
   }));
@@ -247,7 +286,7 @@ export function buildWillowCanvasGeometry(): WillowCanvasGeometry {
       const endAt = Math.min(0.84, startAt + 0.36);
 
       strands.push({
-        curve: strandCurve,
+        segments: cubicToTwoQuadratics(strandCurve),
         layer,
         startAt,
         endAt,
@@ -294,48 +333,52 @@ export function buildWillowCanvasGeometry(): WillowCanvasGeometry {
 }
 
 /**
- * Appends a partial cubic Bezier [0..t] into the current canvas path using De Casteljau subdivision
- * with zero heap allocations.
+ * Appends a partial quadratic Bezier [0..t] into the active path using De Casteljau subdivision.
  */
-function appendPartialCubic(
+function appendPartialQuadratic(
   ctx: CanvasRenderContext2D,
-  b: CubicBezier,
+  q: QuadraticSegment,
   t: number,
+  moveToStart: boolean,
 ): void {
   if (t <= 0.001) return;
+  if (moveToStart) {
+    ctx.moveTo(q.x0, q.y0);
+  }
   if (t >= 0.999) {
-    ctx.moveTo(b.x0, b.y0);
-    ctx.bezierCurveTo(b.cx1, b.cy1, b.cx2, b.cy2, b.x1, b.y1);
+    ctx.quadraticCurveTo(q.cx, q.cy, q.x1, q.y1);
     return;
   }
 
-  const q1x = b.x0 + (b.cx1 - b.x0) * t;
-  const q1y = b.y0 + (b.cy1 - b.y0) * t;
-  const p12x = b.cx1 + (b.cx2 - b.cx1) * t;
-  const p12y = b.cy1 + (b.cy2 - b.cy1) * t;
-  const q2x = q1x + (p12x - q1x) * t;
-  const q2y = q1y + (p12y - q1y) * t;
-  const p23x = b.cx2 + (b.x1 - b.cx2) * t;
-  const p23y = b.cy2 + (b.y1 - b.cy2) * t;
-  const r1x = p12x + (p23x - p12x) * t;
-  const r1y = p12y + (p23y - p12y) * t;
-  const q3x = q2x + (r1x - q2x) * t;
-  const q3y = q2y + (r1y - q2y) * t;
-
-  ctx.moveTo(b.x0, b.y0);
-  ctx.bezierCurveTo(q1x, q1y, q2x, q2y, q3x, q3y);
+  const q1x = q.x0 + (q.cx - q.x0) * t;
+  const q1y = q.y0 + (q.cy - q.y0) * t;
+  const q2x = q.cx + (q.x1 - q.cx) * t;
+  const q2y = q.cy + (q.y1 - q.cy) * t;
+  const ex = q1x + (q2x - q1x) * t;
+  const ey = q1y + (q2y - q1y) * t;
+  ctx.quadraticCurveTo(q1x, q1y, ex, ey);
 }
 
-function appendLeafLayerFill(
+function appendTwoSegmentCurve(
+  ctx: CanvasRenderContext2D,
+  segments: [QuadraticSegment, QuadraticSegment],
+  progress: number,
+): void {
+  if (progress <= 0.001) return;
+  if (progress <= 0.5) {
+    appendPartialQuadratic(ctx, segments[0], progress * 2, true);
+    return;
+  }
+  ctx.moveTo(segments[0].x0, segments[0].y0);
+  ctx.quadraticCurveTo(segments[0].cx, segments[0].cy, segments[0].x1, segments[0].y1);
+  appendPartialQuadratic(ctx, segments[1], (progress - 0.5) * 2, false);
+}
+
+function appendLeafPaths(
   ctx: CanvasRenderContext2D,
   leaves: WillowLeafSpec[],
   progress: number,
-  color: string,
-  alpha: number,
 ): void {
-  let hasAny = false;
-  ctx.beginPath();
-
   for (let i = 0; i < leaves.length; i++) {
     const leaf = leaves[i];
     if (progress <= leaf.revealStart) continue;
@@ -343,52 +386,14 @@ function appendLeafLayerFill(
     const g = raw >= 1 ? 1 : easeOutCubic(raw);
     if (g <= 0.02) continue;
 
-    hasAny = true;
     const x0 = leaf.x0;
     const y0 = leaf.y0;
     const tx = x0 + leaf.dtx * g;
     const ty = y0 + leaf.dty * g;
 
     ctx.moveTo(x0, y0);
-    ctx.bezierCurveTo(
-      x0 + leaf.dx1 * g,
-      y0 + leaf.dy1 * g,
-      x0 + leaf.dx2 * g,
-      y0 + leaf.dy2 * g,
-      tx,
-      ty,
-    );
-    ctx.bezierCurveTo(
-      x0 + leaf.dx3 * g,
-      y0 + leaf.dy3 * g,
-      x0 + leaf.dx4 * g,
-      y0 + leaf.dy4 * g,
-      x0,
-      y0,
-    );
-  }
-
-  if (hasAny) {
-    ctx.fillStyle = color;
-    ctx.globalAlpha = alpha;
-    ctx.fill();
-  }
-}
-
-function appendLeafVeinsToSingleStrokePath(
-  ctx: CanvasRenderContext2D,
-  leaves: WillowLeafSpec[],
-  progress: number,
-): void {
-  for (let i = 0; i < leaves.length; i++) {
-    const leaf = leaves[i];
-    if (progress <= leaf.revealStart) continue;
-    const raw = (progress - leaf.revealStart) / (leaf.revealEnd - leaf.revealStart);
-    const g = raw >= 1 ? 1 : easeOutCubic(raw);
-    if (g <= 0.02) continue;
-
-    ctx.moveTo(leaf.x0, leaf.y0);
-    ctx.lineTo(leaf.x0 + leaf.dtx * g * 0.88, leaf.y0 + leaf.dty * g * 0.88);
+    ctx.quadraticCurveTo(x0 + leaf.rcx * g, y0 + leaf.rcy * g, tx, ty);
+    ctx.quadraticCurveTo(x0 + leaf.lcx * g, y0 + leaf.lcy * g, x0, y0);
   }
 }
 
@@ -396,44 +401,47 @@ function appendLeafVeinsToSingleStrokePath(
  * Renders one animation frame of the weeping willow + laurel emblem into the active
  * canvas coordinate space (800x720 logical units).
  *
- * All willow stems, branches, laurel arcs, grass tufts, and leaf vein strokes are
- * batched into ONE single `ctx.stroke()` call per frame to stay locked at 60 FPS.
+ * Performance guarantees:
+ * - `ctx.imageSmoothingEnabled = false` at the top of the frame.
+ * - Zero `strokeStyle`/`fillStyle` changes inside the per-frame render call.
+ * - ONE `ctx.beginPath()` at the start of the frame; trunk, branches, vines, and leaves
+ *   are all appended using `quadraticCurveTo` without mid-loop draws; then ONE `ctx.fill()`
+ *   and ONE `ctx.stroke()` at the very end of the frame.
  */
 export function drawWillowCanvasFrame(
   ctx: CanvasRenderContext2D,
   geometry: WillowCanvasGeometry,
   progressInput: number,
 ): void {
+  ctx.imageSmoothingEnabled = false;
+  if (typeof document !== 'undefined' && document.hidden) return;
+
   const progress = clamp01(progressInput);
   if (progress <= 0) return;
 
-  // 1. Curved S-shaped trunk & root flare growing upward from roots (y=672 -> y=310)
+  ctx.beginPath();
+
+  // 1. Curved S-shaped trunk & root flare growing upward smoothly with quadraticCurveTo
   const trunkGrowth = easeOutCubic(clamp01(progress / 0.24));
   if (trunkGrowth > 0.01) {
-    const clipTop = 672 - trunkGrowth * (672 - 306);
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(250, clipTop, 310, 678 - clipTop);
-    ctx.clip();
+    const yAt = (y: number) => 670 - (670 - y) * trunkGrowth;
 
-    ctx.beginPath();
-    ctx.moveTo(276, 668);
-    ctx.quadraticCurveTo(340, 662, 372, 650);
-    ctx.quadraticCurveTo(382, 618, 389, 572);
-    ctx.quadraticCurveTo(397, 518, 412, 465);
-    ctx.quadraticCurveTo(422, 430, 413, 386);
-    ctx.quadraticCurveTo(405, 352, 396, 312);
-    ctx.lineTo(414, 310);
-    ctx.quadraticCurveTo(426, 348, 432, 388);
-    ctx.quadraticCurveTo(440, 434, 428, 482);
-    ctx.quadraticCurveTo(411, 542, 414, 608);
-    ctx.quadraticCurveTo(418, 648, 436, 655);
-    ctx.quadraticCurveTo(470, 663, 534, 668);
-    ctx.quadraticCurveTo(455, 672, 404, 670);
-    ctx.quadraticCurveTo(342, 672, 276, 668);
+    ctx.moveTo(276, yAt(668));
+    ctx.quadraticCurveTo(340, yAt(662), 372, yAt(650));
+    ctx.quadraticCurveTo(382, yAt(618), 389, yAt(572));
+    ctx.quadraticCurveTo(397, yAt(518), 412, yAt(465));
+    ctx.quadraticCurveTo(422, yAt(430), 413, yAt(386));
+    ctx.quadraticCurveTo(405, yAt(352), 396, yAt(312));
+    ctx.quadraticCurveTo(405, yAt(309), 414, yAt(310));
+    ctx.quadraticCurveTo(426, yAt(348), 432, yAt(388));
+    ctx.quadraticCurveTo(440, yAt(434), 428, yAt(482));
+    ctx.quadraticCurveTo(411, yAt(542), 414, yAt(608));
+    ctx.quadraticCurveTo(418, yAt(648), 436, yAt(655));
+    ctx.quadraticCurveTo(470, yAt(663), 534, yAt(668));
+    ctx.quadraticCurveTo(455, yAt(672), 404, yAt(670));
+    ctx.quadraticCurveTo(342, yAt(672), 276, yAt(668));
     ctx.closePath();
 
-    // Carve negative-space woodcut bark slivers inside the trunk fill (evenodd)
     const barkSlivers: Array<[number, number, number, number, number, number]> = [
       [401, 642, 404, 590, 412, 546],
       [394, 604, 400, 572, 404, 548],
@@ -442,83 +450,107 @@ export function drawWillowCanvasFrame(
     ];
     for (let i = 0; i < barkSlivers.length; i++) {
       const [bx0, by0, bcx, bcy, bx1, by1] = barkSlivers[i];
-      ctx.moveTo(bx0, by0);
-      ctx.quadraticCurveTo(bcx, bcy, bx1, by1);
-      ctx.quadraticCurveTo(bcx + 2.2, bcy, bx0 + 1.8, by0);
+      ctx.moveTo(bx0, yAt(by0));
+      ctx.quadraticCurveTo(bcx, yAt(bcy), bx1, yAt(by1));
+      ctx.quadraticCurveTo(bcx + 2.2, yAt(bcy), bx0 + 1.8, yAt(by0));
       ctx.closePath();
     }
-
-    ctx.fillStyle = '#ede6ca';
-    ctx.globalAlpha = 0.94;
-    ctx.fill('evenodd');
-    ctx.restore();
   }
 
-  // 2. Depth-layered batched leaf fills (one fill() per depth layer)
-  appendLeafLayerFill(ctx, geometry.backLeaves, progress, '#6b7547', 0.45);
-  appendLeafLayerFill(ctx, geometry.middleLeaves, progress, '#6b7547', 0.75);
-  appendLeafLayerFill(ctx, geometry.frontAndLaurelLeaves, progress, '#ede6ca', 0.9);
-
-  // 3. SINGLE batched stroke() call per frame for ALL weeping willow stems, limbs, laurel arcs, grass tufts, and leaf veins
-  ctx.beginPath();
-
-  // Laurel arcs
+  // 2. Laurel arcs (quadraticCurveTo)
   for (let i = 0; i < geometry.laurelArcs.length; i++) {
     const arc = geometry.laurelArcs[i];
     if (progress > arc.startAt) {
       const t = easeOutCubic((progress - arc.startAt) / (arc.endAt - arc.startAt));
-      appendPartialCubic(ctx, arc.curve, t);
+      appendTwoSegmentCurve(ctx, arc.segments, t);
     }
   }
 
-  // 6 arching primary limbs
+  // 3. Main arching branches (quadraticCurveTo)
   for (let i = 0; i < geometry.limbs.length; i++) {
     const limb = geometry.limbs[i];
     if (progress > limb.startAt) {
       const t = easeOutCubic((progress - limb.startAt) / (limb.endAt - limb.startAt));
-      appendPartialCubic(ctx, limb.curve, t);
+      appendTwoSegmentCurve(ctx, limb.segments, t);
     }
   }
 
-  // Grass tufts at root flare
+  // 4. Grass tufts at root flare (quadraticCurveTo)
   for (let i = 0; i < geometry.tufts.length; i++) {
     const tuft = geometry.tufts[i];
     if (progress > tuft.startAt) {
       const t = easeOutCubic((progress - tuft.startAt) / (tuft.endAt - tuft.startAt));
-      if (t >= 0.999) {
-        ctx.moveTo(tuft.x0, tuft.y0);
-        ctx.quadraticCurveTo(tuft.cx, tuft.cy, tuft.x1, tuft.y1);
-      } else if (t > 0.01) {
-        const q1x = tuft.x0 + (tuft.cx - tuft.x0) * t;
-        const q1y = tuft.y0 + (tuft.cy - tuft.y0) * t;
-        const q2x = tuft.cx + (tuft.x1 - tuft.cx) * t;
-        const q2y = tuft.cy + (tuft.y1 - tuft.cy) * t;
-        const ex = q1x + (q2x - q1x) * t;
-        const ey = q1y + (q2y - q1y) * t;
-        ctx.moveTo(tuft.x0, tuft.y0);
-        ctx.quadraticCurveTo(q1x, q1y, ex, ey);
-      }
+      appendPartialQuadratic(ctx, tuft, t, true);
     }
   }
 
-  // All 74 drooping willow strands
+  // 5. All 74 drooping vines / strands (quadraticCurveTo)
   for (let i = 0; i < geometry.strands.length; i++) {
     const strand = geometry.strands[i];
     if (progress > strand.startAt) {
       const t = easeOutCubic((progress - strand.startAt) / (strand.endAt - strand.startAt));
-      appendPartialCubic(ctx, strand.curve, t);
+      appendTwoSegmentCurve(ctx, strand.segments, t);
     }
   }
 
-  // All revealed leaf vein strokes across every layer, appended into the exact same single path
-  appendLeafVeinsToSingleStrokePath(ctx, geometry.backLeaves, progress);
-  appendLeafVeinsToSingleStrokePath(ctx, geometry.middleLeaves, progress);
-  appendLeafVeinsToSingleStrokePath(ctx, geometry.frontAndLaurelLeaves, progress);
+  // 6. All revealed leaves across back, middle, and front/laurel layers
+  appendLeafPaths(ctx, geometry.backLeaves, progress);
+  appendLeafPaths(ctx, geometry.middleLeaves, progress);
+  appendLeafPaths(ctx, geometry.frontAndLaurelLeaves, progress);
 
-  ctx.strokeStyle = '#ede6ca';
-  ctx.lineWidth = 1.45;
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-  ctx.globalAlpha = 0.56;
+  // Single batched fill() and single batched stroke() at the very end of the frame
+  ctx.fill('evenodd');
   ctx.stroke();
+}
+
+/**
+ * Starts a 60fps requestAnimationFrame loop that configures canvas styles once before
+ * the loop starts and pauses cleanly when `document.hidden` is true.
+ */
+export function startWillowCanvasIntroLoop(
+  ctx: CanvasRenderContext2D,
+  geometry: WillowCanvasGeometry,
+  durationMs: number,
+  onComplete: () => void,
+): () => void {
+  configureWillowCanvasContext(ctx);
+
+  let rafId = 0;
+  let stopped = false;
+  const startTime = performance.now();
+
+  const tick = (now: number) => {
+    if (document.hidden) return;
+    if (stopped) return;
+
+    const progress = clamp01((now - startTime) / durationMs);
+    drawWillowCanvasFrame(ctx, geometry, progress);
+
+    if (progress >= 1) {
+      rafId = 0;
+      stopped = true;
+      onComplete();
+      return;
+    }
+
+    rafId = window.requestAnimationFrame(tick);
+  };
+
+  const onVisibilityChange = () => {
+    if (!document.hidden && !stopped && rafId === 0) {
+      rafId = window.requestAnimationFrame(tick);
+    }
+  };
+
+  document.addEventListener('visibilitychange', onVisibilityChange);
+  rafId = window.requestAnimationFrame(tick);
+
+  return () => {
+    stopped = true;
+    if (rafId !== 0) {
+      window.cancelAnimationFrame(rafId);
+      rafId = 0;
+    }
+    document.removeEventListener('visibilitychange', onVisibilityChange);
+  };
 }
