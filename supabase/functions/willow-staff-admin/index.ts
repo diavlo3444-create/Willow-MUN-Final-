@@ -37,6 +37,15 @@ Deno.serve(async (req: Request) => {
   const action = String(body?.action || "");
   const allowedRoles = new Set(["admin", "department_head", "executive_board"]);
   const cleanEmail = (value: unknown) => String(value || "").trim().toLowerCase();
+  const makeInviteToken = () => {
+    const bytes = new Uint8Array(32);
+    crypto.getRandomValues(bytes);
+    return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  };
+  const hashInviteToken = async (token: string) => {
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token));
+    return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  };
   const profileFields = (input: any) => ({
     full_name: String(input.full_name || "").trim(),
     role: String(input.role || ""),
@@ -54,7 +63,7 @@ Deno.serve(async (req: Request) => {
         admin.from("wm_profiles").select("user_id,full_name,role,department_id,is_active,title,division,avatar_url,phone_number,eb_rank,eb_permissions,created_at").order("created_at", { ascending: false }),
         admin.auth.admin.listUsers({ page: 1, perPage: 1000 }),
         admin.from("wm_eb_signup_allowlist")
-          .select("email,email_aliases,member_key,full_name,title,phone_number,department_id,avatar_url,eb_rank,eb_permissions,claimed_at,claimed_user_id")
+          .select("email,email_aliases,member_key,full_name,title,phone_number,department_id,avatar_url,eb_rank,eb_permissions,claimed_at,claimed_user_id,invite_sent_at")
           .order("full_name"),
       ]);
       if (profileError || usersError || ebRosterError) throw profileError || usersError || ebRosterError;
@@ -110,6 +119,23 @@ Deno.serve(async (req: Request) => {
         throw error;
       }
       return json({ account: { user_id: createdUser.id, email, ...fields } }, 201);
+    }
+
+    if (action === "create_eb_invite") {
+      const memberKey = String(body.member_key || "").trim();
+      if (!memberKey) return json({ error: "member_key is required." }, 400);
+      const inviteToken = makeInviteToken();
+      const tokenHash = await hashInviteToken(inviteToken);
+      const { data: member, error } = await admin.from("wm_eb_signup_allowlist")
+        .update({ invite_token_hash: tokenHash, invite_sent_at: new Date().toISOString(), claim_started_at: null })
+        .eq("member_key", memberKey)
+        .is("claimed_at", null)
+        .select("email,full_name,member_key")
+        .maybeSingle();
+      if (error) throw error;
+      if (!member) return json({ error: "This EB entry is already claimed or no longer exists." }, 404);
+      const url = `https://willow-mun.vercel.app/eb-signup?token=${encodeURIComponent(inviteToken)}&email=${encodeURIComponent(member.email)}`;
+      return json({ success: true, url, full_name: member.full_name, email: member.email });
     }
 
     const userId = String(body.user_id || "");
