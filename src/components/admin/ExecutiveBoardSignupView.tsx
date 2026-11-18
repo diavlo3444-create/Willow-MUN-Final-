@@ -33,7 +33,7 @@ export function ExecutiveBoardSignupView({ onNavigate }: { onNavigate: (path: st
       setError(data?.error || finishError?.message || 'We could not connect your EB profile.');
       return;
     }
-    onNavigate('/eb');
+    await supabase.auth.refreshSession();
   };
 
   useEffect(() => {
