@@ -67,8 +67,10 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
   SELECT CASE
-    WHEN lower(coalesce(title, '') || ' ' || coalesce(division, '')) ~ '\m(female|women|woman|girls?)\M' THEN 'female'
-    WHEN lower(coalesce(title, '') || ' ' || coalesce(division, '')) ~ '\m(male|men|man|boys?)\M' THEN 'male'
+    WHEN lower(coalesce(gender, '')) IN ('female', 'woman', 'women') THEN 'female'
+    WHEN lower(coalesce(gender, '')) IN ('male', 'man', 'men') THEN 'male'
+    WHEN lower(coalesce(title, '') || ' ' || coalesce(division, '')) ~ '\\m(female|women|woman|girls?)\\M' THEN 'female'
+    WHEN lower(coalesce(title, '') || ' ' || coalesce(division, '')) ~ '\\m(male|men|man|boys?)\\M' THEN 'male'
     ELSE NULL
   END
   FROM public.wm_profiles
