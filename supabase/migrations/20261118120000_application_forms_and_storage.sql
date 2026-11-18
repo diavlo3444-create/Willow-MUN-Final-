@@ -35,17 +35,18 @@ CREATE POLICY "Only confidential-authorized admins read medical disclosures"
   FOR SELECT
   TO authenticated
   USING (
-    public.wm_is_admin()
-    AND coalesce(((public.wm_actor_profile()).permissions->>'applications.view_confidential')::boolean, true) = true
+    public.wm_is_super_admin()
+    OR (
+      public.wm_is_admin()
+      AND coalesce(((public.wm_actor_profile()).permissions->>'applications.view_confidential')::boolean, false) = true
+    )
   );
 
+-- The Edge Function writes with the service role. Browser clients receive read-only
+-- access, and only explicitly authorized administrators may read medical disclosures.
 DROP POLICY IF EXISTS "Only service role or confidential admins update medical disclosures" ON public.wm_application_medical;
-CREATE POLICY "Only service role or confidential admins update medical disclosures"
-  ON public.wm_application_medical
-  FOR ALL
-  TO authenticated
-  USING (public.wm_is_super_admin())
-  WITH CHECK (public.wm_is_super_admin());
+REVOKE ALL ON TABLE public.wm_application_medical FROM anon, authenticated;
+GRANT SELECT ON TABLE public.wm_application_medical TO authenticated;
 
 -- 3. Private Storage Bucket for applicant files (Proof of Experience, Media 10-15 photos, Writing Samples)
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
