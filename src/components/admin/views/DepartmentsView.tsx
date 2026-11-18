@@ -27,6 +27,7 @@ export function DepartmentsView({
   const [editing, setEditing] = useState<Department | null>(null);
 
 
+  const canManageDepts = hasPermission(effectiveActor, 'departments.manage');
   const canToggleReg = hasPermission(effectiveActor, 'departments.toggle_registration');
   const canAssignHead = canManageAccountsOrRoles(effectiveActor);
 
