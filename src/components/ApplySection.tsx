@@ -14,6 +14,8 @@ import {
   X,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+
+const TRACK_DEPARTMENT_SLUG: Record<string, string> = { media: 'media', press: 'press', volunteer: 'volunteers' };
 import {
   ATTENDANCE_QUESTION_LABEL,
   GRADE_OPTIONS,
@@ -220,11 +222,33 @@ export function ApplySection() {
   const [receipt, setReceipt] = useState<SubmittedReceipt | null>(null);
   const [submittedPairs, setSubmittedPairs] = useState<string[]>(() => loadSubmittedPairs());
   const [duplicateConfirmed, setDuplicateConfirmed] = useState(false);
+  const [registrationStatus, setRegistrationStatus] = useState<Record<string, boolean>>({});
+  const [registrationStatusLoaded, setRegistrationStatusLoaded] = useState(false);
 
   const inFlightRef = useRef(false);
   const closeTimerRef = useRef<number | null>(null);
   const lastTriggerRef = useRef<HTMLButtonElement | null>(null);
   const modalBodyRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    const loadRegistrationStatus = async () => {
+      const { data, error } = await supabase
+        .from('wm_departments')
+        .select('slug,registration_open')
+        .in('slug', ['media', 'press', 'volunteers']);
+      if (!active) return;
+      if (!error && data) {
+        const next: Record<string, boolean> = {};
+        for (const row of data) next[row.slug] = row.registration_open === true;
+        setRegistrationStatus(next);
+      }
+      setRegistrationStatusLoaded(true);
+    };
+    void loadRegistrationStatus();
+    const refreshId = window.setInterval(() => void loadRegistrationStatus(), 30000);
+    return () => { active = false; window.clearInterval(refreshId); };
+  }, []);
 
   // Persist non-medical draft progress locally across reloads (avoid keeping sensitive medical text unencrypted if preferred, or keep in sessionStorage only)
   useEffect(() => {
@@ -291,8 +315,324 @@ export function ApplySection() {
   const openModalForTrack = (
     track: ApplicationTrack,
     triggerEl?: HTMLButtonElement | null,
-  ) => {
-    if (closeTimerRef.current !== null) {
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { createPortal } from 'react-dom';
+import {
+  AlertCircle,
+  ArrowLeft,
+  ArrowRight,
+  Camera,
+  Check,
+  CheckCircle2,
+  FileText,
+  Loader2,
+  Lock,
+  ShieldCheck,
+  X,
+} from 'lucide-react';
+import { supabase } from '../lib/supabase';
+
+const TRACK_DEPARTMENT_SLUG: Record<string, string> = { media: 'media', press: 'press', volunteer: 'volunteers' };
+import {
+  ATTENDANCE_QUESTION_LABEL,
+  GRADE_OPTIONS,
+  PUBLIC_APPLICATION_TRACKS,
+  buildLegacySafeExperienceField,
+  buildStructuredAnswers,
+  createEmptyDraft,
+  getResolvedPhones,
+  getRoleQuestionsForTrack,
+  validateAllSteps,
+  validateStep,
+  type ApplicationTrack,
+  type FieldErrors,
+  type TrackDraft,
+  type UploadedApplicationFile,
+} from '../utils/applicationForm';
+import { ApplicationFileUploader } from './ApplicationFileUploader';
+import { CountryPhoneInput } from './CountryPhoneInput';
+import { RevealItem } from './MotionPrimitives';
+import { RevealSection, SectionHeading } from './RevealSection';
+
+interface TrackConfig {
+  id: ApplicationTrack;
+  index: string;
+  title: string;
+  wing: string;
+  detail: string;
+  deliverable: string;
+}
+
+const TRACKS: readonly TrackConfig[] = [
+  {
+    id: 'media',
+    index: '01',
+    title: 'Media',
+    wing: 'Communications & Creative',
+    detail:
+      'Photography, videography, committee reels, and visual storytelling across every session of the conference.',
+    deliverable: 'Camera gear details, 10–15 sample photographs & 5 role questions',
+  },
+  {
+    id: 'press',
+    index: '02',
+    title: 'Press',
+    wing: 'Communications & Creative',
+    detail:
+      'Committee reporting, delegate and chair interviews, diplomatic articles, and timely conference dispatches.',
+    deliverable: 'Optional writing samples & 5 editorial reporting questions',
+  },
+  {
+    id: 'volunteer',
+    index: '03',
+    title: 'Volunteers',
+    wing: 'Delegate Affairs & Operations',
+    detail:
+      'Delegate reception, floor logistics, wayfinding, policy adherence, and calm coordination throughout the venue.',
+    deliverable: 'Experience overview & 5 operational scenario questions',
+  },
+] as const;
+
+const STEPS = [
+  { id: 1 as const, num: '01', label: 'Personal Information', shortLabel: 'Personal' },
+  { id: 2 as const, num: '02', label: 'Experience', shortLabel: 'Experience' },
+  { id: 3 as const, num: '03', label: 'Role Questions', shortLabel: 'Questions' },
+  { id: 4 as const, num: '04', label: 'Review & Submit', shortLabel: 'Review' },
+];
+
+const DRAFT_STORAGE_KEY = 'willow_mun_apply_draft_v2';
+const SUBMITTED_STORAGE_KEY = 'willow_mun_submitted_pairs_v1';
+const DRAFT_SESSION_KEY = 'willow_mun_upload_session_v1';
+
+type DraftMap = Record<ApplicationTrack, TrackDraft>;
+
+interface SubmittedReceipt {
+  id: string;
+  track: ApplicationTrack;
+  trackTitle: string;
+  applicantName: string;
+  email: string;
+  gender: 'male' | 'female';
+  createdAt: string;
+}
+
+function createInitialDraftMap(): DraftMap {
+  return {
+    media: createEmptyDraft(),
+    press: createEmptyDraft(),
+    volunteer: createEmptyDraft(),
+    security: createEmptyDraft(),
+  };
+}
+
+function getOrCreateDraftSessionId(): string {
+  if (typeof window === 'undefined') return `sess-${Date.now()}`;
+  try {
+    const existing = window.sessionStorage.getItem(DRAFT_SESSION_KEY);
+    if (existing) return existing;
+    const created =
+      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : `sess-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    window.sessionStorage.setItem(DRAFT_SESSION_KEY, created);
+    return created;
+  } catch {
+    return `sess-${Date.now()}`;
+  }
+}
+
+function sanitizeRestoredFiles(raw: unknown): UploadedApplicationFile[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((f): f is UploadedApplicationFile => Boolean(f && typeof f === 'object' && f.id))
+    .filter((f) => f.uploadStatus === 'uploaded' || f.uploadStatus === 'fallback_inline')
+    .map((f) => ({
+      ...f,
+      // blob: URLs do not survive full page reloads cleanly; avoid broken preview links
+      previewUrl:
+        f.previewUrl && f.previewUrl.startsWith('blob:') ? undefined : f.previewUrl,
+    }));
+}
+
+function loadStoredDrafts(): { drafts: DraftMap; activeTrack: ApplicationTrack } {
+  const fallback = { drafts: createInitialDraftMap(), activeTrack: 'media' as ApplicationTrack };
+  if (typeof window === 'undefined') return fallback;
+
+  try {
+    const raw = window.sessionStorage.getItem(DRAFT_STORAGE_KEY);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw) as {
+      activeTrack?: ApplicationTrack;
+      drafts?: Partial<Record<ApplicationTrack, Partial<TrackDraft>>>;
+    };
+    const drafts = createInitialDraftMap();
+    (Object.keys(drafts) as ApplicationTrack[]).forEach((t) => {
+      const saved = parsed.drafts?.[t];
+      if (saved && typeof saved === 'object') {
+        drafts[t] = {
+          ...createEmptyDraft(),
+          ...saved,
+          proofFiles: sanitizeRestoredFiles(saved.proofFiles),
+          mediaPhotos: sanitizeRestoredFiles(saved.mediaPhotos),
+          writingSamples: sanitizeRestoredFiles(saved.writingSamples),
+          roleAnswers:
+            saved.roleAnswers && typeof saved.roleAnswers === 'object'
+              ? saved.roleAnswers
+              : {},
+        };
+      }
+    });
+    const activeTrack =
+      parsed.activeTrack && PUBLIC_APPLICATION_TRACKS.includes(parsed.activeTrack)
+        ? parsed.activeTrack
+        : 'media';
+    return { drafts, activeTrack };
+  } catch {
+    return fallback;
+  }
+}
+
+function loadSubmittedPairs(): string[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.sessionStorage.getItem(SUBMITTED_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function toSubmitFileMetadata(files: UploadedApplicationFile[]) {
+  return files
+    .filter((f) => f.uploadStatus === 'uploaded' || Boolean(f.storagePath))
+    .map((f) => ({
+      id: f.id,
+      name: f.name,
+      category: f.category,
+      fileType: f.fileType,
+      sizeBytes: f.sizeBytes,
+      sizeLabel: f.sizeLabel,
+      storageBucket: f.storageBucket || 'wm-application-files',
+      storagePath: f.storagePath,
+      uploadedAt: f.uploadedAt,
+    }));
+}
+
+/**
+ * Editorial Organizing-Team Application Desk + Smooth 4-Step Animated Modal Dossier
+ * for Media, Press, and Volunteers.
+ */
+export function ApplySection() {
+  const initialStored = useMemo(() => loadStoredDrafts(), []);
+  const draftSessionId = useMemo(() => getOrCreateDraftSessionId(), []);
+  const [selectedTrack, setSelectedTrack] = useState<ApplicationTrack>(initialStored.activeTrack);
+  const [drafts, setDrafts] = useState<DraftMap>(initialStored.drafts);
+
+  const [modalOpen, setModalOpen] = useState(false);
+  const [isClosingModal, setIsClosingModal] = useState(false);
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+  const [highestStep, setHighestStep] = useState<1 | 2 | 3 | 4>(1);
+  const [errors, setErrors] = useState<FieldErrors>({});
+  const [busy, setBusy] = useState(false);
+  const [receipt, setReceipt] = useState<SubmittedReceipt | null>(null);
+  const [submittedPairs, setSubmittedPairs] = useState<string[]>(() => loadSubmittedPairs());
+  const [duplicateConfirmed, setDuplicateConfirmed] = useState(false);
+  const [registrationStatus, setRegistrationStatus] = useState<Record<string, boolean>>({});
+  const [registrationStatusLoaded, setRegistrationStatusLoaded] = useState(false);
+
+  const inFlightRef = useRef(false);
+  const closeTimerRef = useRef<number | null>(null);
+  const lastTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const modalBodyRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    const loadRegistrationStatus = async () => {
+      const { data, error } = await supabase
+        .from('wm_departments')
+        .select('slug,registration_open')
+        .in('slug', ['media', 'press', 'volunteers']);
+      if (!active) return;
+      if (!error && data) {
+        const next: Record<string, boolean> = {};
+        for (const row of data) next[row.slug] = row.registration_open === true;
+        setRegistrationStatus(next);
+      }
+      setRegistrationStatusLoaded(true);
+    };
+    void loadRegistrationStatus();
+    const refreshId = window.setInterval(() => void loadRegistrationStatus(), 30000);
+    return () => { active = false; window.clearInterval(refreshId); };
+  }, []);
+
+  // Persist non-medical draft progress locally across reloads (avoid keeping sensitive medical text unencrypted if preferred, or keep in sessionStorage only)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const serializableDrafts = {} as Record<ApplicationTrack, Partial<TrackDraft>>;
+      (Object.keys(drafts) as ApplicationTrack[]).forEach((t) => {
+        const d = drafts[t];
+        const compactFiles = (list: UploadedApplicationFile[]) =>
+          list.map((f) => ({
+            ...f,
+            // Don't bloat sessionStorage with large inline data URLs
+            previewUrl:
+              f.previewUrl && f.previewUrl.startsWith('data:') && f.previewUrl.length > 4000
+                ? undefined
+                : f.previewUrl && f.previewUrl.startsWith('blob:')
+                  ? undefined
+                  : f.previewUrl,
+          }));
+        serializableDrafts[t] = {
+          ...d,
+          proofFiles: compactFiles(d.proofFiles),
+          mediaPhotos: compactFiles(d.mediaPhotos),
+          writingSamples: compactFiles(d.writingSamples),
+        };
+      });
+      window.sessionStorage.setItem(
+        DRAFT_STORAGE_KEY,
+        JSON.stringify({ activeTrack: selectedTrack, drafts: serializableDrafts }),
+      );
+    } catch {
+      // Ignore storage quota issues
+    }
+  }, [selectedTrack, drafts]);
+
+  useEffect(() => {
+    return () => {
+      if (closeTimerRef.current !== null) {
+        window.clearTimeout(closeTimerRef.current);
+      }
+    };
+  }, []);
+
+  const currentTrackConfig =
+    TRACKS.find((t) => t.id === selectedTrack) ?? TRACKS[0];
+  const currentDraft = drafts[selectedTrack];
+  const roleQuestions = useMemo(
+    () => getRoleQuestionsForTrack(selectedTrack),
+    [selectedTrack],
+  );
+
+  const normalizedPairKey = useMemo(() => {
+    const email = currentDraft.email.trim().toLowerCase();
+    return email ? `${selectedTrack}::${email}` : '';
+  }, [selectedTrack, currentDraft.email]);
+
+  const hasDuplicateInSession =
+    normalizedPairKey !== '' && submittedPairs.includes(normalizedPairKey);
+
+  const scrollBodyTop = () => {
+    modalBodyRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const openModalForTrack = (
+    track: ApplicationTrack,
+    triggerEl?: HTMLButtonElement | null,
+
       window.clearTimeout(closeTimerRef.current);
       closeTimerRef.current = null;
     }
@@ -619,6 +959,7 @@ export function ApplySection() {
           </p>
           <button
             type="button"
+            disabled={registrationStatusLoaded && registrationStatus[TRACK_DEPARTMENT_SLUG[selectedTrack]] === false}
             onClick={(e) => openModalForTrack(selectedTrack, e.currentTarget)}
             className="mun-btn-interactive group inline-flex min-h-[44px] items-center justify-center gap-2 rounded-[2px] bg-[#ede6ca] px-5 py-2.5 text-sm font-semibold text-[#181c0d] hover:bg-[#dad3b4] cursor-pointer whitespace-nowrap shrink-0"
           >
@@ -653,8 +994,8 @@ export function ApplySection() {
                   <span className="font-mono text-xs tracking-[0.14em] text-[#a9b47e] tabular-nums">
                     TRACK {item.index} · {item.wing.toUpperCase()}
                   </span>
-                  <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-[#a9b47e]">
-                    {hasDraft ? 'Draft Saved' : 'Open'}
+                  <span className={`font-mono text-[11px] uppercase tracking-[0.12em] ${registrationStatus[TRACK_DEPARTMENT_SLUG[item.id]] === false ? 'text-rose-300' : 'text-[#a9b47e]'}`}>
+                    {registrationStatus[TRACK_DEPARTMENT_SLUG[item.id]] === false ? 'Registration Closed' : hasDraft ? 'Draft Saved' : 'Open'}
                   </span>
                 </div>
 
@@ -674,11 +1015,12 @@ export function ApplySection() {
 
                 <button
                   type="button"
+                  disabled={registrationStatusLoaded && registrationStatus[TRACK_DEPARTMENT_SLUG[item.id]] === false}
                   onClick={(e) => openModalForTrack(item.id, e.currentTarget)}
                   className="mun-btn-interactive inline-flex min-h-[44px] items-center justify-center gap-2 rounded-[2px] border border-[#ede6ca]/32 bg-transparent px-4 py-2 text-xs font-semibold text-[#ede6ca] hover:bg-[#ede6ca] hover:text-[#181c0d] hover:border-[#ede6ca] cursor-pointer whitespace-nowrap shrink-0"
                 >
                   <span>
-                    {hasDraft ? `Resume ${item.title}` : `Apply for ${item.title}`}
+                    {registrationStatus[TRACK_DEPARTMENT_SLUG[item.id]] === false ? 'Registration Closed' : hasDraft ? `Resume ${item.title}` : `Apply for ${item.title}`}
                   </span>
                   <ArrowRight className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5" aria-hidden="true" />
                 </button>
@@ -1272,50 +1614,7 @@ export function ApplySection() {
                           </div>
                         )}
 
-                        {selectedTrack === 'press' && (
-                          <div className="border-t border-[#ede6ca]/14 pt-5 space-y-5">
-                            <ApplicationFileUploader
-                              id="apply-writing-samples"
-                              track="press"
-                              fieldKind="writing_samples"
-                              draftSessionId={draftSessionId}
-                              files={currentDraft.writingSamples}
-                              onFilesChange={(updater) =>
-                                updateFilesField('writingSamples', updater)
-                              }
-                              title="Examples of previous writing, articles, or relevant work"
-                              description="Upload articles, op-eds, MUN resolution analyses, or journalism clips if you have them."
-                              accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.webp"
-                              acceptedFormatsLabel="PDF, DOC, DOCX, TXT, JPG, PNG, WEBP"
-                              category="portfolio"
-                              maxFiles={5}
-                              required={false}
-                            />
 
-                            <div>
-                              <label
-                                htmlFor="apply-portfolio"
-                                className="mb-1.5 block text-xs font-medium text-[#c9c2a6]"
-                              >
-                                Published articles or portfolio link{' '}
-                                <span className="font-normal text-[#c9c2a6]/70">(optional)</span>
-                              </label>
-                              <input
-                                id="apply-portfolio"
-                                type="url"
-                                value={currentDraft.portfolio_url}
-                                onChange={(e) => updateField('portfolio_url', e.target.value)}
-                                placeholder="https://"
-                                className="h-11 w-full rounded-[2px] border border-[#ede6ca]/24 bg-[#0e1208] px-3.5 text-sm text-[#ede6ca] outline-none placeholder:text-[#8d8a73] focus:border-[#ede6ca]"
-                              />
-                              {errors.portfolio_url && (
-                                <p role="alert" className="mt-1.5 text-xs text-rose-300">
-                                  {errors.portfolio_url}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                        )}
                       </div>
                     )}
 
