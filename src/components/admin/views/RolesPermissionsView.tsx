@@ -26,6 +26,7 @@ import {
   PERMISSION_DEFINITIONS,
 } from '../../../utils/adminPermissions';
 import { ConfirmDialog } from '../ConfirmDialog';
+import membersJson from '../../../data/members.json';
 
 interface RolesPermissionsViewProps {
   section: 'roles' | 'permission-defs';
@@ -585,6 +586,43 @@ export function DepartmentTestingView() {
         if (!existing.testUserId) existing.testUserId = roster.id;
       }
     }
+
+    // The public Secretariat roster is the canonical pre-signup directory.
+    // Production snapshots intentionally start with no mock users, so include
+    // every member whose public role identifies them as a Department Head.
+    const departmentByGroup: Record<string, string> = {
+      media: 'media-press',
+      press: 'media-press',
+      marketing: 'marketing',
+      design: 'design',
+      security: 'security',
+      it: 'it',
+      hr: 'hr',
+      'delegate-affairs': 'dcc',
+      volunteers: 'volunteers',
+    };
+    for (const member of membersJson.members) {
+      if (!member.role || !/\\bhead\\b/i.test(member.role)) continue;
+      const departmentId = departmentByGroup[member.group] || null;
+      const key = `roster:${member.id}`;
+      const existing = [...byEmail.values()].find((row) =>
+        row.fullName.trim().toLowerCase() === member.name.trim().toLowerCase()
+      );
+      if (existing) {
+        if (!existing.departmentId && departmentId) existing.departmentId = departmentId;
+        if (!existing.title || existing.title === 'Department Head') existing.title = member.role;
+        continue;
+      }
+      byEmail.set(key, {
+        id: key,
+        fullName: member.name,
+        email: '',
+        title: member.role,
+        departmentId,
+        isActive: true,
+        status: 'Awaiting signup',
+      });
+    }
     return [...byEmail.values()].sort((a, b) => a.fullName.localeCompare(b.fullName));
   }, [serverHeads, data.users]);
 
@@ -634,7 +672,7 @@ export function DepartmentTestingView() {
         {loadingHeads ? (
           <p className="p-8 text-center text-sm text-[color:var(--wm-ink-muted)]">Loading head accounts…</p>
         ) : headRows.length === 0 ? (
-          <p className="p-8 text-center text-sm text-[color:var(--wm-ink-muted)]">No Department Head entries were found in the saved roster or account directory.</p>
+          <p className="p-8 text-center text-sm text-[color:var(--wm-ink-muted)]">No Department Head entries were found in the public head roster or account directory.</p>
         ) : (
           <div className="divide-y divide-[color:var(--wm-hairline)]">
             {headRows.map((head) => {
