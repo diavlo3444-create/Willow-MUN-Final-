@@ -36,7 +36,7 @@ export const CONFERENCE_DATA = {
     fullName: 'Willow Model United Nations',
     year: '2026',
     logoSrc: '/assets/logo-transparent.png',
-    introVideoSrc: '/assets/aistudio/44_89c2647c.mp4',
+    introVideoSrc: '/assets/aistudio/willow-intro-grow.mp4',
     videoWebmSrc: '/willow-loop.webm',
     videoSrc: '/assets/aistudio/Trees_swaying_and_birds_flying_afb28949_d2f42073.mp4',
     posterSrc: '/willow-poster.jpg',
