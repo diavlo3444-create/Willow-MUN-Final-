@@ -1,47 +1,54 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const allowedOrigin = "https://willow-mun.vercel.app";
-const cors = {
-  "Access-Control-Allow-Origin": allowedOrigin,
+const allowedOrigins = new Set([
+  "https://willow-mun.vercel.app",
+  "https://ais-dev-kkieazvdfq7e6qb6ncnbbe-432410478862.europe-west2.run.app",
+]);
+const corsFor = (origin: string | null) => ({
+  "Access-Control-Allow-Origin": origin && allowedOrigins.has(origin) ? origin : "https://willow-mun.vercel.app",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Vary": "Origin",
-};
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
+});
+const json = (body: unknown, status = 200, origin: string | null = null) =>
+  new Response(JSON.stringify(body), { status, headers: { ...corsFor(origin), "Content-Type": "application/json" } });
 const cleanEmail = (value: unknown) => String(value || "").trim().toLowerCase();
 
 Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
-  if (req.headers.get("origin") && req.headers.get("origin") !== allowedOrigin) return json({ error: "This signup page is not authorized." }, 403);
-  if (req.method !== "POST") return json({ error: "Method not allowed." }, 405);
+  const origin = req.headers.get("origin");
+  if (req.method === "OPTIONS") {
+    const allowed = !origin || allowedOrigins.has(origin);
+    return new Response("ok", { status: allowed ? 200 : 403, headers: corsFor(origin) });
+  }
+  if (origin && !allowedOrigins.has(origin)) return json({ error: "This signup page is not authorized." }, 403, origin);
+  if (req.method !== "POST") return json({ error: "Method not allowed." }, 405, origin);
 
   let body: any;
-  try { body = await req.json(); } catch { return json({ error: "Invalid signup request." }, 400); }
+  try { body = await req.json(); } catch { return json({ error: "Invalid signup request." }, 400, origin); }
   const email = cleanEmail(body?.email);
   const password = String(body?.password || "");
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ error: "Enter a valid email address." }, 400);
-  if (password.length < 10 || password.length > 128) return json({ error: "Password must be between 10 and 128 characters." }, 400);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ error: "Enter a valid email address." }, 400, origin);
+  if (password.length < 10 || password.length > 128) return json({ error: "Password must be between 10 and 128 characters." }, 400, origin);
 
   const url = Deno.env.get("SUPABASE_URL");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!url || !serviceKey) return json({ error: "Signup service is not configured." }, 500);
+  if (!url || !serviceKey) return json({ error: "Signup service is not configured." }, 500, origin);
   const admin = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
 
   const { data: roster, error: rosterError } = await admin.from("wm_eb_signup_allowlist")
     .select("email,email_aliases,member_key,full_name,title,phone_number,department_id,avatar_url,eb_rank,eb_permissions,permissions,claimed_at,claimed_user_id")
     .order("full_name");
-  if (rosterError) return json({ error: "Could not check the Executive Board roster. Try again later." }, 500);
+  if (rosterError) return json({ error: "Could not check the Executive Board roster. Try again later." }, 500, origin);
   const matches = (roster || []).filter((entry: any) =>
     [cleanEmail(entry.email), ...(entry.email_aliases || []).map(cleanEmail)].includes(email)
   );
   if (matches.length !== 1) {
-    return json({ error: matches.length ? "This email matches more than one EB roster entry. Contact the Super Admin." : "This email is not listed in the Willow Executive Board roster. Use your registered EB email." }, 403);
+    return json({ error: matches.length ? "This email matches more than one EB roster entry. Contact the Super Admin." : "This email is not listed in the Willow Executive Board roster. Use your registered EB email." }, 403, origin);
   }
   const member = matches[0];
   if (member.claimed_at || member.claimed_user_id) {
-    return json({ error: "This EB roster entry has already been connected to an account. Contact the Super Admin if you need help." }, 409);
+    return json({ error: "This EB roster entry has already been connected to an account. Contact the Super Admin if you need help." }, 409, origin);
   }
 
   const cutoff = new Date(Date.now() - 15 * 60 * 1000).toISOString();
@@ -52,8 +59,8 @@ Deno.serve(async (req: Request) => {
     .or(`claim_started_at.is.null,claim_started_at.lt.${cutoff}`)
     .select("member_key")
     .maybeSingle();
-  if (claimError) return json({ error: "Could not reserve your EB profile. Try again later." }, 500);
-  if (!claimed) return json({ error: "This EB profile is currently being connected. Wait a moment and try again." }, 409);
+  if (claimError) return json({ error: "Could not reserve your EB profile. Try again later." }, 500, origin);
+  if (!claimed) return json({ error: "This EB profile is currently being connected. Wait a moment and try again." }, 409, origin);
 
   let createdUserId: string | null = null;
   try {
@@ -86,20 +93,6 @@ Deno.serve(async (req: Request) => {
     }, { onConflict: "user_id" });
     if (upsertError) throw upsertError;
 
-    const qrBytes = new Uint8Array(16);
-    crypto.getRandomValues(qrBytes);
-    const qrToken = "WMQR-" + Array.from(qrBytes, (b) => b.toString(16).padStart(2, "0")).join("").toUpperCase();
-    const { error: qrError } = await admin.from("wm_qr_passes").upsert({
-      user_id: createdUserId,
-      token_value: qrToken,
-      holder_name: member.full_name,
-      role_label: member.title || "Executive Board",
-      category: "Executive",
-      department_id: member.department_id,
-      active: true,
-    }, { onConflict: "user_id", ignoreDuplicates: true });
-    if (qrError) throw qrError;
-
     const { data: finalized, error: finalizeError } = await admin.from("wm_eb_signup_allowlist")
       .update({ claimed_at: new Date().toISOString(), claimed_user_id: createdUserId, claim_started_at: null, invite_token_hash: null })
       .eq("member_key", member.member_key)
@@ -109,7 +102,7 @@ Deno.serve(async (req: Request) => {
     if (finalizeError) throw finalizeError;
     if (!finalized) throw new Error("Your EB profile could not be finalized. Contact the Super Admin.");
 
-    return json({ success: true, email, message: "Your EB account is ready." });
+    return json({ success: true, email, message: "Your EB account is ready." }, 200, origin);
   } catch (error) {
     if (createdUserId) {
       await admin.from("wm_profiles").delete().eq("user_id", createdUserId);
@@ -120,6 +113,6 @@ Deno.serve(async (req: Request) => {
       .update({ claim_started_at: null })
       .eq("member_key", member.member_key)
       .is("claimed_at", null);
-    return json({ error: error instanceof Error ? error.message : "We could not create your EB account. Please try again." }, 400);
+    return json({ error: error instanceof Error ? error.message : "We could not create your EB account. Please try again." }, 400, origin);
   }
 });
