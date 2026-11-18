@@ -57,12 +57,14 @@ import type {
 
 const TEST_HEAD_STORAGE_KEY = 'willow_mun_test_head_uid_v3';
 const TEST_HEAD_PROFILE_STORAGE_KEY = 'willow_mun_test_head_profile_v1';
+const TEST_EB_PROFILE_STORAGE_KEY = 'willow_mun_test_eb_profile_v1';
 
 interface AdminStoreContextValue {
   data: ConferenceDataSnapshot;
   currentUser: AdminUser | null;
   authReady: boolean;
   testModeHeadUser: AdminUser | null;
+  testModeExecutiveBoardUser: AdminUser | null;
   toasts: ToastMessage[];
   notifications: AdminNotification[];
   pushToast: (toast: Omit<ToastMessage, 'id'>) => void;
@@ -184,6 +186,17 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
       return null;
     }
   });
+  const [testModeEbProfile] = useState<{
+    fullName: string; email: string; title: string; departmentId: string;
+    ebRank: string; ebPermissions: Record<string, boolean>; avatarUrl?: string | null;
+  } | null>(() => {
+    if (typeof window === 'undefined') return null;
+    try {
+      return JSON.parse(window.sessionStorage.getItem(TEST_EB_PROFILE_STORAGE_KEY) || 'null');
+    } catch {
+      return null;
+    }
+  });
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
   const authenticatedUser = useMemo(() => {
@@ -250,7 +263,33 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
     };
   }, [authenticatedUser, data.departments, data.users, testModeHeadUserId]);
 
-  const currentUser = testModeHeadUser ?? authenticatedUser;
+  const testModeExecutiveBoardUser = useMemo(() => {
+    if (!authenticatedUser || authenticatedUser.role !== 'super_admin' || !testModeEbProfile) return null;
+    const template = data.users.find((user) => user.role === 'executive_board') ?? data.users[0];
+    if (!template || !testModeEbProfile.departmentId) return null;
+    return {
+      ...template,
+      // Keep the real Super Admin auth UUID so database reads work in preview.
+      // This is UI impersonation only; Supabase still authenticates the Super Admin.
+      id: authenticatedUser.id,
+      fullName: testModeEbProfile.fullName,
+      email: testModeEbProfile.email,
+      role: 'executive_board',
+      roleDefinitionId: 'executive_board',
+      title: testModeEbProfile.title,
+      departmentId: testModeEbProfile.departmentId,
+      avatarUrl: testModeEbProfile.avatarUrl || null,
+      isActive: true,
+      status: 'active',
+      ebRank: testModeEbProfile.ebRank || 'member',
+      ebPermissions: testModeEbProfile.ebPermissions || {},
+      permissions: template.permissions,
+      createdAt: new Date().toISOString(),
+      lastActiveAt: new Date().toISOString(),
+    };
+  }, [authenticatedUser, data.users, testModeEbProfile]);
+
+  const currentUser = testModeHeadUser ?? testModeExecutiveBoardUser ?? authenticatedUser;
 
   const currentUserRef = useRef<AdminUser | null>(currentUser);
   currentUserRef.current = currentUser;
@@ -413,11 +452,20 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
   );
 
   const signOut = useCallback(() => {
+    if (testModeHeadUser || testModeExecutiveBoardUser) {
+      try {
+        window.sessionStorage.removeItem(TEST_HEAD_STORAGE_KEY);
+        window.sessionStorage.removeItem(TEST_HEAD_PROFILE_STORAGE_KEY);
+        window.sessionStorage.removeItem(TEST_EB_PROFILE_STORAGE_KEY);
+      } catch { /* Ignore storage errors */ }
+      window.location.replace('/super-admin');
+      return;
+    }
     void supabase.auth.signOut();
     setCurrentUserId(null);
     setTestModeHeadUserId(null);
     pushToast({ tone: 'info', title: 'Signed out of Willow MUN administration' });
-  }, [pushToast]);
+  }, [pushToast, testModeHeadUser, testModeExecutiveBoardUser]);
 
   const enterDepartmentTestMode = useCallback(
     (headUserId: string) => {
