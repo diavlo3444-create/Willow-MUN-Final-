@@ -465,7 +465,7 @@ Deno.serve(async (req: Request) => {
   const isAdmin = actor.role === "super_admin" || actor.role === "admin";
   const canViewMedical =
     actor.role === "super_admin" ||
-    (actor.role === "admin" && actorPerms["applications.view_confidential"] !== false);
+    (actor.role === "admin" && actorPerms["applications.view_confidential"] === true);
 
   const isEbHead =
     actor.role === "executive_board" &&
