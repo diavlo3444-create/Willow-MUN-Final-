@@ -86,12 +86,19 @@ export function ExecutiveBoardAccountsView() {
   };
 
   const copySetupLink = async (account: Account) => {
-    const url = `${window.location.origin}/eb-signup?email=${encodeURIComponent(account.email)}`;
+    if (!account.member_key) return;
+    const { data, error: invokeError } = await supabase.functions.invoke('willow-staff-admin', {
+      body: { action: 'create_eb_invite', member_key: account.member_key },
+    });
+    if (invokeError || data?.error || !data?.url) {
+      pushToast({ tone: 'error', title: 'Setup link could not be created', description: data?.error || invokeError?.message || 'Try again.' });
+      return;
+    }
     try {
-      await navigator.clipboard.writeText(url);
-      pushToast({ tone: 'success', title: 'Signup link copied', description: `Share the link with ${account.full_name}; they must enter the registered email to claim the account.` });
+      await navigator.clipboard.writeText(data.url);
+      pushToast({ tone: 'success', title: 'Personal setup link copied', description: `Share it with ${account.full_name}. It is bound to their registered email and can only be claimed once.` });
     } catch {
-      window.prompt('Copy this Executive Board signup link:', url);
+      window.prompt('Copy this personal Executive Board setup link:', data.url);
     }
   };
 
