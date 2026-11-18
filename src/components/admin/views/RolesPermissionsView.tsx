@@ -649,10 +649,10 @@ export function DepartmentTestingView() {
     const url = new URL('/head', window.location.origin);
     url.searchParams.set('testHead', targetId);
     url.searchParams.set('testProfile', JSON.stringify(profile));
-    const tab = window.open(url.toString(), '_blank');
-    if (!tab) {
-      window.alert('The test tab was blocked. Allow pop-ups for willow-mun.vercel.app and try again.');
-    }
+    // Keep the existing authenticated Super Admin browser session.
+    // Same-tab navigation avoids a blank preview tab when the browser blocks
+    // pop-ups or the auth session has not hydrated in a newly opened tab.
+    window.location.assign(url.toString());
   };
 
   return (
