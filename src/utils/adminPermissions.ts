@@ -388,8 +388,8 @@ export const ADMIN_DEFAULT_PERMISSIONS: PermissionMap = buildPermissionMap({
 export const DEPARTMENT_HEAD_DEFAULT_PERMISSIONS: PermissionMap = buildPermissionMap({
   'applications.view': true,
   'applications.view_confidential': true,
-  'applications.review': true,
-  'applications.recommend': false,
+  'applications.review': false,
+  'applications.recommend': true,
   'applications.notes': false,
   'applications.bulk_actions': false,
   'applications.export': false,
@@ -407,6 +407,7 @@ export const EXECUTIVE_BOARD_DEFAULT_PERMISSIONS: PermissionMap = buildPermissio
   'applications.view': false,
   'applications.view_confidential': false,
   'applications.review': false,
+  'applications.recommend': false,
   'departments.workspace': true,
   'operations.teams': true,
   'operations.shifts': true,
@@ -594,12 +595,14 @@ export function hasPermission(
     if (
       permission === 'applications.view' ||
       permission === 'applications.view_confidential' ||
-      permission === 'applications.review'
+      permission === 'applications.review' ||
+      permission === 'applications.recommend'
     ) {
       const applicationDepartment = getActorDepartmentSlug(user, departments);
       const applicationDepartmentAllowed =
         ['media', 'press', 'security', 'volunteers'].includes(applicationDepartment || '') &&
         (applicationDepartment !== 'media' && applicationDepartment !== 'press' || getMediaPressSubScope(user) !== null);
+      if (permission === 'applications.review') return false;
       return applicationDepartmentAllowed && user.permissions?.[permission] !== false;
     }
     if (permission === 'qr.view_pass') {
@@ -615,13 +618,15 @@ export function hasPermission(
     if (
       permission === 'applications.view' ||
       permission === 'applications.view_confidential' ||
-      permission === 'applications.review'
+      permission === 'applications.review' ||
+      permission === 'applications.recommend'
     ) {
       const applicationDepartment = getActorDepartmentSlug(user, departments);
       const applicationDepartmentAllowed =
         ['media', 'press', 'security', 'volunteers'].includes(applicationDepartment || '') &&
         (applicationDepartment !== 'media' && applicationDepartment !== 'press' || getMediaPressSubScope(user) !== null);
       if (!applicationDepartmentAllowed) return false;
+      if (permission === 'applications.review') return false;
       if (typeof user.permissions?.[permission] === 'boolean') {
         return Boolean(user.permissions[permission]);
       }
