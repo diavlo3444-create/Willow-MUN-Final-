@@ -23,26 +23,34 @@ Deno.serve(async (req: Request) => {
   let body: any;
   try { body = await req.json(); } catch { return json({ error: "Invalid request." }, 400); }
   const email = String(body?.email || "").trim().toLowerCase();
+  const inviteToken = String(body?.token || "").trim();
   const password = String(body?.password || "");
   if (!email.includes("@") || email.startsWith("@") || !email.split("@")[1]?.includes(".")) return json({ error: "Enter a valid email address." }, 400);
   if (password.length < 10 || password.length > 128) return json({ error: "Password must be between 10 and 128 characters." }, 400);
+
+  if (inviteToken.length < 32 || inviteToken.length > 256) return json({ error: "Open the personal setup link sent by the Super Admin." }, 403);
+  const tokenDigest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(inviteToken));
+  const tokenHash = Array.from(new Uint8Array(tokenDigest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 
   const admin = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
   const cutoff = new Date(Date.now() - 15 * 60 * 1000).toISOString();
 
   const { data: candidate, error: lookupError } = await admin.from("wm_eb_signup_allowlist")
-    .select("email,email_aliases,member_key,full_name,title,phone_number,department_id,avatar_url,eb_rank,eb_permissions")
+    .select("email,email_aliases,member_key,full_name,title,phone_number,department_id,avatar_url,eb_rank,eb_permissions,invite_token_hash")
     .or(`email.eq.${email},email_aliases.cs.{${email}}`)
     .maybeSingle();
   if (lookupError) return json({ error: "Could not verify the signup record. Try again later." }, 500);
-  if (!candidate) return json({ error: "This email is not on the approved EB roster." }, 403);
+  if (!candidate || !candidate.invite_token_hash || candidate.invite_token_hash !== tokenHash) {
+    return json({ error: "This email and invitation link do not match. Ask the Super Admin for a fresh link." }, 403);
+  }
 
   const { data: invite, error: claimError } = await admin.from("wm_eb_signup_allowlist")
     .update({ claim_started_at: new Date().toISOString() })
     .eq("member_key", candidate.member_key)
+    .eq("invite_token_hash", tokenHash)
     .is("claimed_at", null)
     .or(`claim_started_at.is.null,claim_started_at.lt.${cutoff}`)
-    .select("email,member_key,full_name,title,phone_number,department_id,avatar_url,eb_rank,eb_permissions")
+    .select("email,member_key,full_name,title,phone_number,department_id,avatar_url,eb_rank,eb_permissions,invite_token_hash")
     .maybeSingle();
 
   if (claimError) return json({ error: "Could not reserve this signup. Try again later." }, 500);
@@ -74,7 +82,7 @@ Deno.serve(async (req: Request) => {
     if (profileError) throw profileError;
 
     const { error: finishError } = await admin.from("wm_eb_signup_allowlist")
-      .update({ claimed_at: new Date().toISOString(), claimed_user_id: createdUserId, claim_started_at: null })
+      .update({ claimed_at: new Date().toISOString(), claimed_user_id: createdUserId, claim_started_at: null, invite_token_hash: null })
       .eq("member_key", invite.member_key)
       .is("claimed_at", null);
     if (finishError) throw finishError;
