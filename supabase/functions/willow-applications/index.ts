@@ -481,7 +481,7 @@ Deno.serve(async (req: Request) => {
   const isHead =
     headApplicationDepartmentAllowed &&
     ((actor.role === "department_head" && actorPerms["applications.view"] !== false) || isEbHead);
-  const canHeadDecide = isHead && actorPerms["applications.review"] !== false;
+  const canHeadRecommend = isHead && actorPerms["applications.recommend"] !== false;
   const isHr = isHrProfile({ ...actor, department_slug: actorDeptSlug });
 
   async function enrichRowsWithConfidentialMedical(rows: any[]) {
@@ -650,6 +650,29 @@ Deno.serve(async (req: Request) => {
     return json({ error: "You do not have permission to view applications." }, 403);
   }
 
+  if (action === "recommend") {
+    if (!isHead || !canHeadRecommend) return json({ error: "Only an assigned Department Head can submit a recommendation." }, 403);
+    const id = String(body?.id || "").trim();
+    const recommendation = String(body?.recommendation || "").trim().toLowerCase();
+    const headNotes = String(body?.head_notes || "").trim().slice(0, 5000);
+    if (!id) return json({ error: "Application ID is required." }, 400);
+    if (!["recommend_accept", "recommend_reject"].includes(recommendation)) return json({ error: "Choose recommend acceptance or recommend rejection." }, 400);
+    const { data: existing, error: fetchError } = await admin.from("wm_applications").select("*").eq("id", id).maybeSingle();
+    if (fetchError || !existing) return json({ error: "Application not found." }, 404);
+    const appDept = mapDepartment(existing.application_type, existing.department_id);
+    const actorGender = getActorGender(actor);
+    const appGender = String(existing.gender || "").trim().toLowerCase();
+    if (!actorDeptSlug || appDept.toLowerCase() !== actorDeptSlug) return json({ error: "You cannot recommend applications outside your assigned department." }, 403);
+    if (actorDeptSlug === "media-press" && (!actorApplicationType || String(existing.application_type || "").toLowerCase() !== actorApplicationType)) return json({ error: "Media and Press applications are isolated." }, 403);
+    if (!actorGender || appGender !== actorGender) return json({ error: "You cannot recommend applications outside your gender division." }, 403);
+    if (existing.status !== "pending") return json({ error: "Only pending applications can receive or change a recommendation." }, 409);
+    if (existing.recommended_by && existing.recommended_by !== authData.user.id) return json({ error: "A Department Head has already submitted this recommendation. Contact an Admin if it needs to be changed." }, 409);
+    const { data: updated, error: updateError } = await admin.from("wm_applications").update({ head_recommendation: recommendation, head_notes: headNotes, recommended_by: authData.user.id, recommended_by_name: actor.full_name, recommended_at: new Date().toISOString() }).eq("id", id).eq("status", "pending").select("*").maybeSingle();
+    if (updateError) return json({ error: updateError.message }, 400);
+    if (!updated) return json({ error: "The application changed while you were submitting. Refresh and try again." }, 409);
+    const [enriched] = await enrichRowsWithConfidentialMedical([{ ...updated, department_id: appDept }]);
+    return json({ application: enriched });
+  }
   if (action === "update") {
     const id = String(body?.id || "").trim();
     const nextStatus = String(body?.status || "").trim().toLowerCase();
@@ -669,47 +692,7 @@ Deno.serve(async (req: Request) => {
       .eq("slug", appDept)
       .maybeSingle();
 
-    if (isHead) {
-      if (!canHeadDecide) {
-        return json(
-          { error: "Your account does not have permission to accept or decline applications." },
-          403,
-        );
-      }
-      const actorDept = actorDeptSlug;
-      const actorGender = getActorGender(actor);
-      const appGender = String(existing.gender || "").trim().toLowerCase();
-      if (!actorDept || appDept.toLowerCase() !== actorDept) {
-        return json(
-          { error: "Department Heads cannot modify applications outside their department." },
-          403,
-        );
-      }
-      if (
-        actorDept === "media-press" &&
-        (!actorApplicationType ||
-          String(existing.application_type || "").toLowerCase() !== actorApplicationType)
-      ) {
-        return json({ error: "Media and Press applications are isolated." }, 403);
-      }
-      if (!actorGender || appGender !== actorGender) {
-        return json(
-          { error: "Department Heads cannot modify applications outside their gender division." },
-          403,
-        );
-      }
-      if (nextStatus !== "accepted" && nextStatus !== "rejected") {
-        return json({ error: "Department Heads can only accept or decline applications." }, 403);
-      }
-    } else if (isAdmin) {
-      if (!["pending", "accepted", "rejected", "waitlisted"].includes(nextStatus)) {
-        return json({ error: "Invalid status value." }, 400);
-      }
-    } else {
-      return json({ error: "Unauthorized to review applications." }, 403);
-    }
-
-    const patch: Record<string, unknown> = {
+    if (!isAdmin) {,      return json({ error: "Only Administrators can make final application decisions. Department Heads submit recommendations." }, 403);,    },    if (!["pending", "accepted", "rejected", "waitlisted"].includes(nextStatus)) {,      return json({ error: "Invalid status value." }, 400);,    },    const patch: Record<string, unknown> = {
       status: nextStatus,
       department_id: appDept,
       decision_by: authData.user.id,
@@ -718,6 +701,7 @@ Deno.serve(async (req: Request) => {
     };
     if (isAdmin && body?.review_notes !== undefined) {
       patch.review_notes = String(body.review_notes);
+      patch.admin_decision_notes = String(body.review_notes);
     }
 
     const { data: updated, error: updateError } = await admin
