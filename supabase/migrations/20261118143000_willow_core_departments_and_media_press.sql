@@ -14,7 +14,7 @@ INSERT INTO public.wm_departments
 VALUES
   (gen_random_uuid(), 'press', 'Press',
    'Editorial reporting, committee coverage, interviews, and conference journalism.',
-   'Communications & Creative', false, 0, ARRAY[]::text[], '')
+   'Communications & Creative', false, 0, '[]'::jsonb, '')
 ON CONFLICT (slug) DO UPDATE
 SET name = EXCLUDED.name,
     cluster = EXCLUDED.cluster,
