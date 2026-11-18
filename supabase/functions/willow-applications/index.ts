@@ -142,9 +142,13 @@ Deno.serve(async (req: Request) => {
       actorEbPerms.manage_department === true ||
       /\bhead\b/i.test(String(actor.title || "")) ||
       actorPerms["applications.view"] === true);
+  const headApplicationDepartmentAllowed =
+    ["media-press", "security", "volunteers"].includes(actorDeptSlug) &&
+    (actorDeptSlug !== "media-press" || actorApplicationType !== null);
   const isHead =
-    (actor.role === "department_head" && actorPerms["applications.view"] !== false) ||
-    isEbHead;
+    headApplicationDepartmentAllowed &&
+    ((actor.role === "department_head" && actorPerms["applications.view"] !== false) ||
+      isEbHead);
   const canHeadDecide = isHead && actorPerms["applications.review"] !== false;
   const isHr = isHrProfile({ ...actor, department_slug: actorDeptSlug });
 
