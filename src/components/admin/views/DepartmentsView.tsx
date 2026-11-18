@@ -1,5 +1,5 @@
 import { useMemo, useState, type FormEvent } from 'react';
-import { Building2, Edit2, Plus, UserPlus, X } from 'lucide-react';
+import { Building2, Edit2, UserPlus, X } from 'lucide-react';
 import { useAdminStore } from '../../../context/AdminStoreContext';
 import type { Department } from '../../../types/admin';
 import { canManageAccountsOrRoles, hasPermission } from '../../../utils/adminPermissions';
@@ -42,10 +42,9 @@ export function DepartmentsView({
   const canAssignHead = canManageAccountsOrRoles(effectiveActor);
 
   const visibleDepartments = useMemo(() => {
-    if (lockedDepartmentId) {
-      return data.departments.filter((d) => d.id === lockedDepartmentId);
-    }
-    return data.departments;
+    const core = data.departments.filter((d) => ['media', 'press', 'security', 'volunteers'].includes(d.slug.toLowerCase()));
+    if (lockedDepartmentId) return core.filter((d) => d.id === lockedDepartmentId);
+    return core;
   }, [data.departments, lockedDepartmentId]);
 
   const breakdownMap = useMemo(() => {
@@ -89,7 +88,7 @@ export function DepartmentsView({
 
   return (
     <div className="space-y-4">
-      {!lockedDepartmentId && canManageDepts && (
+      {!lockedDepartmentId && canManageDepts && false && (
         <div className="wm-surface-panel px-5 py-3.5 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-xs text-[color:var(--wm-ink-secondary)]">
             <Building2 className="h-4 w-4 text-[color:var(--wm-accent)]" aria-hidden="true" />
