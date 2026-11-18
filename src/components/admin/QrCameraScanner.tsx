@@ -447,7 +447,7 @@ export function QrCameraScanner({
               <span className="absolute bottom-0 left-0 h-7 w-7 border-b-2 border-l-2 border-[#ede6ca]" />
               <span className="absolute bottom-0 right-0 h-7 w-7 border-b-2 border-r-2 border-[#ede6ca]" />
               {!pauseWhenLocked && !busy && (
-                <div className="absolute inset-x-3 top-1/2 h-[1.5px] bg-[#74c69d]/85 shadow-[0_0_8px_rgba(116,198,157,0.7)]" />
+                <div className="willow-scanline absolute inset-x-3 top-1/2 h-[2px] bg-gradient-to-r from-transparent via-[#a7f3c6] to-transparent shadow-[0_0_12px_rgba(116,198,157,0.9)]" />
               )}
             </div>
             <div className="mt-4 rounded-md border border-white/15 bg-black/70 px-3 py-1 text-[10px] font-mono uppercase tracking-[0.16em] text-[#ede6ca]">
