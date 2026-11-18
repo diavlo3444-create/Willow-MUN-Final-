@@ -602,7 +602,7 @@ export function DepartmentTestingView() {
       volunteers: 'volunteers',
     };
     for (const member of membersJson.members) {
-      if (!member.role || !/\\bhead\\b/i.test(member.role)) continue;
+      if (!member.role || !/\bhead\b/i.test(member.role)) continue;
       const departmentId = departmentByGroup[member.group] || null;
       const key = `roster:${member.id}`;
       const existing = [...byEmail.values()].find((row) =>
