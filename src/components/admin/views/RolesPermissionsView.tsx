@@ -638,25 +638,20 @@ export function DepartmentTestingView() {
   }
 
   const openHeadTestTab = (head: { id: string; testUserId?: string; fullName: string; email: string; title: string; departmentId: string | null }) => {
-    const tab = window.open('about:blank', '_blank');
+    const targetId = head.testUserId || head.id;
+    const profile = {
+      id: targetId,
+      fullName: head.fullName,
+      email: head.email,
+      title: head.title,
+      departmentId: head.departmentId,
+    };
+    const url = new URL('/head', window.location.origin);
+    url.searchParams.set('testHead', targetId);
+    url.searchParams.set('testProfile', JSON.stringify(profile));
+    const tab = window.open(url.toString(), '_blank');
     if (!tab) {
       window.alert('The test tab was blocked. Allow pop-ups for willow-mun.vercel.app and try again.');
-      return;
-    }
-    try {
-      const targetId = head.testUserId || head.id;
-      tab.sessionStorage.setItem('willow_mun_test_head_uid_v3', targetId);
-      tab.sessionStorage.setItem('willow_mun_test_head_profile_v1', JSON.stringify({
-        id: targetId,
-        fullName: head.fullName,
-        email: head.email,
-        title: head.title,
-        departmentId: head.departmentId,
-      }));
-      tab.location.replace('/head');
-    } catch {
-      tab.close();
-      window.alert('Could not start the isolated head test session. Please allow same-site storage and try again.');
     }
   };
 
