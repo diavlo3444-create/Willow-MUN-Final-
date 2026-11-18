@@ -510,7 +510,7 @@ export function SecurityScannerPortal({
                     </p>
                   ) : (
                     recentScans.slice(0, 6).map((scan) => {
-                      const isValid = scan.result === 'valid_checkin';
+                      const isValid = scan.result === 'valid_checkin' || scan.result === 'valid_checkout';
                       const isDup =
                         scan.result === 'already_checked_in' || scan.result === 'duplicate_recent';
                       return (
