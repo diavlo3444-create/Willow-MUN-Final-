@@ -21,7 +21,7 @@
 @layer base {
   html {
     scroll-behavior: smooth;
-    background-color: #14180a;
+    background-color: #393f24;
     color: #ede6ca;
     font-family: var(--font-sans);
     overflow-x: hidden;
@@ -43,7 +43,7 @@
 
 /* Editorial navigation chrome over full-bleed willow background */
 .mun-nav-flat {
-  background-color: rgba(15, 19, 8, 0.9);
+  background-color: rgba(57, 63, 36, 0.94);
   -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
 }
@@ -242,11 +242,11 @@
 .mun-footer-gradient {
   position: relative;
   z-index: 1;
-  background: rgba(13, 17, 7, 0.94);
+  background: #393f24;
 }
 
 .mun-announcement-bg {
-  background: rgba(14, 18, 8, 0.95);
+  background: #393f24;
 }
 
 /* One-time hero text fade-in (transform + opacity only, 360ms) */
@@ -970,24 +970,11 @@ section.mun-scroll-section::before {
 section.mun-scroll-section.is-visible::before {
   opacity: 1;
 }
-section.mun-scroll-section:nth-of-type(even)::before {
-  background: linear-gradient(
-    180deg,
-    rgba(12,16,6,.56) 0%,
-    rgba(14,19,7,.86) 14%,
-    rgba(16,21,8,.84) 86%,
-    rgba(12,16,6,.56) 100%
-  );
-  border-top: 1px solid rgba(237,230,202,.12);
-  border-bottom: 1px solid rgba(237,230,202,.08);
-}
+section.mun-scroll-section:nth-of-type(even)::before,
 section.mun-scroll-section:nth-of-type(odd)::before {
-  background: linear-gradient(
-    180deg,
-    rgba(10,14,5,.14) 0%,
-    rgba(10,14,5,.28) 50%,
-    rgba(10,14,5,.14) 100%
-  );
+  background: #393f24;
+  border-top: 1px solid rgba(237,230,202,.10);
+  border-bottom: 1px solid rgba(237,230,202,.08);
 }
 
 /* Bidirectional section settle: slides gently up when scrolling down, gently down when scrolling up */
@@ -1086,19 +1073,14 @@ section.mun-scroll-section:nth-of-type(odd)::before {
 
 /* Mobile visual system: one consistent willow-olive tone across both videos and sections. */
 @media (max-width: 767px) {
-  .willow-background-video,
-  .willow-intro-video {
-    filter: grayscale(1) sepia(0.34) hue-rotate(28deg) saturate(0.78);
-  }
-
-  body.intro-on .willow-intro-backdrop {
+   body.intro-on .willow-intro-backdrop {
     background: transparent;
   }
 
   section.mun-scroll-section::before,
   section.mun-scroll-section:nth-of-type(even)::before,
   section.mun-scroll-section:nth-of-type(odd)::before {
-    background: rgba(20, 24, 10, 0.62);
+    background: #393f24;
     border-top-color: rgba(237, 230, 202, 0.10);
     border-bottom-color: rgba(237, 230, 202, 0.08);
   }
