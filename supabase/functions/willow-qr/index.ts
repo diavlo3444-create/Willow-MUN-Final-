@@ -19,6 +19,12 @@ function makeOpaqueToken(): string {
   return `WMQR-${Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("").toUpperCase()}`;
 }
 
+async function fingerprintToken(token: string): Promise<string> {
+  const normalized = String(token || "").trim().toLowerCase();
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(normalized));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
 function maskToken(token: string | null | undefined): string {
   const clean = String(token || "").trim();
   if (!clean) return "";
@@ -290,7 +296,11 @@ Deno.serve(async (req: Request) => {
     const nowIso = new Date().toISOString();
 
     const logScanFallback = async (entry: Record<string, unknown>) => {
-      const { error: extErr } = await admin.from("wm_qr_scans").insert(entry);
+      const tokenFingerprint = await fingerprintToken(scannedToken);
+      const { error: extErr } = await admin.from("wm_qr_scans").insert({
+        ...entry,
+        token_fingerprint: tokenFingerprint,
+      });
       if (extErr && isColumnOrTableMissingError(extErr)) {
         // Older wm_qr_scans schema fallback
         const safeResult =
