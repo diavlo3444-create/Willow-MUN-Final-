@@ -30,7 +30,7 @@ export function EbSignupLinkView() {
         </div>
         <div className="mt-7 rounded-lg border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-inset)] p-4">
           <p className="text-sm font-semibold text-[color:var(--wm-ink)]">Shared EB signup link</p>
-          <p className="mt-2 text-xs leading-5 text-[color:var(--wm-ink-secondary)]">Every member uses this same page, enters the email address recorded in the approved EB roster, and verifies ownership through their inbox before setting a password.</p>
+          <p className="mt-2 text-xs leading-5 text-[color:var(--wm-ink-secondary)]">Every member uses this same page, enters the email address recorded in the approved EB roster, and creates an account immediately with a password. No OTP or email verification is used.</p>
           <div className="mt-4 flex flex-col gap-2 sm:flex-row">
             <input id="willow-shared-eb-link" readOnly value={sharedLink} onFocus={(event) => event.currentTarget.select()} className="h-10 min-w-0 flex-1 rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-canvas)] px-3 text-xs text-[color:var(--wm-ink)]" />
             <button type="button" onClick={() => void copyLink()} className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-[color:var(--wm-emerald)] px-4 text-xs font-semibold text-[#eef4ef]">
@@ -42,7 +42,7 @@ export function EbSignupLinkView() {
         </div>
       </section>
       <div className="grid gap-4 md:grid-cols-2">
-        <section className="wm-surface-panel p-5"><div className="flex items-center gap-2 text-[color:var(--wm-focal)]"><Users className="h-4 w-4" /><h3 className="text-sm font-semibold">What EB members do</h3></div><p className="mt-3 text-xs leading-5 text-[color:var(--wm-ink-secondary)]">Open the shared link, enter their registered EB email, open the verification email, and set a password. Their roster profile is connected automatically.</p></section>
+        <section className="wm-surface-panel p-5"><div className="flex items-center gap-2 text-[color:var(--wm-focal)]"><Users className="h-4 w-4" /><h3 className="text-sm font-semibold">What EB members do</h3></div><p className="mt-3 text-xs leading-5 text-[color:var(--wm-ink-secondary)]">Open the shared link, enter their registered EB email, and create a password. Their roster profile is connected automatically.</p></section>
         <section className="wm-surface-panel p-5"><div className="flex items-center gap-2 text-[color:var(--wm-focal)]"><ShieldCheck className="h-4 w-4" /><h3 className="text-sm font-semibold">Roster-based access</h3></div><p className="mt-3 text-xs leading-5 text-[color:var(--wm-ink-secondary)]">Name, role, department, rank, permissions and photo come from the Super Admin&apos;s roster. Each roster entry can only be claimed once, and email ownership must be verified.</p></section>
       </div>
     </div>
