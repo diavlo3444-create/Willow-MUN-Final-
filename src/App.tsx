@@ -11,7 +11,6 @@ import { InstagramSection } from './components/InstagramSection';
 import { MarqueeStrip } from './components/MarqueeStrip';
 import { Navbar } from './components/Navbar';
 import { ScrollProgressBar } from './components/ScrollProgressBar';
-import { SuggestionsSection } from './components/SuggestionsSection';
 import { UpdatesSection } from './components/UpdatesSection';
 import { WillowBackground } from './components/WillowBackground';
 import {
@@ -78,7 +77,6 @@ function PublicWebsite() {
           <UpdatesSection />
           <InstagramSection />
           <ApplySection />
-          <SuggestionsSection />
         </main>
 
         <Footer onReplayIntro={handleReplayIntro} />
