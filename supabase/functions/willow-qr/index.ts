@@ -253,6 +253,9 @@ Deno.serve(async (req: Request) => {
         checked_out_at: rawPayload.checked_out_at ?? null,
         checked_out_gate: rawPayload.checked_out_gate ?? null,
         prior_checkout_count: rawPayload.prior_checkout_count ?? 0,
+        checked_out_at: rawPayload.checked_out_at ?? null,
+        checked_out_gate: rawPayload.checked_out_gate ?? null,
+        prior_checkout_count: rawPayload.prior_checkout_count ?? 0,
         gate_location: rawPayload.gate_location ?? gateLocation,
         scanned_at: rawPayload.scanned_at ?? new Date().toISOString(),
         committed: shouldCommit,
@@ -744,7 +747,7 @@ Deno.serve(async (req: Request) => {
     const { data: extPasses, error: extErr } = await admin
       .from("wm_qr_passes")
       .select(
-        "id,user_id,application_id,holder_name,holder_email,role_label,category,department_id,active,checked_in_at,checked_in_gate,checked_in_by,checked_in_by_name,revoked_at,revoke_reason,token_value,created_at",
+        "id,user_id,application_id,holder_name,holder_email,role_label,category,department_id,active,checked_in_at,checked_in_gate,checked_out_at,checked_out_gate,checked_out_by,checked_out_by_name,checked_in_by,checked_in_by_name,revoked_at,revoke_reason,token_value,created_at",
       )
       .order("created_at", { ascending: false });
 
