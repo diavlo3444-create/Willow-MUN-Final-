@@ -89,7 +89,6 @@ export function QrAttendanceView({
   const [scanInput, setScanInput] = useState('');
   const [pendingToken, setPendingToken] = useState('');
   const [gateLocation, setGateLocation] = useState('Main Entrance');
-  const [confirmBeforeCheckin, setConfirmBeforeCheckin] = useState(true);
   const [attendanceAction, setAttendanceAction] = useState<'checkin' | 'checkout'>('checkin');
   const [validation, setValidation] = useState<LiveQrValidationResponse | null>(null);
   const [scanError, setScanError] = useState('');
@@ -152,9 +151,7 @@ export function QrAttendanceView({
       setBusy(true);
       setPendingToken(cleanToken);
 
-      const res = confirmBeforeCheckin
-        ? await verifyQrPassAttendance(cleanToken, gateLocation, attendanceAction)
-        : await commitQrPassAttendance(cleanToken, gateLocation, attendanceAction);
+      const res = await verifyQrPassAttendance(cleanToken, gateLocation, attendanceAction);
 
       setBusy(false);
 
@@ -197,7 +194,7 @@ export function QrAttendanceView({
 
       await load();
     },
-    [attendanceAction, canScan, confirmBeforeCheckin, gateLocation, load, pushToast],
+    [attendanceAction, canScan, gateLocation, load, pushToast],
   );
 
   const handleConfirmPendingCheckin = async () => {
@@ -644,18 +641,6 @@ export function QrAttendanceView({
                 onDetectToken={handleScanOrManual}
               />
 
-              <label className="flex cursor-pointer items-center justify-between gap-3 rounded-md border border-[color:var(--wm-hairline)] bg-[color:var(--wm-inset)] px-3 py-2 text-xs">
-                <span className="text-[color:var(--wm-ink-secondary)]">
-                  Review pass details before completing {attendanceAction === 'checkout' ? 'check-out' : 'check-in'}
-                </span>
-                <input
-                  type="checkbox"
-                  checked={confirmBeforeCheckin}
-                  onChange={(e) => setConfirmBeforeCheckin(e.target.checked)}
-                  className="h-4 w-4 accent-[#2d6a4f]"
-                />
-              </label>
-
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -673,7 +658,7 @@ export function QrAttendanceView({
                   disabled={busy || !scanInput.trim()}
                   className="h-10 rounded-md bg-[color:var(--wm-emerald)] px-4 text-xs font-semibold text-[#eef4ef] hover:bg-[#357a5b] disabled:opacity-50"
                 >
-                  {busy ? 'Checking…' : confirmBeforeCheckin ? 'Verify Pass' : attendanceAction === 'checkout' ? 'Verify & Check Out' : 'Verify & Check In'}
+                  {busy ? 'Checking…' : 'Verify Pass'}
                 </button>
               </form>
 
