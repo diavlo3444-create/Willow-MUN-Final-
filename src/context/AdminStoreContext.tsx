@@ -177,7 +177,7 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
   const [testModeHeadUserId, setTestModeHeadUserId] = useState<string | null>(() => {
     if (typeof window === 'undefined') return null;
     try {
-      return window.localStorage.getItem(TEST_HEAD_STORAGE_KEY);
+      return window.sessionStorage.getItem(TEST_HEAD_STORAGE_KEY);
     } catch {
       return null;
     }
@@ -202,8 +202,8 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
-      if (testModeHeadUserId) window.localStorage.setItem(TEST_HEAD_STORAGE_KEY, testModeHeadUserId);
-      else window.localStorage.removeItem(TEST_HEAD_STORAGE_KEY);
+      if (testModeHeadUserId) window.sessionStorage.setItem(TEST_HEAD_STORAGE_KEY, testModeHeadUserId);
+      else window.sessionStorage.removeItem(TEST_HEAD_STORAGE_KEY);
     } catch {
       // Ignore storage error
     }
