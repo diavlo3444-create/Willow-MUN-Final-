@@ -53,6 +53,7 @@ export function HeadApplicationsView({
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'accepted' | 'rejected'>('all');
   const [recommendationNotes, setRecommendationNotes] = useState<Record<string, string>>({});
 
+  const isSuperAdmin = effectiveHead.role === 'super_admin';
   const actorGender = getActorGenderScope(effectiveHead);
   const actorDeptSlug = getActorDepartmentSlug(effectiveHead, data.departments);
   const deptName =
@@ -87,10 +88,9 @@ export function HeadApplicationsView({
       source !== 'local'
         ? liveApps
         : data.applications;
-    return scopeApplicationsForActor(base, effectiveHead, data.departments).sort((a, b) =>
-      b.submittedAt.localeCompare(a.submittedAt),
-    );
-  }, [source, liveApps, data.applications, data.departments, effectiveHead]);
+    const visible = isSuperAdmin ? base : scopeApplicationsForActor(base, effectiveHead, data.departments);
+    return visible.sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
+  }, [source, liveApps, data.applications, data.departments, effectiveHead, isSuperAdmin]);
 
   const filteredApps = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -121,17 +121,17 @@ export function HeadApplicationsView({
 
   // Security guard: if head manually navigated to an application ID outside their dept/gender
   useEffect(() => {
-    if (!loading && selectedApplicationId && !selectedApp) {
+    if (!isSuperAdmin && !loading && selectedApplicationId && !selectedApp) {
       recordSecurityViolation(
         'application',
         selectedApplicationId,
         `Department Head attempted access to application "${selectedApplicationId}" outside ${deptName} (${actorGender ?? 'unknown'}) division.`,
       );
     }
-  }, [loading, selectedApplicationId, selectedApp, recordSecurityViolation, deptName, actorGender]);
+  }, [loading, selectedApplicationId, selectedApp, recordSecurityViolation, deptName, actorGender, isSuperAdmin]);
 
   const handleRecommendation = async (app: Application, recommendation: 'recommend_accept' | 'recommend_reject') => {
-    if (!canAccessApplication(effectiveHead, app, data.departments) || app.status !== 'pending') {
+    if ((!isSuperAdmin && !canAccessApplication(effectiveHead, app, data.departments)) || app.status !== 'pending') {
       pushToast({ tone: 'error', title: 'Recommendation unavailable', description: 'Only pending applications in your assigned department and division can be recommended.' }); return;
     }
     setBusyId(app.id);
@@ -172,7 +172,7 @@ export function HeadApplicationsView({
     );
   }
 
-  if (selectedApp && canAccessApplication(effectiveHead, selectedApp, data.departments)) {
+  if (selectedApp && (isSuperAdmin || canAccessApplication(effectiveHead, selectedApp, data.departments))) {
     const busy = busyId === selectedApp.id;
     return (
       <motion.div
