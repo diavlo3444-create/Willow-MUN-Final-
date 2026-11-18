@@ -15,7 +15,7 @@ import type {
   UploadedApplicationFile,
 } from '../utils/applicationForm';
 
-const MAX_FILE_BYTES = 15 * 1024 * 1024; // 15 MB
+const MAX_FILE_BYTES = 100 * 1024 * 1024; // 100 MB
 
 interface ApplicationFileUploaderProps {
   id: string;
@@ -151,7 +151,7 @@ export function ApplicationFileUploader({
   const validateSelectedFile = (file: File): string | null => {
     if (file.size <= 0) return `"${file.name}" appears to be empty.`;
     if (file.size > MAX_FILE_BYTES) {
-      return `"${file.name}" exceeds the 15 MB per-file limit.`;
+      return `"${file.name}" exceeds the 100 MB per-file limit.`;
     }
     const ext = getFileExtension(file.name);
     if (isImageGallery) {
@@ -467,7 +467,7 @@ export function ApplicationFileUploader({
                   : 'Choose files from your device or drag & drop here'}
             </p>
             <p className="font-mono text-[10px] tracking-[0.06em] text-[#c9c2a6]/75">
-              Accepted: {acceptedFormatsLabel} · Max 15 MB per file
+              Accepted: {acceptedFormatsLabel} · Max 100 MB per file
             </p>
           </div>
 
