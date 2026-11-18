@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import {
   ArrowLeft,
-  CheckCircle2,
   ExternalLink,
   Mail,
   Phone,
@@ -11,24 +10,21 @@ import {
   Search,
   ShieldAlert,
   UserCheck,
-  XCircle,
 } from 'lucide-react';
 import { useAdminStore } from '../../../context/AdminStoreContext';
 import {
   fetchScopedApplicationsForActor,
-  submitHeadOrAdminDecision,
+  submitHeadRecommendation,
 } from '../../../services/liveBackendService';
 import type { AdminUser, Application } from '../../../types/admin';
 import {
   canAccessApplication,
-  canReviewFinalDecision,
   getActorDepartmentSlug,
   getActorGenderScope,
   normalizeDepartmentSlug,
 } from '../../../utils/adminPermissions';
 import { scopeApplicationsForActor } from '../../../utils/applicationFilters';
 import { ApplicationAttachmentsViewer } from '../ApplicationAttachmentsViewer';
-import { ConfirmDialog } from '../ConfirmDialog';
 import { StatusBadge } from '../StatusBadge';
 import { WmSkeleton } from '../WmSkeleton';
 
@@ -56,7 +52,7 @@ export function HeadApplicationsView({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'accepted' | 'rejected'>('all');
-  const [confirmDeclineApp, setConfirmDeclineApp] = useState<Application | null>(null);
+  const [recommendationNotes, setRecommendationNotes] = useState<Record<string, string>>({});
 
   const actorGender = getActorGenderScope(effectiveHead);
   const actorDeptSlug = getActorDepartmentSlug(effectiveHead, data.departments);
@@ -135,44 +131,16 @@ export function HeadApplicationsView({
     }
   }, [loading, selectedApplicationId, selectedApp, recordSecurityViolation, deptName, actorGender]);
 
-  const handleDecision = async (app: Application, decision: 'accepted' | 'rejected') => {
-    if (!canReviewFinalDecision(effectiveHead, app, data.departments)) {
-      pushToast({
-        tone: 'error',
-        title: 'Access blocked',
-        description: 'You may only review applicants assigned to your department and division.',
-      });
-      return;
+  const handleRecommendation = async (app: Application, recommendation: 'recommend_accept' | 'recommend_reject') => {
+    if (!canAccessApplication(effectiveHead, app, data.departments) || app.status !== 'pending') {
+      pushToast({ tone: 'error', title: 'Recommendation unavailable', description: 'Only pending applications in your assigned department and division can be recommended.' }); return;
     }
-
     setBusyId(app.id);
-    const res = await submitHeadOrAdminDecision(effectiveHead, app.id, decision, undefined, data.departments);
+    const res = await submitHeadRecommendation(effectiveHead, app.id, recommendation, recommendationNotes[app.id] ?? app.headNotes ?? '', data.departments);
     setBusyId(null);
-
-    if (!res.ok) {
-      pushToast({
-        tone: 'error',
-        title: 'Could not save decision',
-        description: res.error || 'Please try again.',
-      });
-      return;
-    }
-
-    // Update live state smoothly
-    if (res.application) {
-      setLiveApps((prev) => prev.map((row) => (row.id === app.id ? res.application! : row)));
-    } else if (source === 'local') {
-      updateLocalStatus(app.id, decision);
-    }
-
-    pushToast({
-      tone: 'success',
-      title: decision === 'accepted' ? 'Applicant Accepted' : 'Applicant Declined',
-      description:
-        decision === 'accepted'
-          ? `${app.applicantName} is now visible in HR Accepted Applicants and received a personal QR.`
-          : `${app.applicantName} has been marked as declined.`,
-    });
+    if (!res.ok) { pushToast({ tone: 'error', title: 'Could not save recommendation', description: res.error || 'Please refresh and try again.' }); return; }
+    if (res.application) setLiveApps(prev => prev.map(row => row.id === app.id ? res.application! : row));
+    pushToast({ tone: 'success', title: 'Recommendation submitted', description: 'Sent to Admin for review. The application remains pending until an Admin makes the final decision.' });
   };
 
   if (selectedApplicationId && loading) {
@@ -226,26 +194,7 @@ export function HeadApplicationsView({
 
           <div className="flex flex-wrap items-center gap-2.5">
             <StatusBadge status={selectedApp.status} />
-            <motion.button
-              whileTap={{ scale: 0.97 }}
-              type="button"
-              disabled={busy || selectedApp.status === 'accepted'}
-              onClick={() => void handleDecision(selectedApp, 'accepted')}
-              className="inline-flex min-h-[38px] items-center gap-2 rounded-md bg-[color:var(--wm-emerald)] px-4 text-xs font-semibold text-[#eef4ef] transition-colors hover:bg-[#357a5b] disabled:cursor-not-allowed disabled:opacity-45"
-            >
-              <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-              {selectedApp.status === 'accepted' ? 'Accepted' : 'Accept Application'}
-            </motion.button>
-            <motion.button
-              whileTap={{ scale: 0.97 }}
-              type="button"
-              disabled={busy || selectedApp.status === 'rejected'}
-              onClick={() => setConfirmDeclineApp(selectedApp)}
-              className="inline-flex min-h-[38px] items-center gap-2 rounded-md border border-rose-400/40 bg-rose-500/12 px-4 text-xs font-semibold text-rose-200 transition-colors hover:bg-rose-500/22 disabled:cursor-not-allowed disabled:opacity-45"
-            >
-              <XCircle className="h-4 w-4" aria-hidden="true" />
-              {selectedApp.status === 'rejected' ? 'Declined' : 'Decline Application'}
-            </motion.button>
+            <span className="rounded-md border border-[color:var(--wm-hairline)] px-3 py-2 text-[11px] text-[color:var(--wm-ink-secondary)]">{selectedApp.headRecommendation === 'recommend_accept' ? 'Recommended: Accept' : selectedApp.headRecommendation === 'recommend_reject' ? 'Recommended: Reject' : 'No recommendation yet'}</span>
           </div>
         </div>
 
@@ -337,26 +286,19 @@ export function HeadApplicationsView({
               departments={data.departments}
             />
           </div>
+          <div className="mt-6 rounded-lg border border-[color:var(--wm-hairline)] bg-[color:var(--wm-inset)] p-4">
+            <h3 className="text-xs font-mono uppercase tracking-[0.16em] text-[color:var(--wm-ink-muted)]">Department Recommendation</h3>
+            <p className="mt-2 text-xs text-[color:var(--wm-ink-secondary)]">This is a recommendation only. The application stays pending until an Administrator makes the final decision.</p>
+            <textarea value={recommendationNotes[selectedApp.id] ?? selectedApp.headNotes ?? ''} onChange={(e) => setRecommendationNotes(current => ({ ...current, [selectedApp.id]: e.target.value }))} rows={3} placeholder="Evaluation notes for the Admin team (optional)…" className="mt-3 w-full rounded-md border border-[color:var(--wm-hairline)] bg-[color:var(--wm-canvas)] p-3 text-xs text-[color:var(--wm-ink)]" />
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button type="button" disabled={busy || selectedApp.status !== 'pending'} onClick={() => void handleRecommendation(selectedApp, 'recommend_accept')} className="rounded-md bg-[color:var(--wm-emerald)] px-4 py-2.5 text-xs font-semibold text-white disabled:opacity-50">{busy ? 'Saving…' : 'Recommend acceptance'}</button>
+              <button type="button" disabled={busy || selectedApp.status !== 'pending'} onClick={() => void handleRecommendation(selectedApp, 'recommend_reject')} className="rounded-md border border-rose-400/40 bg-rose-500/10 px-4 py-2.5 text-xs font-semibold text-rose-200 disabled:opacity-50">{busy ? 'Saving…' : 'Recommend rejection'}</button>
+            </div>
+            {selectedApp.recommendedByName && <p className="mt-3 text-[11px] text-[color:var(--wm-ink-muted)]">Latest recommendation by {selectedApp.recommendedByName}{selectedApp.recommendedAt ? ' · ' + new Date(selectedApp.recommendedAt).toLocaleString() : ''}</p>}
+          </div>
         </section>
 
-        <ConfirmDialog
-          open={Boolean(confirmDeclineApp)}
-          tone="danger"
-          title="Decline this application?"
-          description={
-            confirmDeclineApp
-              ? `Mark ${confirmDeclineApp.applicantName}'s application for ${deptName} as Declined.`
-              : ''
-          }
-          confirmLabel="Decline Application"
-          cancelLabel="Cancel"
-          onConfirm={() => {
-            if (confirmDeclineApp) void handleDecision(confirmDeclineApp, 'rejected');
-            setConfirmDeclineApp(null);
-          }}
-          onCancel={() => setConfirmDeclineApp(null)}
-        />
-      </motion.div>
+        </motion.div>
     );
   }
 
@@ -372,7 +314,7 @@ export function HeadApplicationsView({
               {deptName} Applications
             </h1>
             <p className="mt-1 text-xs text-[color:var(--wm-ink-secondary)]">
-              Open individual applications from your division to review details and accept or decline candidates.
+              Open applications from your division, review the full dossier, and submit a recommendation for Admin review.
             </p>
           </div>
           <button
@@ -464,45 +406,8 @@ export function HeadApplicationsView({
                     className="min-w-0 flex-1 text-left"
                   >
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-mono text-[10px] uppercase tracking-wider text-[color:var(--wm-accent)]">
-                        {app.applicationCode}
-                      </span>
-                      <StatusBadge status={app.status} />
-                    </div>
-                    <h3 className="mt-1.5 truncate text-sm font-semibold text-[color:var(--wm-ink)] hover:text-[color:var(--wm-focal)]">
-                      {app.applicantName}
-                    </h3>
-                    <p className="mt-0.5 truncate text-xs text-[color:var(--wm-ink-secondary)]">
-                      {app.schoolOrUniversity || app.email} · Applied {new Date(app.submittedAt).toLocaleDateString()}
-                    </p>
-                  </button>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => onSelectApplication(app.id)}
-                      className="inline-flex h-8 items-center rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-inset)] px-3 text-xs font-medium text-[color:var(--wm-ink)] transition-colors hover:bg-[color:var(--wm-overlay)]"
-                    >
-                      Open
-                    </button>
-                    <button
-                      type="button"
-                      disabled={busy || app.status === 'accepted'}
-                      onClick={() => void handleDecision(app, 'accepted')}
-                      className="inline-flex h-8 items-center gap-1.5 rounded-md bg-[color:var(--wm-emerald)] px-3 text-xs font-semibold text-[#eef4ef] transition-colors hover:bg-[#357a5b] disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
-                      Accept
-                    </button>
-                    <button
-                      type="button"
-                      disabled={busy || app.status === 'rejected'}
-                      onClick={() => setConfirmDeclineApp(app)}
-                      className="inline-flex h-8 items-center gap-1.5 rounded-md border border-rose-400/35 bg-rose-500/10 px-3 text-xs font-semibold text-rose-200 transition-colors hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      <XCircle className="h-3.5 w-3.5" aria-hidden="true" />
-                      Decline
-                    </button>
+                    <span className="text-[10px] text-[color:var(--wm-ink-muted)]">{app.headRecommendation === 'recommend_accept' ? 'Recommended: Accept' : app.headRecommendation === 'recommend_reject' ? 'Recommended: Reject' : 'Awaiting recommendation'}</span>
+                    <button type="button" onClick={() => onSelectApplication(app.id)} className="inline-flex h-8 items-center rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-inset)] px-3 text-xs font-medium text-[color:var(--wm-ink)]">Review &amp; recommend</button>
                   </div>
                 </motion.article>
               );
