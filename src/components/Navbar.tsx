@@ -5,9 +5,9 @@ import { usePublishedWebsite } from '../utils/usePublishedWebsite';
 
 /**
  * Three-zone institutional header:
- * - Zone 1: Willow MUN wordmark crest (single-line lockup)
- * - Zone 2: Clean typographic navigation links with sliding baseline indicator
- * - Zone 3: Single crisp primary CTA + responsive mobile drawer trigger
+ * - Zone 1: Willow MUN single-line conference lockup
+ * - Zone 2: Typographic navigation links with sliding baseline indicator
+ * - Zone 3: Single rectangular institutional CTA + full-screen mobile index drawer trigger
  */
 export function Navbar() {
   const { published } = usePublishedWebsite();
@@ -20,6 +20,7 @@ export function Navbar() {
   );
 
   const [menuOpen, setMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const [activeHref, setActiveHref] = useState<string | null>(null);
   const [underline, setUnderline] = useState<{ left: number; width: number } | null>(null);
 
@@ -40,6 +41,15 @@ export function Navbar() {
     const ro = new ResizeObserver(syncNavHeight);
     ro.observe(header);
     return () => ro.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const onScroll = () => {
+      setScrolled((window.scrollY || window.pageYOffset || 0) > 24);
+    };
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
   const updateUnderlinePosition = useCallback((href: string | null) => {
@@ -146,7 +156,11 @@ export function Navbar() {
     <>
       <header
         ref={headerRef}
-        className="chrome fixed top-0 inset-x-0 z-30 mun-nav-flat border-b border-[#ede6ca]/15 pt-[env(safe-area-inset-top)]"
+        className={`chrome fixed top-0 inset-x-0 z-30 pt-[env(safe-area-inset-top)] transition-colors duration-200 ${
+          scrolled
+            ? 'mun-nav-flat border-b border-[#ede6ca]/18'
+            : 'bg-[#14180a]/70 backdrop-blur-[4px] border-b border-[#ede6ca]/10'
+        }`}
       >
         <div className="mx-auto flex max-w-[1200px] items-center justify-between gap-4 sm:gap-8 px-[clamp(16px,4vw,48px)] py-2.5">
           {/* Zone 1: Single-line conference wordmark */}
@@ -159,11 +173,11 @@ export function Navbar() {
             <img
               src={CONFERENCE_DATA.brand.logoSrc}
               alt=""
-              width={28}
-              height={28}
-              className="h-7 w-7 object-contain shrink-0"
+              width={26}
+              height={26}
+              className="h-[26px] w-[26px] object-contain shrink-0"
             />
-            <span className="font-serif text-[clamp(1.125rem,3.2vw,1.4rem)] font-medium tracking-[0.02em] text-[#ede6ca]">
+            <span className="font-serif text-[clamp(1.15rem,3vw,1.42rem)] font-medium tracking-[0.02em] text-[#ede6ca]">
               {CONFERENCE_DATA.brand.name}
             </span>
           </a>
@@ -185,7 +199,7 @@ export function Navbar() {
                   href={link.href}
                   onClick={(e) => handleAnchorClick(e, link.href)}
                   aria-current={isActive ? 'location' : undefined}
-                  className={`inline-flex items-center min-h-[40px] text-[13px] font-medium tracking-[0.02em] transition-opacity duration-150 whitespace-nowrap shrink-0 ${
+                  className={`inline-flex items-center min-h-[40px] text-[13px] font-medium tracking-[0.025em] transition-opacity duration-150 whitespace-nowrap shrink-0 ${
                     isActive
                       ? 'text-[#ede6ca] opacity-100'
                       : 'text-[#cfc8aa] opacity-85 hover:text-[#ede6ca] hover:opacity-100'
@@ -211,7 +225,7 @@ export function Navbar() {
             />
           </nav>
 
-          {/* Zone 3: Single rectangular institutional CTA + Mobile Drawer Trigger */}
+          {/* Zone 3: Single crisp primary action + Mobile Drawer Trigger */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <a
               href="#apply"
@@ -235,16 +249,16 @@ export function Navbar() {
         </div>
       </header>
 
-      {/* Mobile Full-Screen Overlay Menu (<768px) */}
+      {/* Mobile Full-Screen Editorial Index Drawer (<768px) */}
       {menuOpen && (
         <div
           id="mobile-nav-menu"
           role="dialog"
           aria-modal="true"
           aria-label="Mobile navigation"
-          className="fixed inset-0 z-50 flex flex-col justify-between bg-[#12160a]/98 px-[clamp(16px,4vw,48px)] pt-[max(1.25rem,env(safe-area-inset-top))] pb-[max(2rem,env(safe-area-inset-bottom))] md:hidden"
+          className="fixed inset-0 z-50 flex flex-col justify-between bg-[#111508]/98 px-[clamp(16px,5vw,32px)] pt-[max(1.25rem,env(safe-area-inset-top))] pb-[max(2rem,env(safe-area-inset-bottom))] md:hidden"
         >
-          <div className="flex items-center justify-between border-b border-[#ede6ca]/14 pb-3">
+          <div className="flex items-center justify-between border-b border-[#ede6ca]/16 pb-3.5">
             <a
               href="#top"
               onClick={(e) => handleAnchorClick(e, '#top')}
@@ -253,9 +267,9 @@ export function Navbar() {
               <img
                 src={CONFERENCE_DATA.brand.logoSrc}
                 alt=""
-                width={28}
-                height={28}
-                className="h-7 w-7 object-contain"
+                width={26}
+                height={26}
+                className="h-[26px] w-[26px] object-contain"
               />
               <span className="font-serif text-xl font-medium tracking-[0.02em]">
                 {CONFERENCE_DATA.brand.name}
@@ -272,36 +286,46 @@ export function Navbar() {
             </button>
           </div>
 
-          <nav aria-label="Mobile links" className="flex flex-col divide-y divide-[#ede6ca]/14 my-auto">
-            {navLinks.map((link, idx) => {
-              const isActive = activeHref === link.href;
-              return (
-                <a
-                  key={link.href}
-                  href={link.href}
-                  onClick={(e) => handleAnchorClick(e, link.href)}
-                  aria-current={isActive ? 'location' : undefined}
-                  style={{ animationDelay: `${idx * 35}ms` }}
-                  className={`mun-mobile-link-enter flex items-baseline justify-between font-serif text-3xl font-medium py-3.5 transition-opacity duration-150 ${
-                    isActive
-                      ? 'text-[#a9b47e] opacity-100'
-                      : 'text-[#ede6ca] opacity-90 hover:opacity-100'
-                  }`}
-                >
-                  <span>{link.label}</span>
-                  <span className="font-mono text-xs text-[#cfc8aa]/70">0{idx + 1}</span>
-                </a>
-              );
-            })}
-          </nav>
+          <div className="my-auto py-4">
+            <p className="mb-3 font-mono text-[11px] uppercase tracking-[0.18em] text-[#a9b47e]">
+              Conference Prospectus
+            </p>
+            <nav aria-label="Mobile links" className="flex flex-col divide-y divide-[#ede6ca]/14 border-y border-[#ede6ca]/14">
+              {navLinks.map((link, idx) => {
+                const isActive = activeHref === link.href;
+                return (
+                  <a
+                    key={link.href}
+                    href={link.href}
+                    onClick={(e) => handleAnchorClick(e, link.href)}
+                    aria-current={isActive ? 'location' : undefined}
+                    style={{ animationDelay: `${idx * 35}ms` }}
+                    className={`mun-mobile-link-enter flex items-baseline justify-between font-serif text-[28px] font-medium py-3.5 transition-opacity duration-150 ${
+                      isActive
+                        ? 'text-[#a9b47e] opacity-100'
+                        : 'text-[#ede6ca] opacity-90 hover:opacity-100'
+                    }`}
+                  >
+                    <span>{link.label}</span>
+                    <span className="font-mono text-xs text-[#cfc8aa]/70 tabular-nums">
+                      0{idx + 1}
+                    </span>
+                  </a>
+                );
+              })}
+            </nav>
+          </div>
 
-          <div>
+          <div className="space-y-3 border-t border-[#ede6ca]/14 pt-4">
+            <p className="text-xs text-[#cfc8aa]">
+              Inaugural Youth Diplomatic Assembly · {CONFERENCE_DATA.brand.year}
+            </p>
             <a
               href="#apply"
               onClick={(e) => handleAnchorClick(e, '#apply')}
               className="mun-btn-interactive flex w-full items-center justify-center min-h-[46px] rounded-[2px] bg-[#ede6ca] px-6 py-3.5 text-sm font-semibold text-[#181c0d] hover:bg-[#dad3b4]"
             >
-              Apply Now
+              Apply to Join
             </a>
           </div>
         </div>

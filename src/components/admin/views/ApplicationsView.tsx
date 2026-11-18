@@ -314,18 +314,20 @@ export function ApplicationsView({
                 <>
                   <option value="staff_group">All Non-Delegate Staff</option>
                   <option value="staff">Organizing Staff</option>
-                  <option value="security">Security Corps</option>
-                  <option value="media">Media & Press</option>
+                  <option value="media">Media</option>
+                  <option value="press">Press</option>
                   <option value="volunteer">Volunteers</option>
+                  <option value="security">Security Corps</option>
                 </>
               ) : (
                 <>
                   <option value="all">All Categories</option>
-                  <option value="delegate">Delegates & Chairs</option>
+                  <option value="delegate">Delegates &amp; Chairs</option>
                   <option value="staff">Organizing Staff</option>
-                  <option value="security">Security Corps</option>
-                  <option value="media">Media & Press</option>
+                  <option value="media">Media</option>
+                  <option value="press">Press</option>
                   <option value="volunteer">Volunteers</option>
+                  <option value="security">Security Corps</option>
                 </>
               )}
             </select>

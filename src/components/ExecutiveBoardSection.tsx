@@ -95,8 +95,12 @@ function MemberNodeButton({
           opacity: isDimmed ? 0.15 : 1,
         }}
         onClick={(e) => onSelect(member, e.currentTarget)}
-        className={`ft-member-box group flex w-full items-center gap-2.5 rounded-lg px-3.5 py-2.5 text-left cursor-pointer focus-visible:outline-none ${
-          isActive ? 'z-20 border-[#ede6ca]/80' : 'z-10'
+        className={`ft-member-box group flex w-full items-center gap-3 rounded-[3px] px-3.5 py-2.5 text-left cursor-pointer focus-visible:outline-none ${
+          isActive
+            ? 'z-20 border-[#ede6ca]/85 bg-[#1b210e]'
+            : member.side === 'center'
+              ? 'z-10 border-[#ede6ca]/40 bg-[#171c0c]/96'
+              : 'z-10'
         }`}
       >
         {member.photo ? (
@@ -104,16 +108,26 @@ function MemberNodeButton({
             src={member.photo.startsWith('/') ? member.photo : `/${member.photo}`}
             alt=""
             loading="lazy"
-            className="h-10 w-10 shrink-0 rounded-full border border-[#c9d98a]/35 object-cover"
+            className={`shrink-0 rounded-full border object-cover ${
+              member.side === 'center'
+                ? 'h-11 w-11 border-[#ede6ca]/55'
+                : 'h-10 w-10 border-[#c9d98a]/35'
+            }`}
             style={{ objectPosition: member.objectPosition }}
           />
         ) : (
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#c9d98a]/25 bg-[#202414]">
+          <span
+            className={`flex shrink-0 items-center justify-center rounded-full border bg-[#202414] ${
+              member.side === 'center'
+                ? 'h-11 w-11 border-[#ede6ca]/45'
+                : 'h-10 w-10 border-[#c9d98a]/25'
+            }`}
+          >
             <LeafGlyph />
           </span>
         )}
         <span className="min-w-0 flex-1">
-          <span className="block font-serif text-[1.06rem] sm:text-[1.12rem] font-medium leading-tight text-[#ede6ca] break-words">
+          <span className="block font-serif text-[1.06rem] sm:text-[1.14rem] font-medium leading-tight text-[#ede6ca] break-words">
             {member.name}
           </span>
           <span
@@ -440,17 +454,17 @@ export function ExecutiveBoardSection() {
       style={{ scrollMarginTop: 'var(--nav-height, 72px)' }}
       className="pb-28 sm:pb-32"
     >
-      <div className="mb-10 sm:mb-14 text-center">
+      <div className="mb-10 sm:mb-14 flex flex-col md:flex-row md:items-end md:justify-between gap-4 border-b border-[#ede6ca]/18 pb-6">
         <SectionHeading
           id="executive-board-heading"
           indexLabel="03"
           label={CONFERENCE_DATA.executiveBoard.label}
-          prefix="Executive"
-          italicWord="Board"
-          centered
+          prefix="Secretariat &"
+          italicWord="Executive Board"
         />
-        <p className="mt-3 text-sm text-[#c9c2a6]">
-          Select any officer below to inspect their portfolio and personal statement.
+        <p className="text-sm text-[#cfc8aa] max-w-[42ch]">
+          Select any Secretariat or Department Head node to open their portfolio dossier and
+          personal statement.
         </p>
       </div>
 
@@ -565,9 +579,9 @@ export function ExecutiveBoardSection() {
                     style={{
                       opacity: isModalEngaged ? 0.15 : undefined,
                     }}
-                    className="ft-node-fade rounded-md bg-[#14180a]/90 px-3 py-1 text-center border border-[#ede6ca]/25"
+                    className="ft-node-fade rounded-[2px] bg-[#14180a]/95 px-3.5 py-1 text-center border border-[#ede6ca]/35"
                   >
-                    <span className="text-[11px] font-medium uppercase tracking-[0.22em] text-[#c9d98a]">
+                    <span className="font-mono text-[10px] font-medium uppercase tracking-[0.22em] text-[#a9b47e]">
                       {gw.group.label}
                     </span>
                   </div>

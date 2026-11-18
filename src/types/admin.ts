@@ -135,6 +135,7 @@ export type ApplicationCategory =
   | 'staff'
   | 'security'
   | 'media'
+  | 'press'
   | 'volunteer';
 
 export type ApplicationStatus =
@@ -160,6 +161,8 @@ export interface UploadedDocument {
   fileType: string;
   sizeLabel: string;
   previewUrl: string;
+  storageBucket?: string;
+  storagePath?: string;
   uploadedAt: string;
 }
 
@@ -216,6 +219,15 @@ export interface Application {
   signupLinkStatus: 'none' | 'active' | 'revoked' | 'used';
   signupLinkGeneratedAt: string | null;
   emergencyContact: string;
+  guardianPhone?: string;
+  cameraModel?: string | null;
+  attendsAllDays?: boolean | null;
+  absenceReason?: string | null;
+  medicalInfo?: {
+    hasConditions: boolean | null;
+    details: string | null;
+    restricted: boolean;
+  };
   experienceLevel: string;
   answers: ApplicationAnswer[];
   documents: UploadedDocument[];

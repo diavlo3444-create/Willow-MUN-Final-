@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { Pause, Play } from 'lucide-react';
-import { CONFERENCE_DATA } from '../data/conference';
+import { useResponsiveVideoSources } from '../utils/responsiveVideo';
+import {
+  computeScrollMetrics,
+  HERO_SCRIM_OPACITY,
+  VIDEO_BASE_SCALE,
+} from '../utils/videoPlayback';
 
 interface WillowBackgroundProps {
   hasAnnouncementBar: boolean;
@@ -14,12 +19,11 @@ const CROSSFADE_SEC = 1.0;
 const REDUCED_MOTION_STILL_SEC = 1.5;
 
 /**
- * Fixed full-screen looping background video using two stacked alternating <video> elements:
- * - No native `loop` attribute; first play may start at 0s, every subsequent playthrough
- *   starts at currentTime = 0.7s to skip the dim fade-in
- * - Starts incoming video ~1s before outgoing ends and crossfades smoothly over 1s
- * - Dark green overlay rgba(20, 28, 12, 0.55) on top for text readability
- * - Pause/play button, automatic pause when tab is hidden, still frame for prefers-reduced-motion
+ * Responsive full-screen looping background video using two stacked alternating <video> slots:
+ * - Portrait mobile uses dedicated 9:16 composed video & poster (`willow-loop-mobile.mp4`)
+ * - Desktop & tablet retain original widescreen video & poster
+ * - Switching happens via React `src` so only the active viewport asset is downloaded
+ * - Preserves seamless 0.7s crossfade loop, scroll-driven overlay readability scrim, and pause/reduced-motion controls
  */
 export function WillowBackground({
   hasAnnouncementBar,
@@ -27,10 +31,13 @@ export function WillowBackground({
   paused,
   onTogglePause,
 }: WillowBackgroundProps) {
+  const { isMobilePortrait, loopVideoSrc, posterSrc } = useResponsiveVideoSources();
+
   const videoRefs = useRef<[HTMLVideoElement | null, HTMLVideoElement | null]>([
     null,
     null,
   ]);
+  const scrimRef = useRef<HTMLDivElement | null>(null);
   const activeSlotRef = useRef<0 | 1>(0);
   const crossfadingRef = useRef<boolean>(false);
   const crossfadeTimerRef = useRef<number | null>(null);
@@ -39,6 +46,7 @@ export function WillowBackground({
   const [activeSlot, setActiveSlot] = useState<0 | 1>(0);
   const [incomingSlot, setIncomingSlot] = useState<0 | 1 | null>(null);
   const [incomingVisible, setIncomingVisible] = useState<boolean>(false);
+  const [scrollScale, setScrollScale] = useState<number>(VIDEO_BASE_SCALE);
 
   const [prefersReducedMotion, setPrefersReducedMotion] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
@@ -81,6 +89,46 @@ export function WillowBackground({
 
   const shouldPlay = !prefersReducedMotion && !isUserPaused && !isTabHidden;
 
+  // Scroll-controlled scrim readability depth & restrained scale (clamped tightly on portrait mobile)
+  useEffect(() => {
+    let rafId = 0;
+
+    const updateScrollBackdrop = () => {
+      rafId = 0;
+      const scrollY = window.scrollY || window.pageYOffset || 0;
+      const vh = window.innerHeight || 1;
+      const docH = document.documentElement.scrollHeight || vh;
+      const metrics = computeScrollMetrics(scrollY, vh, docH);
+
+      if (scrimRef.current) {
+        scrimRef.current.style.opacity = String(metrics.scrimOpacity);
+      }
+
+      if (prefersReducedMotion) {
+        setScrollScale(VIDEO_BASE_SCALE);
+      } else {
+        // Keep portrait mobile scale subtle (1.0 -> 1.025) so emblem never crops off-screen while scrolling
+        const maxScaleDelta = isMobilePortrait ? 0.025 : 0.06;
+        const clamped = Number((VIDEO_BASE_SCALE + metrics.progress * maxScaleDelta).toFixed(4));
+        setScrollScale(clamped);
+      }
+    };
+
+    const onScrollOrResize = () => {
+      if (rafId !== 0) return;
+      rafId = window.requestAnimationFrame(updateScrollBackdrop);
+    };
+
+    updateScrollBackdrop();
+    window.addEventListener('scroll', onScrollOrResize, { passive: true });
+    window.addEventListener('resize', onScrollOrResize, { passive: true });
+
+    return () => {
+      if (rafId !== 0) window.cancelAnimationFrame(rafId);
+      window.removeEventListener('scroll', onScrollOrResize);
+      window.removeEventListener('resize', onScrollOrResize);
+    };
+  }, [isMobilePortrait, prefersReducedMotion]);
 
   // Complete crossfade handoff cleanly
   const finishCrossfade = useCallback((nextSlot: 0 | 1) => {
@@ -133,7 +181,6 @@ export function WillowBackground({
     setIncomingSlot(nextSlot);
     setIncomingVisible(false);
 
-    // Wait one animation frame at opacity: 0 before fading to opacity: 1 over 1s
     rafCheckRef.current = window.requestAnimationFrame(() => {
       rafCheckRef.current = 0;
       setIncomingVisible(true);
@@ -144,6 +191,28 @@ export function WillowBackground({
       finishCrossfade(nextSlot);
     }, CROSSFADE_SEC * 1000);
   }, [clearCrossfadeTimer, finishCrossfade, shouldPlay]);
+
+  // Re-initialize active video cleanly if source changes between mobile portrait and desktop
+  useEffect(() => {
+    clearCrossfadeTimer();
+    crossfadingRef.current = false;
+    setIncomingSlot(null);
+    setIncomingVisible(false);
+
+    const activeVideo = videoRefs.current[activeSlotRef.current];
+    if (activeVideo) {
+      activeVideo.load();
+      if (shouldPlay) {
+        activeVideo.muted = true;
+        activeVideo.defaultMuted = true;
+        activeVideo.play().catch(() => {});
+      }
+    }
+    const standbyVideo = videoRefs.current[activeSlotRef.current === 0 ? 1 : 0];
+    if (standbyVideo) {
+      standbyVideo.load();
+    }
+  }, [loopVideoSrc, clearCrossfadeTimer, shouldPlay]);
 
   // Monitor playback progress and start next video ~1s before current one ends
   useEffect(() => {
@@ -164,7 +233,6 @@ export function WillowBackground({
         return;
       }
 
-      // Pre-position standby slot at 0.7s so restart never shows the dim 0..0.7s fade-in
       if (slot !== activeSlotRef.current && !crossfadingRef.current) {
         try {
           video.currentTime = LOOP_SKIP_START_SEC;
@@ -250,7 +318,6 @@ export function WillowBackground({
     }
 
     if (!shouldPlay) {
-      // Cancel pending mid-crossfade timer cleanly so resuming doesn't jump
       if (crossfadingRef.current) {
         clearCrossfadeTimer();
         const target = incomingSlot ?? activeSlotRef.current;
@@ -261,12 +328,10 @@ export function WillowBackground({
       return;
     }
 
-    // Resume playback on the active video
     const activeVideo = videoRefs.current[activeSlotRef.current];
     if (activeVideo) {
       activeVideo.muted = true;
       activeVideo.defaultMuted = true;
-      // If active video was parked at the end or before 0.7s after a prior cycle, ensure valid position
       if (
         Number.isFinite(activeVideo.duration) &&
         activeVideo.duration > 2.2 &&
@@ -336,7 +401,9 @@ export function WillowBackground({
       width: '100%',
       height: '100%',
       objectFit: 'cover',
-      objectPosition: 'center',
+      objectPosition: isMobilePortrait ? '50% 18%' : '50% 45%',
+      transform: `translate3d(0, 0, 0) scale(${scrollScale})`,
+      transformOrigin: isMobilePortrait ? '50% 34%' : '50% 48%',
       zIndex,
       pointerEvents: 'none',
       opacity,
@@ -346,18 +413,30 @@ export function WillowBackground({
 
   return (
     <>
+      {/* Fixed base olive canvas matching video edge luminance across all aspect ratios */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: '#393f24',
+          zIndex: -3,
+          pointerEvents: 'none',
+        }}
+      />
+
       {([0, 1] as const).map((slot) => (
         <video
           key={slot}
           ref={(el) => {
             videoRefs.current[slot] = el;
           }}
-          src={CONFERENCE_DATA.brand.videoSrc}
-          poster={CONFERENCE_DATA.brand.posterSrc}
+          src={loopVideoSrc}
+          poster={posterSrc}
           autoPlay={!prefersReducedMotion && slot === 0}
           muted
           playsInline
-          preload="auto"
+          preload={slot === 0 ? 'auto' : 'metadata'}
           disablePictureInPicture
           aria-hidden="true"
           tabIndex={-1}
@@ -365,15 +444,17 @@ export function WillowBackground({
         />
       ))}
 
-      {/* Dark green overlay for crisp text legibility */}
+      {/* Scroll-controlled readability veil: gentler over Hero canopy, deeper through editorial sections */}
       <div
+        ref={scrimRef}
         aria-hidden="true"
         style={{
           position: 'fixed',
           inset: 0,
           width: '100%',
           height: '100%',
-          backgroundColor: 'rgba(20, 28, 12, 0.55)',
+          backgroundColor: '#14180a',
+          opacity: HERO_SCRIM_OPACITY,
           zIndex: -1,
           pointerEvents: 'none',
         }}
@@ -389,15 +470,13 @@ export function WillowBackground({
           title={isUserPaused ? 'Play background video' : 'Pause background video'}
           tabIndex={introPlaying ? -1 : 0}
           style={{
-            bottom: hasAnnouncementBar
-              ? 'max(4rem, calc(env(safe-area-inset-bottom) + 4rem))'
-              : 'max(1rem, env(safe-area-inset-bottom))',
-            right: 'max(1rem, env(safe-area-inset-right))',
             opacity: introPlaying ? 0 : 1,
             pointerEvents: introPlaying ? 'none' : 'auto',
             transition: 'opacity 300ms ease, transform 220ms cubic-bezier(0.16, 1, 0.3, 1)',
           }}
-          className="mun-btn-interactive fixed z-40 flex h-10 w-10 items-center justify-center rounded-full border border-[#ede6ca]/35 bg-[#181c0d]/92 text-[#ede6ca] hover:bg-[#232814] cursor-pointer"
+          className={`mun-btn-interactive fixed z-40 right-4 sm:right-5 top-[calc(var(--nav-height,60px)+12px)] sm:top-auto ${
+            hasAnnouncementBar ? 'sm:bottom-16' : 'sm:bottom-5'
+          } flex h-10 w-10 items-center justify-center rounded-[2px] border border-[#ede6ca]/30 bg-[#14180a]/90 text-[#ede6ca] hover:border-[#ede6ca]/60 hover:bg-[#1e2410] cursor-pointer`}
         >
           {isUserPaused ? (
             <Play className="h-4 w-4 translate-x-[1px]" aria-hidden="true" />

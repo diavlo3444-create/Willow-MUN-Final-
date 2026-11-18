@@ -32,6 +32,7 @@ import {
   hasPermission,
 } from '../../../utils/adminPermissions';
 import { ConfirmDialog } from '../ConfirmDialog';
+import { ApplicationAttachmentsViewer } from '../ApplicationAttachmentsViewer';
 import { RecommendationBadge, RoleBadge, StatusBadge } from '../StatusBadge';
 
 interface ApplicationDetailViewProps {
@@ -247,9 +248,10 @@ export function ApplicationDetailView({
                 <div className="flex items-start gap-3 p-4 sm:border-b border-[color:var(--wm-hairline)]">
                   <Phone className="h-4 w-4 text-[color:var(--wm-accent)] mt-0.5 shrink-0" aria-hidden="true" />
                   <div>
-                    <dt className="wm-section-kicker">Phone Number</dt>
+                    <dt className="wm-section-kicker">Phone &amp; Guardian Phone</dt>
                     <dd className="mt-1 font-mono text-xs text-[color:var(--wm-ink)] tabular-nums">
                       {application.phone}
+                      {application.guardianPhone ? ` · Guardian: ${application.guardianPhone}` : ''}
                     </dd>
                   </div>
                 </div>
@@ -319,47 +321,51 @@ export function ApplicationDetailView({
             )}
           </section>
 
-          {/* Uploaded Documents & Portfolios */}
+          {/* Uploaded Documents, Photography Portfolio & Confidential Medical Disclosure */}
           <section className="wm-surface-panel overflow-hidden">
             <div className="px-5 py-3.5 border-b border-[color:var(--wm-hairline)]">
               <h3 className="text-sm font-semibold text-[color:var(--wm-ink)]">
-                Uploaded Documents & Portfolios
+                Uploaded Documents, Portfolio &amp; Confidential Disclosures
               </h3>
             </div>
-            {application.documents.length === 0 ? (
-              <p className="p-5 text-xs text-[color:var(--wm-ink-muted)]">
-                No attached documents on this record.
-              </p>
-            ) : (
-              <div className="divide-y divide-[color:var(--wm-hairline)]">
-                {application.documents.map((doc) => (
-                  <button
-                    key={doc.id}
-                    type="button"
-                    onClick={() => setPreviewDoc(doc)}
-                    className="flex w-full items-center justify-between gap-4 px-5 py-3.5 text-left hover:bg-[#ede6ca]/[0.03] transition-colors duration-150 cursor-pointer"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <FileText
-                        className="h-4 w-4 shrink-0 text-[color:var(--wm-accent)]"
-                        aria-hidden="true"
-                      />
-                      <div className="min-w-0">
-                        <p className="text-xs font-semibold text-[color:var(--wm-ink)] truncate">
-                          {doc.name}
-                        </p>
-                        <p className="font-mono text-[11px] text-[color:var(--wm-ink-muted)]">
-                          {doc.category.toUpperCase()} · {doc.sizeLabel}
-                        </p>
+            <div className="p-4 sm:p-5 space-y-4">
+              {application.documents.length > 0 && (
+                <div className="divide-y divide-[color:var(--wm-hairline)] rounded border border-[color:var(--wm-hairline)] bg-[color:var(--wm-canvas)]">
+                  {application.documents.map((doc) => (
+                    <button
+                      key={doc.id}
+                      type="button"
+                      onClick={() => setPreviewDoc(doc)}
+                      className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left hover:bg-[#ede6ca]/[0.03] transition-colors duration-150 cursor-pointer"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <FileText
+                          className="h-4 w-4 shrink-0 text-[color:var(--wm-accent)]"
+                          aria-hidden="true"
+                        />
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold text-[color:var(--wm-ink)] truncate">
+                            {doc.name}
+                          </p>
+                          <p className="font-mono text-[11px] text-[color:var(--wm-ink-muted)]">
+                            {doc.category.toUpperCase()} · {doc.sizeLabel}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                    <span className="shrink-0 text-xs font-medium text-[color:var(--wm-accent)]">
-                      Preview
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
+                      <span className="shrink-0 text-xs font-medium text-[color:var(--wm-accent)]">
+                        Preview
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <ApplicationAttachmentsViewer
+                application={application}
+                actor={effectiveActor}
+                departments={data.departments}
+              />
+            </div>
           </section>
         </div>
 

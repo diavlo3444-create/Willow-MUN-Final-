@@ -340,11 +340,11 @@ export function MemberProfileModal({
         ref={cardRef}
         onClick={(e) => e.stopPropagation()}
         style={{
-          width: 'min(580px, calc(100vw - 28px))',
+          width: 'min(560px, calc(100vw - 24px))',
           maxHeight: 'min(90dvh, 720px)',
           willChange: 'transform, opacity',
         }}
-        className="relative z-10 flex flex-col items-center overflow-y-auto rounded-[42px_14px_42px_14px] sm:rounded-[52px_14px_52px_14px] border border-[#ede6ca]/45 bg-[#181c0d]/96 px-6 py-8 sm:px-11 sm:py-10 text-center shadow-[0_28px_72px_rgba(0,0,0,0.65)]"
+        className="relative z-10 flex flex-col items-center overflow-y-auto rounded-[4px] border border-[#ede6ca]/35 bg-[#12160a]/98 px-6 py-8 sm:px-11 sm:py-10 text-center shadow-[0_28px_72px_rgba(0,0,0,0.7)]"
       >
         {/* Falling small SVG leaf shapes drifting down once across card */}
         {!prefersReducedMotion && (
@@ -372,7 +372,7 @@ export function MemberProfileModal({
                     '--fall-dur': `${leaf.durationMs}ms`,
                   } as CSSProperties
                 }
-                className="ft-leaf-drift text-[#c9d98a]/75"
+                className="ft-leaf-drift text-[#c9d98a]/65"
               >
                 <path
                   fill="currentColor"
@@ -389,15 +389,15 @@ export function MemberProfileModal({
           type="button"
           onClick={onRequestClose}
           aria-label="Close member profile"
-          className="mun-btn-interactive absolute top-4 right-4 sm:top-5 sm:right-5 z-20 flex h-10 w-10 items-center justify-center rounded-full border border-[#ede6ca]/35 bg-[#14180a]/90 text-[#ede6ca] hover:border-[#ede6ca] cursor-pointer"
+          className="mun-btn-interactive absolute top-4 right-4 sm:top-5 sm:right-5 z-20 flex h-10 w-10 items-center justify-center rounded-[2px] border border-[#ede6ca]/28 bg-[#14180a]/95 text-[#ede6ca] hover:border-[#ede6ca]/65 cursor-pointer"
         >
           <X className="h-4 w-4" aria-hidden="true" />
         </button>
 
-        {/* Circular Photo (~160px) opening from bud via clip-path: circle(0% -> 100%) */}
+        {/* Circular Photo (~156px) opening from bud via clip-path: circle(0% -> 100%) */}
         <div
           style={clipStyle}
-          className="relative z-10 flex h-[156px] w-[156px] sm:h-[164px] sm:w-[164px] shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-[#ede6ca] bg-[#232814] shadow-[0_8px_28px_rgba(0,0,0,0.45)]"
+          className="relative z-10 flex h-[148px] w-[148px] sm:h-[164px] sm:w-[164px] shrink-0 items-center justify-center overflow-hidden rounded-full border border-[#ede6ca]/70 bg-[#232814] shadow-[0_8px_24px_rgba(0,0,0,0.45)]"
         >
           {hasPhoto && member.photo ? (
             <img

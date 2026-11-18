@@ -16,6 +16,7 @@ import { fetchHrAcceptedApplications } from '../../../services/liveBackendServic
 import type { AdminUser, Application } from '../../../types/admin';
 import { isHrActor, normalizeDepartmentSlug } from '../../../utils/adminPermissions';
 import { scopeAcceptedApplicationsForHr } from '../../../utils/applicationFilters';
+import { ApplicationAttachmentsViewer } from '../ApplicationAttachmentsViewer';
 import { StatusBadge } from '../StatusBadge';
 import { WmSkeleton } from '../WmSkeleton';
 
@@ -162,16 +163,20 @@ export function HrAcceptedApplicantsView({
             <div className="wm-surface-inset flex items-start gap-2.5 p-3.5">
               <Phone className="mt-0.5 h-4 w-4 shrink-0 text-[color:var(--wm-accent)]" aria-hidden="true" />
               <div className="min-w-0">
-                <p className="text-[10px] font-mono uppercase tracking-wider text-[color:var(--wm-ink-muted)]">Phone</p>
-                <p className="mt-0.5 truncate text-xs text-[color:var(--wm-ink)]">{selectedApp.phone || '—'}</p>
+                <p className="text-[10px] font-mono uppercase tracking-wider text-[color:var(--wm-ink-muted)]">Phone &amp; Guardian</p>
+                <p className="mt-0.5 truncate text-xs text-[color:var(--wm-ink)]">
+                  {selectedApp.phone || '—'}
+                  {selectedApp.guardianPhone ? ` · Guardian: ${selectedApp.guardianPhone}` : ''}
+                </p>
               </div>
             </div>
             <div className="wm-surface-inset flex items-start gap-2.5 p-3.5">
               <School className="mt-0.5 h-4 w-4 shrink-0 text-[color:var(--wm-accent)]" aria-hidden="true" />
               <div className="min-w-0">
-                <p className="text-[10px] font-mono uppercase tracking-wider text-[color:var(--wm-ink-muted)]">Institution</p>
+                <p className="text-[10px] font-mono uppercase tracking-wider text-[color:var(--wm-ink-muted)]">School &amp; Grade</p>
                 <p className="mt-0.5 truncate text-xs text-[color:var(--wm-ink)]">
                   {selectedApp.schoolOrUniversity || '—'}
+                  {selectedApp.gradeOrYear ? ` · ${selectedApp.gradeOrYear}` : ''}
                   {selectedApp.age ? ` · Age ${selectedApp.age}` : ''}
                 </p>
               </div>
@@ -206,6 +211,17 @@ export function HrAcceptedApplicantsView({
                 </div>
               ))
             )}
+          </div>
+
+          <div className="mt-6 space-y-3">
+            <h3 className="text-xs font-mono uppercase tracking-[0.16em] text-[color:var(--wm-ink-muted)]">
+              Attachments &amp; Privacy Notice
+            </h3>
+            <ApplicationAttachmentsViewer
+              application={selectedApp}
+              actor={actor}
+              departments={data.departments}
+            />
           </div>
         </section>
       </motion.div>

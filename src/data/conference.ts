@@ -37,17 +37,20 @@ export const CONFERENCE_DATA = {
     year: '2026',
     logoSrc: '/assets/logo-transparent.png',
     introVideoSrc: '/assets/aistudio/willow-intro-grow.mp4',
+    mobileIntroVideoSrc: '/willow-intro-mobile.mp4',
     videoWebmSrc: '/willow-loop.webm',
     videoSrc: '/assets/aistudio/Trees_swaying_and_birds_flying_afb28949_d2f42073.mp4',
+    mobileVideoSrc: '/willow-loop-mobile.mp4',
     posterSrc: '/willow-poster.jpg',
+    mobilePosterSrc: '/willow-poster-mobile.jpg',
   },
 
   navLinks: [
-    { href: '#apply', label: 'Apply' },
+    { href: '#about', label: 'Charter' },
     { href: '#committees', label: 'Committees' },
-    { href: '#about', label: 'About' },
-    { href: '#executive-board', label: 'EB' },
-    { href: '#updates', label: 'Updates' },
+    { href: '#executive-board', label: 'Secretariat' },
+    { href: '#updates', label: 'Dispatches' },
+    { href: '#apply', label: 'Apply' },
   ],
 
   hero: {
@@ -55,12 +58,18 @@ export const CONFERENCE_DATA = {
     stackBottom: 'LOW',
     subBrand: 'MUN',
     fullTitle: 'Willow Model United Nations',
-    ctaLabel: 'Apply to Willow MUN',
+    thesis:
+      'An international youth diplomatic assembly built on rigorous preparation, nuanced coalition-building, and deliberation across borders.',
+    ctaLabel: 'Apply to Join',
     ctaHref: '#apply',
   },
 
   about: {
-    label: 'Conference identity',
+    label: 'Conference Theme & Charter',
+    themeQuote:
+      'To bend with conviction is not to yield — like the willow, enduring diplomacy draws its strength from deep roots and quiet flexibility.',
+    themeMeaning:
+      'Inspired by the resilience of the weeping willow, our inaugural session asks delegates to balance principled advocacy with the humility to listen, revise, and forge lasting multilateral consensus.',
     paragraphs: [
       'Willow MUN is a youth-led Model United Nations conference dedicated to thoughtful debate, diplomatic negotiation, and principled coalition-building across borders.',
     ],

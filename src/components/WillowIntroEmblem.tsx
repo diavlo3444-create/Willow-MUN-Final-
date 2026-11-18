@@ -5,7 +5,7 @@ import {
   useImperativeHandle,
   useRef,
 } from 'react';
-import { CONFERENCE_DATA } from '../data/conference';
+import { useResponsiveVideoSources } from '../utils/responsiveVideo';
 
 const INTRO_TRANSITION_TIME_S = 7.9;
 const INTRO_TREE_BLEND_START_S = 7.7;
@@ -23,15 +23,14 @@ interface WillowIntroEmblemProps {
 }
 
 /**
- * Full-bleed intro <video> (willow-intro-grow.mp4) with mix-blend-mode: screen:
+ * Full-bleed intro <video> (desktop widescreen vs dedicated portrait mobile asset) with mix-blend-mode: screen:
  * - Plays at full opacity (scale 1, z-index 50) over the olive backdrop
- * - At 7.9s (or on Skip), smoothly dissolves into the background watermark
- *   (opacity: 0.24, transform: scale(0.96), z-index: 1) while revealing the hero UI
- * - Supports Replay intro by fading out text, bringing the video back to scale 1 / opacity 1,
- *   playing from the beginning, and dissolving back into the background
+ * - At 7.9s (or on Skip), smoothly dissolves into the background loop video
+ *   while revealing the conference frontispiece
  */
 export const WillowIntroEmblem = forwardRef<WillowIntroEmblemHandle, WillowIntroEmblemProps>(
   function WillowIntroEmblem({ introPlaying, onIntroStateChange }, ref) {
+    const { isMobilePortrait, introVideoSrc } = useResponsiveVideoSources();
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const rafIdRef = useRef<number>(0);
     const fallbackTimerRef = useRef<number>(0);
@@ -317,7 +316,7 @@ export const WillowIntroEmblem = forwardRef<WillowIntroEmblemHandle, WillowIntro
         {/* Full-bleed seamless <video> with mix-blend-mode: screen */}
         <video
           ref={videoRef}
-          src={CONFERENCE_DATA.brand.introVideoSrc}
+          src={introVideoSrc}
           autoPlay
           muted
           playsInline
@@ -325,6 +324,9 @@ export const WillowIntroEmblem = forwardRef<WillowIntroEmblemHandle, WillowIntro
           disablePictureInPicture
           aria-hidden="true"
           tabIndex={-1}
+          style={{
+            objectPosition: isMobilePortrait ? '50% 18%' : '50% 45%',
+          }}
           className="willow-intro-video select-none"
         />
 

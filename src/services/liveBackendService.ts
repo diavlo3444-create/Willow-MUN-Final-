@@ -10,13 +10,28 @@ import type {
 } from '../types/admin';
 import {
   canAccessApplication,
+  canViewConfidentialMedicalInfo,
   getActorDepartmentSlug,
   getActorGenderScope,
   hasPermission,
   isDccActor,
   isHrActor,
 } from '../utils/adminPermissions';
+import { decodeLegacyExperienceMeta } from '../utils/applicationForm';
 import { conferenceDataService } from './mockDataService';
+
+export interface LiveFileRecord {
+  id: string;
+  name: string;
+  category?: string;
+  fileType?: string;
+  sizeBytes?: number;
+  sizeLabel?: string;
+  storageBucket?: string;
+  storagePath?: string;
+  previewUrl?: string;
+  uploadedAt?: string;
+}
 
 export interface LiveApplicationRow {
   id: string;
@@ -28,12 +43,24 @@ export interface LiveApplicationRow {
   applicant_name: string;
   email: string;
   phone: string;
+  guardian_phone?: string | null;
+  grade?: string | null;
   school: string | null;
   age: number | null;
   availability: string | null;
+  attends_all_days?: boolean | null;
+  absence_reason?: string | null;
   motivation: string;
   experience: string | null;
+  camera_model?: string | null;
   portfolio_url: string | null;
+  answers?: Array<{ questionId: string; section: string; label: string; answer: string }> | null;
+  proof_files?: LiveFileRecord[] | null;
+  media_photos?: LiveFileRecord[] | null;
+  writing_samples?: LiveFileRecord[] | null;
+  medical_has_conditions?: boolean | null;
+  medical_details?: string | null;
+  medical_restricted?: boolean | null;
   status: ApplicationStatus;
   review_notes: string | null;
   decision_by?: string | null;
@@ -85,17 +112,102 @@ export function mapApplicationTypeToDepartment(appType: string | null | undefine
   }
 }
 
-export function mapLiveRowToApplication(row: LiveApplicationRow): Application {
+function normalizeDocList(
+  raw: unknown,
+  fallbackCategory: 'photo' | 'cv' | 'portfolio' | 'id_document' | 'other',
+): Application['documents'] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((f): f is LiveFileRecord => Boolean(f && typeof f === 'object'))
+    .map((f, idx) => {
+      const cat =
+        f.category === 'photo' ||
+        f.category === 'cv' ||
+        f.category === 'portfolio' ||
+        f.category === 'id_document' ||
+        f.category === 'other'
+          ? f.category
+          : fallbackCategory;
+      return {
+        id: String(f.id || `doc-${fallbackCategory}-${idx}`),
+        name: String(f.name || `Attachment ${idx + 1}`),
+        category: cat,
+        fileType: String(f.fileType || 'application/octet-stream'),
+        sizeLabel: String(f.sizeLabel || ''),
+        previewUrl: String(f.previewUrl || ''),
+        storageBucket: f.storageBucket,
+        storagePath: f.storagePath,
+        uploadedAt: String(f.uploadedAt || new Date().toISOString()),
+      };
+    });
+}
+
+export function mapLiveRowToApplication(
+  row: LiveApplicationRow,
+  actor?: AdminUser | null,
+  departments?: Department[],
+): Application {
   const deptId = mapApplicationTypeToDepartment(row.application_type, row.department_id);
-  const category = (['delegate', 'staff', 'security', 'media', 'volunteer'].includes(row.application_type)
-    ? row.application_type
-    : row.application_type === 'press'
-      ? 'media'
-      : 'staff') as ApplicationCategory;
+  const rawType = (row.application_type || '').toLowerCase();
+  const category = (['delegate', 'staff', 'security', 'media', 'press', 'volunteer'].includes(rawType)
+    ? rawType
+    : 'staff') as ApplicationCategory;
   const code = row.application_code || `WM-${row.id.slice(0, 6).toUpperCase()}`;
   const rawGender = (row.gender || '').toLowerCase();
   const gender: 'male' | 'female' | null =
     rawGender === 'female' ? 'female' : rawGender === 'male' ? 'male' : null;
+
+  const { cleanExperience, meta } = decodeLegacyExperienceMeta(row.experience);
+  const cameraModel = row.camera_model ?? meta?.cameraModel ?? null;
+  const attendsAllDays =
+    typeof row.attends_all_days === 'boolean'
+      ? row.attends_all_days
+      : meta?.attendsAllDays ?? null;
+  const absenceReason = row.absence_reason ?? meta?.absenceReason ?? null;
+  const grade = row.grade || meta?.grade || '';
+  const guardianPhone = row.guardian_phone || meta?.guardianPhone || '';
+
+  const structuredAnswers =
+    Array.isArray(row.answers) && row.answers.length > 0
+      ? row.answers
+      : Array.isArray(meta?.answers) && meta.answers.length > 0
+        ? meta.answers
+        : [
+            ...(row.motivation
+              ? [{ questionId: 'motivation', section: 'Statement', label: 'Motivation & Statement of Interest', answer: row.motivation }]
+              : []),
+            ...(cleanExperience
+              ? [{ questionId: 'experience', section: 'Background', label: 'Relevant Experience', answer: cleanExperience }]
+              : []),
+            ...(row.availability
+              ? [{ questionId: 'availability', section: 'Availability', label: 'Conference Availability', answer: row.availability }]
+              : []),
+            ...(row.portfolio_url
+              ? [{ questionId: 'portfolio', section: 'Links', label: 'Portfolio / Work Link', answer: row.portfolio_url }]
+              : []),
+          ];
+
+  const proofDocs = normalizeDocList(
+    Array.isArray(row.proof_files) && row.proof_files.length > 0
+      ? row.proof_files
+      : meta?.proofFiles,
+    'other',
+  );
+  const mediaDocs = normalizeDocList(
+    Array.isArray(row.media_photos) && row.media_photos.length > 0
+      ? row.media_photos
+      : meta?.mediaPhotos,
+    'photo',
+  );
+  const writingDocs = normalizeDocList(
+    Array.isArray(row.writing_samples) && row.writing_samples.length > 0
+      ? row.writing_samples
+      : meta?.writingSamples,
+    'portfolio',
+  );
+
+  const allowMedical =
+    canViewConfidentialMedicalInfo(actor, departments) && row.medical_restricted !== true;
 
   return {
     id: row.id,
@@ -106,8 +218,9 @@ export function mapLiveRowToApplication(row: LiveApplicationRow): Application {
     gender,
     email: row.email,
     phone: row.phone,
+    guardianPhone,
     schoolOrUniversity: row.school || '',
-    gradeOrYear: '',
+    gradeOrYear: grade,
     city: '',
     country: '',
     age: row.age ?? 0,
@@ -129,23 +242,27 @@ export function mapLiveRowToApplication(row: LiveApplicationRow): Application {
     signupLinkToken: null,
     signupLinkStatus: 'none',
     signupLinkGeneratedAt: null,
-    emergencyContact: '',
-    experienceLevel: row.experience || '',
-    answers: [
-      ...(row.motivation
-        ? [{ questionId: 'motivation', section: 'Statement', label: 'Motivation & Statement of Interest', answer: row.motivation }]
-        : []),
-      ...(row.experience
-        ? [{ questionId: 'experience', section: 'Background', label: 'Relevant Experience', answer: row.experience }]
-        : []),
-      ...(row.availability
-        ? [{ questionId: 'availability', section: 'Availability', label: 'Conference Availability', answer: row.availability }]
-        : []),
-      ...(row.portfolio_url
-        ? [{ questionId: 'portfolio', section: 'Links', label: 'Portfolio / Work Link', answer: row.portfolio_url }]
-        : []),
-    ],
-    documents: [],
+    emergencyContact: guardianPhone ? `Guardian: ${guardianPhone}` : '',
+    cameraModel,
+    attendsAllDays,
+    absenceReason,
+    medicalInfo: allowMedical
+      ? {
+          hasConditions:
+            typeof row.medical_has_conditions === 'boolean'
+              ? row.medical_has_conditions
+              : null,
+          details: row.medical_details ?? null,
+          restricted: false,
+        }
+      : {
+          hasConditions: null,
+          details: null,
+          restricted: true,
+        },
+    experienceLevel: cleanExperience,
+    answers: structuredAnswers,
+    documents: [...mediaDocs, ...writingDocs, ...proofDocs],
     notes: [],
     history: row.decision_at
       ? [
@@ -159,6 +276,23 @@ export function mapLiveRowToApplication(row: LiveApplicationRow): Application {
         ]
       : [],
   };
+}
+
+export async function fetchSignedDocumentUrls(
+  applicationId: string,
+): Promise<Record<string, string>> {
+  if (!applicationId) return {};
+  try {
+    const { data, error } = await supabase.functions.invoke('willow-applications', {
+      body: { action: 'sign_files', application_id: applicationId },
+    });
+    if (!error && data && !data.error && data.urls && typeof data.urls === 'object') {
+      return data.urls as Record<string, string>;
+    }
+  } catch {
+    // Return empty map gracefully
+  }
+  return {};
 }
 
 export async function fetchScopedApplicationsForActor(
@@ -175,7 +309,9 @@ export async function fetchScopedApplicationsForActor(
   });
 
   if (!error && data && !data.error && Array.isArray(data.applications)) {
-    const mapped = (data.applications as LiveApplicationRow[]).map(mapLiveRowToApplication);
+    const mapped = (data.applications as LiveApplicationRow[]).map((r) =>
+      mapLiveRowToApplication(r, actor, departments),
+    );
     // Apply exact client-side head scope (used both for real heads and Super Admin "Sign In As" preview)
     if (actor.role === 'department_head' || actor.role === 'executive_board') {
       return {
@@ -199,7 +335,9 @@ export async function fetchScopedApplicationsForActor(
     }
     const { data: rows, error: tableError } = await query;
     if (!tableError && Array.isArray(rows)) {
-      const mapped = (rows as LiveApplicationRow[]).map(mapLiveRowToApplication);
+      const mapped = (rows as LiveApplicationRow[]).map((r) =>
+        mapLiveRowToApplication(r, actor, departments),
+      );
       return {
         applications:
           actor.role === 'department_head' || actor.role === 'executive_board'
@@ -238,7 +376,9 @@ export async function fetchHrAcceptedApplications(
 
   if (!error && data && !data.error && Array.isArray(data.applications)) {
     return {
-      applications: (data.applications as LiveApplicationRow[]).map(mapLiveRowToApplication),
+      applications: (data.applications as LiveApplicationRow[]).map((r) =>
+        mapLiveRowToApplication(r, actor, departments),
+      ),
     };
   }
 
@@ -247,7 +387,9 @@ export async function fetchHrAcceptedApplications(
     body: { action: 'list' },
   });
   if (!listRes.error && listRes.data && Array.isArray(listRes.data.applications)) {
-    const all = (listRes.data.applications as LiveApplicationRow[]).map(mapLiveRowToApplication);
+    const all = (listRes.data.applications as LiveApplicationRow[]).map((r) =>
+      mapLiveRowToApplication(r, actor, departments),
+    );
     const accepted = all.filter((a) => a.status === 'accepted');
     if (accepted.length > 0 || actor?.role === 'admin' || actor?.role === 'super_admin') {
       return { applications: accepted };
@@ -262,7 +404,11 @@ export async function fetchHrAcceptedApplications(
       .eq('status', 'accepted')
       .order('created_at', { ascending: false });
     if (!tableError && Array.isArray(rows)) {
-      return { applications: (rows as LiveApplicationRow[]).map(mapLiveRowToApplication) };
+      return {
+        applications: (rows as LiveApplicationRow[]).map((r) =>
+          mapLiveRowToApplication(r, actor, departments),
+        ),
+      };
     }
   } catch {
     // Ignore and check local snapshot
@@ -307,7 +453,7 @@ export async function submitHeadOrAdminDecision(
   if (!error && data && !data.error && data.application) {
     return {
       ok: true,
-      application: mapLiveRowToApplication(data.application as LiveApplicationRow),
+      application: mapLiveRowToApplication(data.application as LiveApplicationRow, actor, departments),
     };
   }
 
@@ -331,7 +477,7 @@ export async function submitHeadOrAdminDecision(
     if (!tableErr && row) {
       return {
         ok: true,
-        application: mapLiveRowToApplication(row as LiveApplicationRow),
+        application: mapLiveRowToApplication(row as LiveApplicationRow, actor, departments),
       };
     }
   } catch {

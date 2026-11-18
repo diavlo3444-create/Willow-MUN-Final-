@@ -692,7 +692,13 @@ export function canAccessApplication(
       const subScope = getMediaPressSubScope(user);
       const appType = String(
         application.applicationType ||
-          (/\bpress\b/i.test(application.position || '') ? 'press' : application.category === 'media' ? 'media' : ''),
+          (application.category === 'press'
+            ? 'press'
+            : /\bpress\b/i.test(application.position || '')
+              ? 'press'
+              : application.category === 'media'
+                ? 'media'
+                : ''),
       ).toLowerCase();
       if (subScope && appType && subScope !== appType) return false;
     }
@@ -723,6 +729,23 @@ export function canViewConfidentialApplicantInfo(
   if (canViewHrAcceptedApplication(user, application, departments)) return true;
   if (!canAccessApplication(user, application, departments)) return false;
   return hasPermission(user, 'applications.view_confidential', departments);
+}
+
+/**
+ * Private medical disclosures are strictly limited to authorized Administrators
+ * (Super Admin or Admin with applications.view_confidential). Department Heads,
+ * EB Heads, and general HR actors never receive unredacted medical details.
+ */
+export function canViewConfidentialMedicalInfo(
+  user: AdminUser | null | undefined,
+  departments?: Department[],
+): boolean {
+  if (!user || !user.isActive || user.status !== 'active') return false;
+  if (user.role === 'super_admin') return true;
+  if (user.role === 'admin') {
+    return hasPermission(user, 'applications.view_confidential', departments);
+  }
+  return false;
 }
 
 export function canReviewFinalDecision(

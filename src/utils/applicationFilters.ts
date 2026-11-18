@@ -341,11 +341,14 @@ export function buildApplicationsCsv(
     'Applicant Name',
     'Email',
     'Phone',
+    'Guardian Phone',
     'Department',
     'Position',
     'Status',
     'Head Recommendation',
     'Institution',
+    'Grade',
+    'Camera Model',
     'Submitted At',
   ];
   const rows = applications.map((app) =>
@@ -355,11 +358,14 @@ export function buildApplicationsCsv(
       app.applicantName,
       app.email,
       app.phone,
+      app.guardianPhone || '',
       deptNameById.get(app.departmentId) ?? app.departmentId,
       app.position,
       app.status,
       app.headRecommendation,
       app.schoolOrUniversity,
+      app.gradeOrYear,
+      app.cameraModel || '',
       app.submittedAt,
     ]
       .map(csvEscape)

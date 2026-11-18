@@ -7,7 +7,6 @@ import { ExecutiveBoardSection } from './components/ExecutiveBoardSection';
 import { Footer } from './components/Footer';
 import { Hero } from './components/Hero';
 import { MarqueeStrip } from './components/MarqueeStrip';
-import { MeetTeamSection } from './components/MeetTeamSection';
 import { Navbar } from './components/Navbar';
 import { ScrollProgressBar } from './components/ScrollProgressBar';
 import { SuggestionsSection } from './components/SuggestionsSection';
@@ -75,7 +74,6 @@ function PublicWebsite() {
         <AboutSection />
         <CommitteesSection />
         <ExecutiveBoardSection />
-        <MeetTeamSection />
         <UpdatesSection />
         <ApplySection />
         <SuggestionsSection />
