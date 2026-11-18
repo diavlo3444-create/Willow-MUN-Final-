@@ -114,19 +114,23 @@ export function SecurityScannerPortal({
       setValidation(v);
       setManualToken('');
 
-      if (v.status === 'valid' && v.committed) {
+      if ((v.status === 'valid' || v.status === 'checked_out') && v.committed) {
         pushToast({
           tone: 'success',
-          title: 'Entry Approved',
-          description: `${v.holder_name || 'Attendee'} checked in at ${gateLocation}.`,
+          title: attendanceAction === 'checkout' ? 'Check-Out Recorded' : 'Entry Approved',
+          description: `${v.holder_name || 'Attendee'} ${attendanceAction === 'checkout' ? 'checked out' : 'checked in'} at ${gateLocation}.`,
         });
-      } else if (v.status === 'already_checked_in') {
+      } else if (v.status === 'checkout_warning' || v.status === 'not_checked_in') {
+        pushToast({ tone: 'warning', title: 'Check-Out Needs Attention', description: v.message });
+      } else if (v.status === 'checkout_warning') {
+      pushToast({ tone: 'warning', title: 'Repeat Check-Out Warning', description: v.message });
+    } else if (v.status === 'already_checked_in' || v.status === 'not_checked_in') {
         pushToast({
           tone: 'warning',
           title: 'Already Checked In',
           description: v.holder_name || 'Pass has already been used.',
         });
-      } else if (v.status !== 'valid') {
+      } else if (v.status !== 'valid' && v.status !== 'checkout_warning') {
         pushToast({
           tone: 'error',
           title:
@@ -159,7 +163,7 @@ export function SecurityScannerPortal({
     const v = res.validation;
     setValidation(v);
 
-    if (v.status === 'valid' && v.committed) {
+    if ((v.status === 'valid' || v.status === 'checked_out') && v.committed) {
       pushToast({
         tone: 'success',
         title: attendanceAction === 'checkout' ? 'Check-Out Recorded' : 'Check-In Recorded',
