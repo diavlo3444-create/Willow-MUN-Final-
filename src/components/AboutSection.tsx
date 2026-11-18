@@ -19,7 +19,7 @@ export function AboutSection() {
     {
       key: 'committees',
       term: 'Planned Committees',
-      value: `${CONFERENCE_DATA.committees.items.length} Chambers`,
+      value: `${CONFERENCE_DATA.committees.items.length} Committees`,
       note: 'Agendas & Study Guides TBA',
       isTba: false,
     },
