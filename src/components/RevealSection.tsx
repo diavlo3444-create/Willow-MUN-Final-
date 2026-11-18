@@ -57,7 +57,7 @@ function toEditorialTitleCase(word: string): string {
   const clean = word.trim();
   if (!clean) return '';
   if (clean === clean.toUpperCase() && clean.length > 2) {
-    return clean.split(/\\s+/).map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase()).join(' ');
+    return clean.split(/\s+/).map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase()).join(' ');
   }
   return clean;
 }
