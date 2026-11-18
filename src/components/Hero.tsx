@@ -1,20 +1,12 @@
 import { type MouseEvent } from 'react';
-import { ArrowDownRight } from 'lucide-react';
+import { ArrowDownRight, MoveDown } from 'lucide-react';
 import { CONFERENCE_DATA } from '../data/conference';
 import { usePublishedWebsite } from '../utils/usePublishedWebsite';
 import { TbaText } from './TbaText';
 
-interface HeroProps {
-  cursorEffectsActive?: boolean;
-}
+interface HeroProps { cursorEffectsActive?: boolean }
 
-/**
- * Editorial conference frontispiece:
- * - Portrait mobile leaves the upper 42dvh open so the 9:16 portrait swaying willow & birds breathe cleanly
- * - Desktop frames an asymmetric diplomatic masthead anchored above a ruled 4-column Prospectus Strip
- * - Avoids duplicating About section body copy and avoids boxed side cards
- */
-export function Hero(_props: HeroProps) {
+export function Hero({ cursorEffectsActive = false }: HeroProps) {
   const { published, settings } = usePublishedWebsite();
   const heroSec = published.sections.find((s) => s.sectionKey === 'hero');
   const ctaHref = heroSec?.buttonHref || CONFERENCE_DATA.hero.ctaHref;
@@ -23,126 +15,60 @@ export function Hero(_props: HeroProps) {
   const editionYear = settings.editionYear || CONFERENCE_DATA.brand.year;
   const hasCustomDates = settings.datesText !== 'TBA';
   const hasCustomVenue = settings.venueText !== 'TBA';
-  const departmentCount = CONFERENCE_DATA.team.groups.reduce(
-    (sum, g) => sum + g.departments.length,
-    0,
-  );
+  const departmentCount = CONFERENCE_DATA.team.groups.reduce((sum, group) => sum + group.departments.length, 0);
 
   const handleSmoothAnchor = (event: MouseEvent<HTMLAnchorElement>, href: string) => {
-    if (href.startsWith('#')) {
-      const target = document.querySelector(href);
-      if (target) {
-        event.preventDefault();
-        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
-    }
+    if (!href.startsWith('#')) return;
+    const target = document.querySelector(href);
+    if (!target) return;
+    event.preventDefault();
+    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   return (
-    <section
-      id="top"
-      aria-label="Willow Model United Nations overview"
-      className="relative z-[1] min-h-[100dvh] flex flex-col justify-end bg-transparent px-[clamp(16px,4vw,48px)] pt-[39dvh] sm:pt-28 pb-20 sm:pb-16"
-    >
-      {/* Measured lower readability scrim keeping the upper willow emblem canopy luminous */}
-      <div
-        aria-hidden="true"
-        className="mun-hero-scrim pointer-events-none absolute inset-x-0 bottom-0 top-[28%]"
-      />
+    <section id="top" aria-label="Willow Model United Nations overview"
+      className="mun-hero relative z-[1] isolate flex min-h-[100svh] flex-col justify-end overflow-hidden bg-transparent px-[clamp(18px,5vw,76px)] pb-10 pt-[calc(var(--nav-height,64px)+5vh)] sm:pb-14 lg:pb-16">
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10">
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(13,17,7,0.06)_0%,rgba(13,17,7,0.08)_34%,rgba(13,17,7,0.66)_68%,rgba(13,17,7,0.94)_100%)]" />
+        <div className="absolute inset-y-0 left-0 w-[min(28vw,420px)] bg-[linear-gradient(90deg,rgba(13,17,7,0.34),transparent)]" />
+      </div>
 
-      <div className="chrome relative z-10 mx-auto w-full max-w-[1200px] min-w-0">
-        {/* Masthead Editorial Spread */}
-        <div className="border-t border-[#ede6ca]/25 pt-5 sm:pt-8">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 lg:gap-12 items-end">
-            {/* Primary Title Lockup */}
-            <div className="lg:col-span-7 min-w-0">
-              <p className="font-mono text-[11px] sm:text-xs uppercase tracking-[0.18em] text-[#a9b47e] mb-3">
-                <span>Session {editionYear}</span>
-                <span aria-hidden="true" className="mx-2 text-[#ede6ca]/35">
-                  ·
-                </span>
-                <span className="text-[#cfc8aa]">International Youth Conference</span>
-              </p>
+      <div className={`mun-hero-content mx-auto w-full max-w-[1320px] ${cursorEffectsActive ? 'mun-hero-ready' : ''}`}>
+        <div className="mb-7 flex items-center gap-3 sm:mb-9">
+          <span className="h-px w-9 bg-[#a9b47e]" />
+          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-[#d3d0b7] sm:text-[11px]">Willow Model United Nations</p>
+          <span aria-hidden="true" className="font-mono text-[10px] text-[#ede6ca]/45">/</span>
+          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-[#a9b47e] sm:text-[11px]">Session {editionYear}</p>
+        </div>
 
-              <h1 className="mun-hero-shadow font-serif text-[clamp(2.4rem,6vw,5.4rem)] font-medium leading-[0.95] tracking-[-0.02em] text-[#ede6ca] [text-wrap:balance]">
-                {fullTitle}
-              </h1>
-            </div>
-
-            {/* Right Asymmetric Diplomatic Thesis & Actions */}
-            <div className="lg:col-span-5 min-w-0 space-y-5">
-              <p className="mun-hero-shadow text-[15px] sm:text-base leading-[1.68] text-[#e2dcc4] max-w-[46ch]">
-                {CONFERENCE_DATA.hero.thesis}
-              </p>
-
-              <div className="flex flex-wrap items-center gap-4 sm:gap-6">
-                <a
-                  href={ctaHref}
-                  onClick={(e) => handleSmoothAnchor(e, ctaHref)}
-                  className="mun-btn-interactive inline-flex items-center justify-center gap-2 min-h-[44px] rounded-[2px] bg-[#ede6ca] px-6 py-2.5 text-sm font-semibold text-[#181c0d] hover:bg-[#dad3b4] whitespace-nowrap"
-                >
-                  <span>{ctaLabel}</span>
-                  <ArrowDownRight className="h-4 w-4 shrink-0" aria-hidden="true" />
-                </a>
-
-                <a
-                  href="#committees"
-                  onClick={(e) => handleSmoothAnchor(e, '#committees')}
-                  className="group inline-flex items-center min-h-[44px] text-sm font-medium text-[#ede6ca] hover:text-[#a9b47e] transition-colors whitespace-nowrap"
-                >
-                  <span className="border-b border-[#ede6ca]/45 pb-0.5 transition-colors duration-150 group-hover:border-[#a9b47e]">
-                    Explore Chambers
-                  </span>
-                </a>
-              </div>
+        <div className="grid grid-cols-1 items-end gap-8 border-b border-[#ede6ca]/28 pb-9 lg:grid-cols-12 lg:gap-12 lg:pb-12">
+          <div className="min-w-0 lg:col-span-8">
+            <p className="mb-4 font-mono text-[10px] uppercase tracking-[0.2em] text-[#cfc8aa]/85 sm:text-xs">An assembly for principled diplomacy</p>
+            <h1 className="max-w-[13ch] font-serif text-[clamp(3.65rem,8.2vw,7.7rem)] font-medium leading-[0.88] tracking-[-0.055em] text-[#f1ecd9] [text-wrap:balance] [text-shadow:0_3px_34px_rgba(8,12,4,0.42)]">{fullTitle}</h1>
+          </div>
+          <div className="min-w-0 border-l border-[#ede6ca]/28 pl-5 lg:col-span-4 lg:pl-7">
+            <p className="max-w-[38ch] text-[14px] leading-[1.8] text-[#e0dbc7] sm:text-[15px]">{CONFERENCE_DATA.hero.thesis}</p>
+            <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-3">
+              <a href={ctaHref} onClick={(event) => handleSmoothAnchor(event, ctaHref)} className="mun-btn-interactive inline-flex min-h-[46px] items-center justify-center gap-3 rounded-[2px] bg-[#ede6ca] px-5 py-3 text-[13px] font-semibold text-[#181c0d] hover:bg-[#d9d1b1] sm:px-6">
+                <span>{ctaLabel}</span><ArrowDownRight className="h-4 w-4" aria-hidden="true" />
+              </a>
+              <a href="#committees" onClick={(event) => handleSmoothAnchor(event, '#committees')} className="mun-link-underline inline-flex min-h-[44px] items-center text-[13px] font-medium text-[#ede6ca] hover:text-[#c9d98a]">Explore chambers</a>
             </div>
           </div>
         </div>
 
-        {/* Full-Width Ruled Conference Briefing Strip */}
-        <aside
-          aria-label="Key conference details"
-          className="mt-8 sm:mt-10 border-t border-[#ede6ca]/20 pt-4 sm:pt-5"
-        >
-          <dl className="grid grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4">
-            <div className="border-r border-[#ede6ca]/14 pr-4 last:border-r-0">
-              <dt className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#cfc8aa]/80">
-                Conference Dates
-              </dt>
-              <dd className="mt-1 font-serif text-xl sm:text-2xl font-medium text-[#ede6ca] tabular-nums">
-                {hasCustomDates ? settings.datesText : <TbaText text="TBA" />}
-              </dd>
-            </div>
-
-            <div className="lg:border-r lg:border-[#ede6ca]/14 lg:pr-4">
-              <dt className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#cfc8aa]/80">
-                Official Venue
-              </dt>
-              <dd className="mt-1 font-serif text-xl sm:text-2xl font-medium text-[#ede6ca]">
-                {hasCustomVenue ? settings.venueText : <TbaText text="TBA" />}
-              </dd>
-            </div>
-
-            <div className="border-r border-[#ede6ca]/14 pr-4">
-              <dt className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#cfc8aa]/80">
-                Committee Chambers
-              </dt>
-              <dd className="mt-1 font-serif text-xl sm:text-2xl font-medium text-[#ede6ca] tabular-nums">
-                {CONFERENCE_DATA.committees.items.length} Planned
-              </dd>
-            </div>
-
-            <div>
-              <dt className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#cfc8aa]/80">
-                Organizing Cadre
-              </dt>
-              <dd className="mt-1 font-serif text-xl sm:text-2xl font-medium text-[#ede6ca] tabular-nums">
-                {departmentCount} Departments
-              </dd>
-            </div>
-          </dl>
-        </aside>
+        <div className="grid grid-cols-2 gap-x-5 gap-y-5 pt-6 sm:grid-cols-4 sm:pt-7">
+          <div className="mun-hero-detail"><p className="font-mono text-[9px] uppercase tracking-[0.17em] text-[#cfc8aa]/75 sm:text-[10px]">Conference dates</p><p className="mt-1.5 font-serif text-xl font-medium text-[#f1ecd9] sm:text-2xl">{hasCustomDates ? settings.datesText : <TbaText text="TBA" />}</p></div>
+          <div className="mun-hero-detail"><p className="font-mono text-[9px] uppercase tracking-[0.17em] text-[#cfc8aa]/75 sm:text-[10px]">Official venue</p><p className="mt-1.5 font-serif text-xl font-medium text-[#f1ecd9] sm:text-2xl">{hasCustomVenue ? settings.venueText : <TbaText text="TBA" />}</p></div>
+          <div className="mun-hero-detail"><p className="font-mono text-[9px] uppercase tracking-[0.17em] text-[#cfc8aa]/75 sm:text-[10px]">Committee chambers</p><p className="mt-1.5 font-serif text-xl font-medium text-[#f1ecd9] sm:text-2xl">{CONFERENCE_DATA.committees.items.length} planned</p></div>
+          <div className="mun-hero-detail"><p className="font-mono text-[9px] uppercase tracking-[0.17em] text-[#cfc8aa]/75 sm:text-[10px]">Organizing departments</p><p className="mt-1.5 font-serif text-xl font-medium text-[#f1ecd9] sm:text-2xl">{departmentCount} departments</p></div>
+        </div>
       </div>
+
+      <a href="#about" onClick={(event) => handleSmoothAnchor(event, '#about')} aria-label="Scroll to the conference charter"
+        className="absolute bottom-7 right-[clamp(18px,5vw,76px)] hidden items-center gap-3 font-mono text-[9px] uppercase tracking-[0.2em] text-[#ede6ca]/65 transition-colors hover:text-[#ede6ca] lg:flex">
+        <span>Scroll to explore</span><MoveDown className="h-3.5 w-3.5" aria-hidden="true" />
+      </a>
     </section>
   );
 }
