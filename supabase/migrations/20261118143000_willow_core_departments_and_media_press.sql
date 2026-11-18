@@ -29,8 +29,8 @@ WHERE title ILIKE '%press%'
 -- Keep existing applications attached to their actual team after the split.
 UPDATE public.wm_applications
 SET department_id = CASE
-  WHEN lower(application_type) = 'press' THEN (SELECT id FROM public.wm_departments WHERE slug = 'press')
-  WHEN lower(application_type) = 'media' THEN (SELECT id FROM public.wm_departments WHERE slug = 'media')
+  WHEN lower(application_type) = 'press' THEN (SELECT id::text FROM public.wm_departments WHERE slug = 'press')
+  WHEN lower(application_type) = 'media' THEN (SELECT id::text FROM public.wm_departments WHERE slug = 'media')
   ELSE department_id
 END
 WHERE lower(application_type) IN ('media', 'press');
