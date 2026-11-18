@@ -887,12 +887,17 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
           .from('wm_departments')
           .update({ registration_open: patch.registrationOpen })
           .eq('id', departmentId)
-          .then(({ error }) => {
-            if (error) {
+          .select('id')
+          .maybeSingle()
+          .then(({ data: updatedRow, error }) => {
+            if (error || !updatedRow) {
               pushToast({
                 tone: 'error',
                 title: 'Registration change was not saved',
-                description: error.message,
+                description: error?.message || 'The server did not confirm the registration update.',
+              });
+              void loadLiveDepartments().then((departments) => {
+                setData((previous) => ({ ...previous, departments }));
               });
               return;
             }
