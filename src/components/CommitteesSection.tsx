@@ -9,7 +9,7 @@ import { RevealSection, SectionHeading } from './RevealSection';
 import { TbaText } from './TbaText';
 
 const displayCommitteeGroup = (value: string) =>
-  value.replace(/\\bchambers?\\b/gi, 'Committee');
+  value.replace(/\bchambers?\b/gi, 'Committee');
 
 interface DisplayCommittee {
   id: string;
@@ -60,10 +60,11 @@ export function CommitteesSection() {
   }, []);
 
   const committeesSec = published.sections.find((s) => s.sectionKey === 'committees');
-  const label = committeesSec?.label || CONFERENCE_DATA.committees.label;
-  const subIntro =
+  const label = (committeesSec?.label || CONFERENCE_DATA.committees.label).replace(/\bchambers?\b/gi, 'Committees');
+  const subIntro = (
     committeesSec?.bodyText ||
-    'Committees spanning specialized multilateral debate formats, curated and maintained by Delegate & Committee Affairs.';
+    'Committees spanning specialized multilateral debate formats, curated and maintained by Delegate & Committee Affairs.'
+  ).replace(/\bchambers?\b/gi, 'committees');
 
   const items: DisplayCommittee[] = useMemo(() => {
     if (liveCommittees.length > 0) {
@@ -402,7 +403,7 @@ export function CommitteesSection() {
                 type="button"
                 aria-expanded={isOpen}
                 onClick={() => setMobileExpandedId(isOpen ? null : item.id)}
-                className="flex w-full items-center justify-between gap-4 py-4 text-left cursor-pointer min-h-[56px]"
+                className="mun-committee-row flex w-full items-center justify-between gap-4 py-4 text-left cursor-pointer min-h-[56px] rounded-sm transition-colors duration-150"
               >
                 <div className="min-w-0 flex items-baseline gap-3">
                   <span className="font-mono text-xs text-[#a9b47e] tabular-nums shrink-0">
@@ -414,7 +415,7 @@ export function CommitteesSection() {
                       {item.isTbaName ? <TbaText text="TBA" className="text-lg" /> : null}
                     </p>
                     <p className="mt-0.5 font-mono text-[11px] text-[#cfc8aa]/75">
-                      {item.chamber}
+                      {displayCommitteeGroup(item.chamber)}
                       {item.abbreviation ? ` · ${item.abbreviation}` : ''}
                     </p>
                   </div>
