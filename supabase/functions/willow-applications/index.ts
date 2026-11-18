@@ -481,7 +481,9 @@ Deno.serve(async (req: Request) => {
   const isHead =
     headApplicationDepartmentAllowed &&
     ((actor.role === "department_head" && actorPerms["applications.view"] !== false) || isEbHead);
-  const canHeadRecommend = isHead && actorPerms["applications.recommend"] !== false;
+  // Super Admin inherits every Head capability from the same account.
+  const isSuperAdmin = actor.role === "super_admin";
+  const canHeadRecommend = isSuperAdmin || (isHead && actorPerms["applications.recommend"] !== false);
   const isHr = isHrProfile({ ...actor, department_slug: actorDeptSlug });
 
   async function enrichRowsWithConfidentialMedical(rows: any[]) {
@@ -651,7 +653,7 @@ Deno.serve(async (req: Request) => {
   }
 
   if (action === "recommend") {
-    if (!isHead || !canHeadRecommend) return json({ error: "Only an assigned Department Head can submit a recommendation." }, 403);
+    if (!canHeadRecommend) return json({ error: "You do not have permission to submit recommendations." }, 403);
     const id = String(body?.id || "").trim();
     const recommendation = String(body?.recommendation || "").trim().toLowerCase();
     const headNotes = String(body?.head_notes || "").trim().slice(0, 5000);
@@ -660,13 +662,17 @@ Deno.serve(async (req: Request) => {
     const { data: existing, error: fetchError } = await admin.from("wm_applications").select("*").eq("id", id).maybeSingle();
     if (fetchError || !existing) return json({ error: "Application not found." }, 404);
     const appDept = mapDepartment(existing.application_type, existing.department_id);
-    const actorGender = getActorGender(actor);
-    const appGender = String(existing.gender || "").trim().toLowerCase();
-    if (!actorDeptSlug || appDept.toLowerCase() !== actorDeptSlug) return json({ error: "You cannot recommend applications outside your assigned department." }, 403);
-    if (actorDeptSlug === "media-press" && (!actorApplicationType || String(existing.application_type || "").toLowerCase() !== actorApplicationType)) return json({ error: "Media and Press applications are isolated." }, 403);
-    if (!actorGender || appGender !== actorGender) return json({ error: "You cannot recommend applications outside your gender division." }, 403);
+    // Assigned Heads remain scoped to their department, track, and gender division.
+    // Super Admin may perform the same review action across all applications.
+    if (!isSuperAdmin) {
+      const actorGender = getActorGender(actor);
+      const appGender = String(existing.gender || "").trim().toLowerCase();
+      if (!actorDeptSlug || appDept.toLowerCase() !== actorDeptSlug) return json({ error: "You cannot recommend applications outside your assigned department." }, 403);
+      if (actorDeptSlug === "media-press" && (!actorApplicationType || String(existing.application_type || "").toLowerCase() !== actorApplicationType)) return json({ error: "Media and Press applications are isolated." }, 403);
+      if (!actorGender || appGender !== actorGender) return json({ error: "You cannot recommend applications outside your gender division." }, 403);
+    }
     if (existing.status !== "pending") return json({ error: "Only pending applications can receive or change a recommendation." }, 409);
-    if (existing.recommended_by && existing.recommended_by !== authData.user.id) return json({ error: "A Department Head has already submitted this recommendation. Contact an Admin if it needs to be changed." }, 409);
+    if (!isSuperAdmin && existing.recommended_by && existing.recommended_by !== authData.user.id) return json({ error: "A Department Head has already submitted this recommendation. Contact an Admin if it needs to be changed." }, 409);
     const { data: updated, error: updateError } = await admin.from("wm_applications").update({ head_recommendation: recommendation, head_notes: headNotes, recommended_by: authData.user.id, recommended_by_name: actor.full_name, recommended_at: new Date().toISOString() }).eq("id", id).eq("status", "pending").select("*").maybeSingle();
     if (updateError) return json({ error: updateError.message }, 400);
     if (!updated) return json({ error: "The application changed while you were submitting. Refresh and try again." }, 409);
