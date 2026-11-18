@@ -205,7 +205,7 @@ export function ExecutiveBoardAccountsView() {
   };
 
   const copySetupLink = async (account: Account) => {
-    if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(account.email.trim())) {
+    if (!/^[^\s@]+@[^\s@]+$/.test(account.email.trim())) {
       pushToast({
         tone: 'error',
         title: 'Valid email required',
