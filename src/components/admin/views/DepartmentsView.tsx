@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type FormEvent } from 'react';
 import { Building2, Edit2, UserPlus, X } from 'lucide-react';
 import { useAdminStore } from '../../../context/AdminStoreContext';
 import type { Department } from '../../../types/admin';
