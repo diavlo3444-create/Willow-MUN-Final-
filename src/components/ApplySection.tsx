@@ -30,6 +30,7 @@ type Track = (typeof tracks)[number]['id'];
 
 const empty = {
   applicant_name: '',
+  gender: '',
   email: '',
   phone: '',
   school: '',
@@ -189,6 +190,12 @@ export function ApplySection() {
                   onChange={(v) => set('applicant_name', v)}
                   required
                 />
+                <label className="block">
+                  <span className="mb-1.5 block text-xs font-medium text-[#c9c2a6]">Gender *</span>
+                  <select required value={form.gender} onChange={(e) => set('gender', e.target.value)} className="h-11 w-full rounded-[2px] border border-[#ede6ca]/22 bg-[#0e1208] px-3.5 text-sm text-[#ede6ca] outline-none focus:border-[#ede6ca]">
+                    <option value="">Select gender</option><option value="male">Male</option><option value="female">Female</option>
+                  </select>
+                </label>
                 <Field
                   label="Email address"
                   type="email"
