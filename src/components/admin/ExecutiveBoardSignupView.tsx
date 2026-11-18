@@ -38,7 +38,12 @@ export function ExecutiveBoardSignupView({ onNavigate }: { onNavigate: (path: st
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get('finish') === '1') void finishSignup();
+    if (params.get('finish') !== '1') return;
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) window.setTimeout(() => void finishSignup(), 0);
+    });
+    void finishSignup();
+    return () => listener.subscription.unsubscribe();
   }, []);
 
   const submit = async (event: FormEvent) => {
@@ -61,6 +66,10 @@ export function ExecutiveBoardSignupView({ onNavigate }: { onNavigate: (path: st
       setError(/already registered|already exists/i.test(signupError.message)
         ? 'An account already exists for this email. Use EB login or contact the Super Admin.'
         : signupError.message);
+      return;
+    }
+    if (data.user?.identities?.length === 0) {
+      setError('An account already exists for this email. Use EB login or contact the Super Admin.');
       return;
     }
     if (data.session) {
