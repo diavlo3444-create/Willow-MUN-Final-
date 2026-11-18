@@ -2,8 +2,8 @@
  * Pure helper functions for background video autoplay state and scroll-driven effects.
  */
 
-export const HERO_SCRIM_OPACITY = 0.4;
-export const SCROLLED_SCRIM_OPACITY = 0.75;
+export const HERO_SCRIM_OPACITY = 0.16;
+export const SCROLLED_SCRIM_OPACITY = 0.28;
 export const VIDEO_BASE_SCALE = 1.0;
 export const VIDEO_MAX_SCALE = 1.08;
 
@@ -26,7 +26,7 @@ export function shouldRetryAutoplay(ctx: AutoplayRetryContext): boolean {
 
 /**
  * Computes the dark olive scrim (#14180a) opacity over the fixed background video:
- * 0.40 at the very top, rising smoothly to 0.75 after one screen of scrolling, then staying there.
+ * 0.16 at the very top, rising smoothly to 0.28 after one screen of scrolling, then staying there.
  */
 export function computeOverlayOpacity(scrollY: number, viewportHeight: number): number {
   if (viewportHeight <= 0) {
