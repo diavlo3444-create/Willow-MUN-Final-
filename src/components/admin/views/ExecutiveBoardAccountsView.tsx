@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { Copy, X } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { useAdminStore } from '../../../context/AdminStoreContext';
 import { navigateTo } from '../../../utils/router';
@@ -63,7 +62,6 @@ export function ExecutiveBoardAccountsView() {
   const [password, setPassword] = useState('');
   const [permissions, setPermissions] = useState<EbPermissions>(EMPTY_PERMISSIONS);
   const [confirmDeleteTarget, setConfirmDeleteTarget] = useState<Account | null>(null);
-  const [manualSetupLink, setManualSetupLink] = useState<{ name: string; url: string } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -202,42 +200,6 @@ export function ExecutiveBoardAccountsView() {
     }
     pushToast({ tone: 'success', title: 'EB account removed', description: account.full_name });
     await load();
-  };
-
-  const copySetupLink = async (account: Account) => {
-    if (!/^[^\s@]+@[^\s@]+$/.test(account.email.trim())) {
-      pushToast({
-        tone: 'error',
-        title: 'Valid email required',
-        description: 'Update this EB roster entry with a valid email address before generating its private invitation.',
-      });
-      return;
-    }
-    if (!account.member_key) {
-      pushToast({ tone: 'error', title: 'Roster entry unavailable', description: 'Refresh the directory and try again.' });
-      return;
-    }
-    const { data, error: inviteError } = await supabase.functions.invoke('willow-staff-admin', {
-      body: { action: 'create_eb_invite', member_key: account.member_key },
-    });
-    if (inviteError || !data?.success || !data?.url) {
-      pushToast({
-        tone: 'error',
-        title: 'Invitation link could not be generated',
-        description: data?.error || inviteError?.message || 'Try again.',
-      });
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(data.url);
-      pushToast({
-        tone: 'success',
-        title: 'Personal EB invitation copied',
-        description: `This one-time link is tied to ${account.email}.`,
-      });
-    } catch {
-      setManualSetupLink({ name: account.full_name, url: data.url });
-    }
   };
 
   const openTestPortal = (account: Account) => {
@@ -478,13 +440,9 @@ export function ExecutiveBoardAccountsView() {
                       <span className="rounded-md border border-amber-400/25 bg-amber-400/[0.06] px-3 py-2 text-[11px] text-amber-200">
                         Awaiting signup
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => void copySetupLink(account)}
-                        className="rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-inset)] px-3 py-2 text-xs text-[color:var(--wm-ink)]"
-                      >
-                        Generate invite link
-                      </button>
+                      <span className="rounded-md border border-[color:var(--wm-hairline)] px-3 py-2 text-[11px] text-[color:var(--wm-ink-muted)]">
+                        Use the shared EB signup link
+                      </span>
                     </>
                   ) : (
                     <>
@@ -544,48 +502,7 @@ export function ExecutiveBoardAccountsView() {
         onCancel={() => setConfirmDeleteTarget(null)}
       />
 
-      {manualSetupLink && (
-        <div
-          className="fixed inset-0 z-[130] grid place-items-center bg-[#030906]/82 p-4 backdrop-blur-sm"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Personal setup link"
-          onClick={() => setManualSetupLink(null)}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-lg rounded-xl border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-surface)] p-5 shadow-2xl"
-          >
-            <div className="flex items-center justify-between border-b border-[color:var(--wm-hairline)] pb-3">
-              <h3 className="text-sm font-semibold text-[color:var(--wm-ink)]">
-                Setup Link · {manualSetupLink.name}
-              </h3>
-              <button
-                type="button"
-                onClick={() => setManualSetupLink(null)}
-                aria-label="Close setup link dialog"
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[color:var(--wm-ink-muted)] hover:bg-[color:var(--wm-inset)]"
-              >
-                <X className="h-4 w-4" aria-hidden="true" />
-              </button>
-            </div>
-            <div className="mt-4 break-all rounded-md border border-[color:var(--wm-hairline)] bg-[color:var(--wm-canvas)] p-3 font-mono text-xs text-[color:var(--wm-ink)]">
-              {manualSetupLink.url}
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                void navigator.clipboard?.writeText(manualSetupLink.url);
-                pushToast({ tone: 'success', title: 'Setup link copied' });
-                setManualSetupLink(null);
-              }}
-              className="mt-4 inline-flex h-9 items-center gap-2 rounded-md bg-[color:var(--wm-emerald)] px-4 text-xs font-semibold text-[#eef4ef]"
-            >
-              <Copy className="h-3.5 w-3.5" aria-hidden="true" /> Copy Link
-            </button>
-          </div>
-        </div>
-      )}
+
     </div>
   );
 }
