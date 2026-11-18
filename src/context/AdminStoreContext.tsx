@@ -874,12 +874,42 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
     (departmentId: string, patch: Partial<Department>) => {
       if (!currentUser) return false;
       const actingActor = testModeHeadUser ?? currentUser;
-      return handleResult(
-        conferenceDataService.updateDepartment(actingActor, departmentId, patch),
-        'Department updated',
-      );
+      const result = conferenceDataService.updateDepartment(actingActor, departmentId, patch);
+      const handled = handleResult(result, 'Department updated');
+
+      // Registration toggles must update the shared Supabase record, not only this browser's local snapshot.
+      if (
+        handled &&
+        Object.keys(patch).length === 1 &&
+        typeof patch.registrationOpen === 'boolean'
+      ) {
+        void supabase
+          .from('wm_departments')
+          .update({ registration_open: patch.registrationOpen })
+          .eq('id', departmentId)
+          .then(({ error }) => {
+            if (error) {
+              pushToast({
+                tone: 'error',
+                title: 'Registration change was not saved',
+                description: error.message,
+              });
+              return;
+            }
+            void loadLiveDepartments().then((departments) => {
+              setData((previous) => ({ ...previous, departments }));
+            }).catch((error) => {
+              pushToast({
+                tone: 'error',
+                title: 'Could not refresh registration status',
+                description: error instanceof Error ? error.message : 'Refresh failed.',
+              });
+            });
+          });
+      }
+      return handled;
     },
-    [currentUser, testModeHeadUser, handleResult],
+    [currentUser, testModeHeadUser, handleResult, pushToast, loadLiveDepartments],
   );
 
   const assignDepartmentHead = useCallback(
