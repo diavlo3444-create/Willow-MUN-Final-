@@ -40,6 +40,7 @@ import { SecretariatView } from '../views/SecretariatView';
 import { WebsiteCmsView } from '../views/WebsiteCmsView';
 import { WorkspaceModulesView } from '../views/WorkspaceModulesView';
 import { ExecutiveBoardAccountsView } from '../views/ExecutiveBoardAccountsView';
+import { EbSignupLinkView } from '../views/EbSignupLinkView';
 
 interface ExecutivePortalProps {
   portal: 'super_admin' | 'admin';
@@ -224,6 +225,10 @@ const SECTION_META: Record<string, { title: string; subtitle: string }> = {
     title: 'Executive Board Accounts',
     subtitle: 'Create EB logins and assign department-specific responsibilities and access levels.',
   },
+  'eb-signup-link': {
+    title: 'EB Sign Up Link',
+    subtitle: 'One permanent signup link for every approved Executive Board member.',
+  },
   testing: {
     title: 'Department Access Testing Mode',
     subtitle: 'Preview /head isolated as any selected Department Head account.',
@@ -247,7 +252,7 @@ export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePorta
   const authorizedForPortal = currentUser !== null && canAccessPortal(currentUser, portal);
   const isSuperAdmin = canManageAccountsOrRoles(currentUser);
 
-  const isSuperOnlyRoute = section === 'admins' || section === 'testing' || section === 'eb-accounts';
+  const isSuperOnlyRoute = section === 'admins' || section === 'testing' || section === 'eb-accounts' || section === 'eb-signup-link';
   const attemptedForbiddenSuperRoute = authorizedForPortal && !isSuperAdmin && isSuperOnlyRoute;
   const westPortalSections = new Set([
     'dashboard',
@@ -272,6 +277,7 @@ export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePorta
     'settings',
     'admins',
     'eb-accounts',
+    'eb-signup-link',
     'testing',
   ]);
   const unsupportedPortalSection = !westPortalSections.has(section);
@@ -473,6 +479,8 @@ export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePorta
         <RolesPermissionsView section="permission-defs" />
       ) : section === 'eb-accounts' ? (
         <ExecutiveBoardAccountsView />
+      ) : section === 'eb-signup-link' ? (
+        isSuperAdmin ? <EbSignupLinkView /> : renderDenied('Only the Super Admin can access the EB signup link.')
       ) : section === 'testing' ? (
         <DepartmentTestingView />
       ) : (
