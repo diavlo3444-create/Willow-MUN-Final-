@@ -170,7 +170,7 @@ class MockConferenceAdminService implements IConferenceAdminRepository {
             : 'This account has been suspended. Contact a Super Admin.',
       };
     }
-    if (expectedPortal && !canAccessPortal(user, expectedPortal)) {
+    if (expectedPortal && !canAccessPortal(user, expectedPortal, this.snapshot.departments)) {
       return {
         ok: false,
         error: `Your role (${user.title}) does not have access to the selected portal.`,

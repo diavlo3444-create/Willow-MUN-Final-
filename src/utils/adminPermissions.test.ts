@@ -14,9 +14,11 @@ import {
   getActorGenderScope,
   getNavigationGroups,
   getPortalHomeRoute,
+  getPortalHomeRouteForUser,
   hasPermission,
   isDccActor,
   isHrActor,
+  isSecurityAccount,
   resolveUserPermissions,
   SUPER_ADMIN_PERMISSIONS,
 } from './adminPermissions';
@@ -350,5 +352,56 @@ test('resolveUserPermissions strips superAdminOnly keys for non-super-admins', (
   assert.equal(escalated['testing.impersonate_head'], false);
   assert.equal(escalated['committees.manage'], true);
 });
+
+test('Security accounts get dedicated /security scanner portal without admin privileges', () => {
+  const departments: Department[] = [
+    {
+      id: '33333333-3333-3333-3333-333333333333',
+      slug: 'security',
+      name: 'Security',
+      cluster: 'Logistics & Administration',
+      description: '',
+      headUserIds: [],
+      registrationOpen: true,
+      capacity: 15,
+      positions: [],
+      instructions: '',
+      updatedAt: '',
+    },
+  ];
+
+  const securityGuard = makeUser({
+    role: 'executive_board',
+    departmentId: '33333333-3333-3333-3333-333333333333',
+    title: 'Entrance Security Officer',
+    ebRank: 'member',
+    permissions: resolveUserPermissions('executive_board', { 'applications.view': false, 'qr.scan': true }, 'member', { scan_qr: true }, 'Entrance Security Officer'),
+  });
+
+  assert.equal(isSecurityAccount(securityGuard, departments), true);
+  assert.equal(canAccessPortal(securityGuard, 'security', departments), true);
+  assert.equal(canAccessPortal(securityGuard, 'admin', departments), false);
+  assert.equal(canAccessPortal(securityGuard, 'super_admin', departments), false);
+  assert.equal(hasPermission(securityGuard, 'qr.scan', departments), true);
+  assert.equal(hasPermission(securityGuard, 'qr.manage', departments), false);
+  assert.equal(hasPermission(securityGuard, 'accounts.manage_admins', departments), false);
+  assert.equal(hasPermission(securityGuard, 'applications.review', departments), false);
+  assert.equal(getPortalHomeRouteForUser(securityGuard, departments), '/security');
+
+  const secNav = getNavigationGroups(securityGuard, 'security', departments);
+  assert.deepEqual(
+    secNav[0].items.map((i) => i.id),
+    ['scanner', 'history', 'qr'],
+  );
+
+  const regularAdmin = makeUser({
+    role: 'admin',
+    permissions: { ...ADMIN_DEFAULT_PERMISSIONS },
+  });
+  assert.equal(isSecurityAccount(regularAdmin, departments), false);
+  assert.equal(canAccessPortal(regularAdmin, 'security', departments), false);
+  assert.equal(canAccessPortal(regularAdmin, 'admin', departments), true);
+});
+
 
 

@@ -575,6 +575,26 @@ export function isDccActor(user: AdminUser | null | undefined, departments?: Dep
   );
 }
 
+export function isSecurityAccount(
+  user: AdminUser | null | undefined,
+  departments?: Department[],
+): boolean {
+  if (!user || !user.isActive || user.status !== 'active') return false;
+  if (user.role === 'super_admin') return true;
+  if (user.role === 'department_head') {
+    return (
+      getActorDepartmentSlug(user, departments) === 'security' &&
+      user.permissions?.['qr.scan'] !== false
+    );
+  }
+  if (user.role === 'executive_board') {
+    const deptSlug = getActorDepartmentSlug(user, departments);
+    if (deptSlug === 'security' && user.permissions?.['qr.scan'] !== false) return true;
+    return Boolean(user.permissions?.['qr.scan'] || user.ebPermissions?.scan_qr);
+  }
+  return false;
+}
+
 /**
  * Enforces that ONLY Super Admins can ever exercise account, role, or testing privileges,
  * regardless of UI state or manually mutated permission objects.
@@ -608,6 +628,12 @@ export function hasPermission(
     if (permission === 'qr.view_pass') {
       return user.permissions?.['qr.view_pass'] !== false;
     }
+    if (permission === 'qr.scan') {
+      return (
+        getActorDepartmentSlug(user, departments) === 'security' &&
+        user.permissions?.['qr.scan'] !== false
+      );
+    }
     if (permission === 'committees.manage') {
       return isDccActor(user, departments);
     }
@@ -639,7 +665,11 @@ export function hasPermission(
       return user.permissions?.['qr.view_pass'] !== false;
     }
     if (permission === 'qr.scan') {
-      return Boolean(user.permissions?.['qr.scan'] || user.ebPermissions?.scan_qr);
+      const deptSlug = getActorDepartmentSlug(user, departments);
+      return (
+        (deptSlug === 'security' && user.permissions?.['qr.scan'] !== false) ||
+        Boolean(user.permissions?.['qr.scan'] || user.ebPermissions?.scan_qr)
+      );
     }
     return false;
   }
@@ -651,7 +681,11 @@ export function canManageAccountsOrRoles(user: AdminUser | null | undefined): bo
   return Boolean(user && user.isActive && user.status === 'active' && user.role === 'super_admin');
 }
 
-export function canAccessPortal(user: AdminUser | null | undefined, portal: PortalKey): boolean {
+export function canAccessPortal(
+  user: AdminUser | null | undefined,
+  portal: PortalKey,
+  departments?: Department[],
+): boolean {
   if (!user || !user.isActive || user.status !== 'active') return false;
   if (user.role === 'super_admin') return true;
   if (portal === 'admin') return user.role === 'admin';
@@ -659,6 +693,7 @@ export function canAccessPortal(user: AdminUser | null | undefined, portal: Port
     return user.role === 'department_head' || user.role === 'executive_board';
   }
   if (portal === 'executive_board') return user.role === 'executive_board';
+  if (portal === 'security') return isSecurityAccount(user, departments);
   return false;
 }
 
@@ -804,12 +839,27 @@ export function getPortalHomeRoute(role: RoleType): string {
   }
 }
 
+export function getPortalHomeRouteForUser(
+  user: AdminUser | null | undefined,
+  departments?: Department[],
+): string {
+  if (!user) return '/portal';
+  if (user.role === 'super_admin') return '/super-admin';
+  if (user.role === 'admin') return '/admin';
+  if (isSecurityAccount(user, departments) && !hasPermission(user, 'applications.view', departments)) {
+    return '/security';
+  }
+  return '/head';
+}
+
 export function getPortalBasePath(portal: PortalKey): string {
   switch (portal) {
     case 'super_admin':
       return '/super-admin';
     case 'admin':
       return '/admin';
+    case 'security':
+      return '/security';
     case 'department_head':
     case 'executive_board':
       return '/head';
@@ -836,14 +886,27 @@ export function getNavigationGroups(
   portal: PortalKey,
   departments?: Department[],
 ): NavGroupConfig[] {
-  if (!user || !canAccessPortal(user, portal)) return [];
+  if (!user || !canAccessPortal(user, portal, departments)) return [];
 
   const base = getPortalBasePath(portal);
   const isSuper = user.role === 'super_admin';
 
+  if (portal === 'security') {
+    const items: NavItemConfig[] = [
+      { id: 'scanner', label: 'Live QR Scanner', path: '/security' },
+      { id: 'history', label: 'Scan History', path: '/security/history' },
+      { id: 'qr', label: 'My QR', path: '/security/qr', requiredPermission: 'qr.view_pass' },
+    ];
+    const visible = items.filter((item) => !item.requiredPermission || hasPermission(user, item.requiredPermission, departments));
+    return visible.length ? [{ id: 'security-entrance', label: 'Entrance Security', items: visible }] : [];
+  }
+
   if (portal === 'department_head' || portal === 'executive_board') {
     const items: NavItemConfig[] = [
       { id: 'applications', label: 'Applications', path: '/head/applications', requiredPermission: 'applications.view' },
+      ...(isSecurityAccount(user, departments)
+        ? [{ id: 'scanner', label: 'Entrance Scanner', path: '/head/scanner', requiredPermission: 'qr.scan' } satisfies NavItemConfig]
+        : []),
       ...(isHrActor(user, departments)
         ? [{ id: 'hr-accepted', label: 'Accepted Applicants', path: '/head/hr-accepted' } satisfies NavItemConfig]
         : []),
@@ -869,8 +932,8 @@ export function getNavigationGroups(
           ? [{ id: 'hr-accepted', label: 'Accepted Applicants', path: base + '/hr-accepted' } satisfies NavItemConfig]
           : []),
         { id: 'reports', label: 'Reports', path: base + '/reports', requiredPermission: 'reports.view' },
-        { id: 'attendance', label: 'Checked-In People', path: base + '/attendance', requiredPermission: 'qr.manage' },
-        { id: 'qr', label: 'Security & QR', path: base + '/qr', requiredPermission: 'qr.view_pass' },
+        { id: 'qr', label: 'QR Pass Scanner', path: base + '/qr', requiredPermission: 'qr.view_pass' },
+        { id: 'attendance', label: 'Check-In Records', path: base + '/attendance', requiredPermission: 'qr.manage' },
       ],
     },
     ...(isSuper

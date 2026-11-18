@@ -1,0 +1,454 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import jsQR from 'jsqr';
+import {
+  AlertTriangle,
+  Camera,
+  CameraOff,
+  Loader2,
+  RefreshCw,
+  SwitchCamera,
+  VideoOff,
+} from 'lucide-react';
+
+export type CameraScannerState =
+  | 'idle'
+  | 'requesting'
+  | 'active'
+  | 'permission_denied'
+  | 'no_camera'
+  | 'error';
+
+interface QrCameraScannerProps {
+  onDetectToken: (token: string) => void | Promise<void>;
+  busy?: boolean;
+  size?: 'panel' | 'hero';
+  autoStart?: boolean;
+  pauseWhenLocked?: boolean;
+}
+
+export function QrCameraScanner({
+  onDetectToken,
+  busy = false,
+  size = 'panel',
+  autoStart = false,
+  pauseWhenLocked = false,
+}: QrCameraScannerProps) {
+  const [cameraState, setCameraState] = useState<CameraScannerState>('idle');
+  const [statusError, setStatusError] = useState<string>('');
+  const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
+  const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
+  const [lastScannedHint, setLastScannedHint] = useState<string | null>(null);
+
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const lastReadRef = useRef<{ token: string; at: number }>({ token: '', at: 0 });
+  const busyRef = useRef(busy);
+  busyRef.current = busy;
+  const pausedRef = useRef(pauseWhenLocked);
+  pausedRef.current = pauseWhenLocked;
+  const onDetectRef = useRef(onDetectToken);
+  onDetectRef.current = onDetectToken;
+
+  const stopStream = useCallback(() => {
+    if (rafRef.current !== null) {
+      window.cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+  }, []);
+
+  const refreshCameraList = useCallback(async () => {
+    try {
+      if (!navigator.mediaDevices?.enumerateDevices) return;
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = devices.filter((d) => d.kind === 'videoinput');
+      setCameras(videoDevices);
+    } catch {
+      // Ignore enumerate failure
+    }
+  }, []);
+
+  const startCamera = useCallback(
+    async (overrideDeviceId?: string, overrideFacing?: 'environment' | 'user') => {
+      stopStream();
+      setStatusError('');
+
+      if (
+        typeof navigator === 'undefined' ||
+        !navigator.mediaDevices ||
+        !navigator.mediaDevices.getUserMedia
+      ) {
+        setCameraState('error');
+        setStatusError(
+          'Live camera access requires a modern browser over HTTPS (or localhost). Use manual token entry below as fallback.',
+        );
+        return;
+      }
+
+      setCameraState('requesting');
+      const targetDevice = overrideDeviceId !== undefined ? overrideDeviceId : selectedDeviceId;
+      const targetFacing = overrideFacing ?? facingMode;
+
+      const videoConstraint: MediaTrackConstraints = targetDevice
+        ? {
+            deviceId: { exact: targetDevice },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          }
+        : {
+            facingMode: { ideal: targetFacing },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          };
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: videoConstraint,
+          audio: false,
+        });
+
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.setAttribute('playsinline', 'true');
+          await videoRef.current.play();
+        }
+
+        const activeTrack = stream.getVideoTracks()[0];
+        const activeDeviceId = activeTrack?.getSettings?.().deviceId;
+        if (activeDeviceId && !targetDevice) {
+          setSelectedDeviceId(activeDeviceId);
+        }
+
+        await refreshCameraList();
+        setCameraState('active');
+      } catch (err: any) {
+        const name = String(err?.name || '');
+        const msg = String(err?.message || '').toLowerCase();
+        if (
+          name === 'NotAllowedError' ||
+          name === 'PermissionDeniedError' ||
+          msg.includes('permission') ||
+          msg.includes('denied')
+        ) {
+          setCameraState('permission_denied');
+          setStatusError(
+            'Camera permission was blocked. Allow camera access in your browser site settings, then click Retry Camera.',
+          );
+        } else if (
+          name === 'NotFoundError' ||
+          name === 'DevicesNotFoundError' ||
+          name === 'OverconstrainedError'
+        ) {
+          if (targetDevice) {
+            // Selected device disappeared; retry default camera once
+            setSelectedDeviceId('');
+            setCameraState('idle');
+            void startCamera('', targetFacing);
+            return;
+          }
+          setCameraState('no_camera');
+          setStatusError(
+            'No usable camera was detected on this device. Enter the QR pass code manually below.',
+          );
+        } else if (name === 'NotReadableError' || name === 'TrackStartError') {
+          setCameraState('error');
+          setStatusError(
+            'Camera is currently in use by another app or tab. Close the other camera app and try again.',
+          );
+        } else {
+          setCameraState('error');
+          setStatusError(err?.message || 'Unable to start camera feed.');
+        }
+      }
+    },
+    [facingMode, refreshCameraList, selectedDeviceId, stopStream],
+  );
+
+  const stopCamera = useCallback(() => {
+    stopStream();
+    setCameraState('idle');
+    setStatusError('');
+  }, [stopStream]);
+
+  useEffect(() => {
+    if (autoStart) {
+      void startCamera();
+    }
+    return () => {
+      stopStream();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Cross-browser QR scan loop (BarcodeDetector fast path + universal jsQR canvas decoder)
+  useEffect(() => {
+    if (cameraState !== 'active') return;
+
+    let cancelled = false;
+    let lastAttemptMs = 0;
+    const NativeDetector = (window as any).BarcodeDetector;
+    const detector = NativeDetector ? new NativeDetector({ formats: ['qr_code'] }) : null;
+
+    if (!canvasRef.current) {
+      canvasRef.current = document.createElement('canvas');
+    }
+
+    const emitDecoded = (rawToken: string) => {
+      const cleaned = rawToken.trim();
+      if (!cleaned) return;
+      const now = Date.now();
+      // Prevent repeated duplicate triggers while a QR stays in front of the lens
+      if (
+        lastReadRef.current.token.toUpperCase() === cleaned.toUpperCase() &&
+        now - lastReadRef.current.at < 3000
+      ) {
+        return;
+      }
+      lastReadRef.current = { token: cleaned, at: now };
+      setLastScannedHint(cleaned);
+      window.setTimeout(() => setLastScannedHint(null), 1600);
+      void onDetectRef.current(cleaned);
+    };
+
+    const tick = async (ts: number) => {
+      if (cancelled) return;
+      rafRef.current = window.requestAnimationFrame((nextTs) => void tick(nextTs));
+
+      if (ts - lastAttemptMs < 115) return;
+      lastAttemptMs = ts;
+
+      if (busyRef.current || pausedRef.current) return;
+      const video = videoRef.current;
+      if (!video || video.readyState < 2 || video.videoWidth === 0 || video.videoHeight === 0) {
+        return;
+      }
+
+      if (detector) {
+        try {
+          const codes = await detector.detect(video);
+          const raw = codes?.[0]?.rawValue;
+          if (raw) {
+            emitDecoded(String(raw));
+            return;
+          }
+        } catch {
+          // Fall back to jsQR on the frame
+        }
+      }
+
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const maxDim = 640;
+      const scale = Math.min(1, maxDim / Math.max(video.videoWidth, video.videoHeight));
+      const w = Math.max(1, Math.floor(video.videoWidth * scale));
+      const h = Math.max(1, Math.floor(video.videoHeight * scale));
+      if (canvas.width !== w || canvas.height !== h) {
+        canvas.width = w;
+        canvas.height = h;
+      }
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      if (!ctx) return;
+      ctx.drawImage(video, 0, 0, w, h);
+      const imageData = ctx.getImageData(0, 0, w, h);
+      const decoded = jsQR(imageData.data, w, h, { inversionAttempts: 'attemptBoth' });
+      if (decoded?.data) {
+        emitDecoded(decoded.data);
+      }
+    };
+
+    rafRef.current = window.requestAnimationFrame((ts) => void tick(ts));
+    return () => {
+      cancelled = true;
+      if (rafRef.current !== null) {
+        window.cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+    };
+  }, [cameraState]);
+
+  const handleSwitchCamera = () => {
+    if (cameras.length > 1) {
+      const idx = cameras.findIndex((c) => c.deviceId === selectedDeviceId);
+      const next = cameras[(idx + 1) % cameras.length];
+      setSelectedDeviceId(next.deviceId);
+      void startCamera(next.deviceId);
+      return;
+    }
+    const nextFacing = facingMode === 'environment' ? 'user' : 'environment';
+    setFacingMode(nextFacing);
+    setSelectedDeviceId('');
+    void startCamera('', nextFacing);
+  };
+
+  const frameHeightClass =
+    size === 'hero'
+      ? 'aspect-[4/3] sm:aspect-[16/10] min-h-[260px] max-h-[460px]'
+      : 'aspect-video min-h-[220px] max-h-[340px]';
+
+  return (
+    <div className="space-y-3">
+      {/* Camera Toolbar */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {cameraState === 'active' ? (
+            <button
+              type="button"
+              onClick={stopCamera}
+              className="inline-flex h-9 items-center gap-2 rounded-md border border-rose-400/35 bg-rose-950/35 px-3 text-xs font-medium text-rose-200 transition-colors hover:bg-rose-950/55"
+            >
+              <CameraOff className="h-3.5 w-3.5" aria-hidden="true" />
+              Stop Camera
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={cameraState === 'requesting'}
+              onClick={() => void startCamera()}
+              className="inline-flex h-9 items-center gap-2 rounded-md bg-[color:var(--wm-emerald)] px-3.5 text-xs font-semibold text-[#eef4ef] transition-colors hover:bg-[#357a5b] disabled:opacity-60"
+            >
+              {cameraState === 'requesting' ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+              ) : (
+                <Camera className="h-3.5 w-3.5" aria-hidden="true" />
+              )}
+              {cameraState === 'requesting'
+                ? 'Requesting Camera…'
+                : cameraState === 'permission_denied' || cameraState === 'error'
+                  ? 'Retry Camera'
+                  : 'Start Camera Scanner'}
+            </button>
+          )}
+
+          {(cameraState === 'active' || cameras.length > 1) && (
+            <button
+              type="button"
+              onClick={handleSwitchCamera}
+              className="inline-flex h-9 items-center gap-1.5 rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-inset)] px-3 text-xs font-medium text-[color:var(--wm-focal)] transition-colors hover:bg-[color:var(--wm-overlay)]"
+            >
+              <SwitchCamera className="h-3.5 w-3.5" aria-hidden="true" />
+              Switch Camera
+            </button>
+          )}
+        </div>
+
+        {cameras.length > 1 && (
+          <select
+            aria-label="Select camera device"
+            value={selectedDeviceId}
+            onChange={(e) => {
+              const id = e.target.value;
+              setSelectedDeviceId(id);
+              if (cameraState === 'active') void startCamera(id);
+            }}
+            className="h-9 max-w-[220px] rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-canvas)] px-2.5 text-[11px] text-[color:var(--wm-ink)]"
+          >
+            <option value="">Auto camera ({facingMode === 'environment' ? 'Rear' : 'Front'})</option>
+            {cameras.map((cam, idx) => (
+              <option key={cam.deviceId || idx} value={cam.deviceId}>
+                {cam.label || `Camera ${idx + 1}`}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+
+      {/* Live Video & Viewfinder Stage */}
+      <div
+        className={`relative w-full overflow-hidden rounded-lg border border-[color:var(--wm-hairline-strong)] bg-[#040906] ${frameHeightClass}`}
+      >
+        <video
+          ref={videoRef}
+          muted
+          playsInline
+          className={`h-full w-full object-cover ${cameraState === 'active' ? 'block' : 'hidden'}`}
+        />
+
+        {/* Viewfinder Overlay when active */}
+        {cameraState === 'active' && (
+          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+            <div className="relative h-44 w-44 sm:h-52 sm:w-52">
+              <span className="absolute left-0 top-0 h-7 w-7 border-l-2 border-t-2 border-[#ede6ca]" />
+              <span className="absolute right-0 top-0 h-7 w-7 border-r-2 border-t-2 border-[#ede6ca]" />
+              <span className="absolute bottom-0 left-0 h-7 w-7 border-b-2 border-l-2 border-[#ede6ca]" />
+              <span className="absolute bottom-0 right-0 h-7 w-7 border-b-2 border-r-2 border-[#ede6ca]" />
+              {!pauseWhenLocked && !busy && (
+                <div className="absolute inset-x-3 top-1/2 h-[1.5px] bg-[#74c69d]/85 shadow-[0_0_8px_rgba(116,198,157,0.7)]" />
+              )}
+            </div>
+            <div className="mt-4 rounded-md border border-white/15 bg-black/70 px-3 py-1 text-[10px] font-mono uppercase tracking-[0.16em] text-[#ede6ca]">
+              {busy
+                ? 'Validating pass with server…'
+                : pauseWhenLocked
+                  ? 'Confirm or clear current pass before next scan'
+                  : lastScannedHint
+                    ? 'QR detected — verifying…'
+                    : 'Align Willow MUN QR pass inside frame'}
+            </div>
+          </div>
+        )}
+
+        {/* Idle / Permission / Error States */}
+        {cameraState !== 'active' && (
+          <div className="flex h-full min-h-[220px] flex-col items-center justify-center p-6 text-center">
+            {cameraState === 'requesting' ? (
+              <>
+                <Loader2 className="h-8 w-8 animate-spin text-[color:var(--wm-accent)]" aria-hidden="true" />
+                <p className="mt-3 text-xs font-medium text-[color:var(--wm-ink)]">
+                  Requesting camera access…
+                </p>
+                <p className="mt-1 max-w-xs text-[11px] text-[color:var(--wm-ink-muted)]">
+                  Approve the browser prompt to enable live QR code detection.
+                </p>
+              </>
+            ) : cameraState === 'permission_denied' ? (
+              <>
+                <AlertTriangle className="h-8 w-8 text-amber-300" aria-hidden="true" />
+                <p className="mt-3 text-xs font-semibold text-amber-100">Camera Permission Denied</p>
+                <p className="mt-1.5 max-w-sm text-[11px] leading-relaxed text-[color:var(--wm-ink-secondary)]">
+                  {statusError}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void startCamera()}
+                  className="mt-4 inline-flex h-8 items-center gap-1.5 rounded-md border border-amber-400/40 bg-amber-500/15 px-3 text-[11px] font-medium text-amber-100 hover:bg-amber-500/25"
+                >
+                  <RefreshCw className="h-3 w-3" aria-hidden="true" /> Retry Camera Permission
+                </button>
+              </>
+            ) : cameraState === 'no_camera' || cameraState === 'error' ? (
+              <>
+                <VideoOff className="h-8 w-8 text-rose-300" aria-hidden="true" />
+                <p className="mt-3 text-xs font-semibold text-rose-100">
+                  {cameraState === 'no_camera' ? 'No Camera Available' : 'Camera Unavailable'}
+                </p>
+                <p className="mt-1.5 max-w-sm text-[11px] leading-relaxed text-[color:var(--wm-ink-secondary)]">
+                  {statusError}
+                </p>
+              </>
+            ) : (
+              <>
+                <Camera className="h-9 w-9 text-[color:var(--wm-accent)]" aria-hidden="true" />
+                <p className="mt-3 text-xs font-semibold text-[color:var(--wm-ink)]">
+                  Camera Scanner Standby
+                </p>
+                <p className="mt-1 max-w-sm text-[11px] leading-relaxed text-[color:var(--wm-ink-muted)]">
+                  Works on mobile rear cameras and desktop webcams. Tap Start Camera Scanner above or enter a token manually below.
+                </p>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

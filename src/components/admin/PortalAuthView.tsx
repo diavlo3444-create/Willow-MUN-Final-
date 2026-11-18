@@ -1,9 +1,9 @@
 import { useState, type FormEvent } from 'react';
 import { motion } from 'motion/react';
-import { ArrowLeft, ArrowRight, Building2, Eye, EyeOff, Loader2, LockKeyhole, ShieldCheck, UserCheck } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Building2, Eye, EyeOff, Loader2, LockKeyhole, QrCode, ShieldCheck, UserCheck } from 'lucide-react';
 import { useAdminStore } from '../../context/AdminStoreContext';
 import type { PortalKey } from '../../types/admin';
-import { getPortalHomeRoute, getRoleLabel } from '../../utils/adminPermissions';
+import { getPortalHomeRouteForUser, getRoleLabel, isSecurityAccount } from '../../utils/adminPermissions';
 
 interface PortalAuthViewProps {
   portal?: PortalKey;
@@ -69,10 +69,22 @@ const META: Record<
       { title: 'Personal My QR', copy: 'Access and download your permanent conference entrance QR.' },
     ],
   },
+  security: {
+    title: 'Security Entrance Scanner',
+    eyebrow: 'Security operations',
+    heading: 'Fast, verified entrance pass control.',
+    description: 'Sign in with an authorized Security account to scan conference QR passes, confirm attendee eligibility, and log gate entry.',
+    icon: QrCode,
+    features: [
+      { title: 'Live camera QR scanning', copy: 'Supports mobile rear cameras, webcams, and manual token verification.' },
+      { title: 'Strict pass verification', copy: 'Detects valid, already checked-in, revoked, ineligible, and invalid passes.' },
+      { title: 'Privacy-preserving view', copy: 'Shows only attendee verification details needed at the conference gate.' },
+    ],
+  },
 };
 
 export function PortalAuthView({ portal, onNavigate }: PortalAuthViewProps) {
-  const { currentUser, signInWithCredentials, signOut } = useAdminStore();
+  const { currentUser, data, signInWithCredentials, signOut } = useAdminStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -91,7 +103,11 @@ export function PortalAuthView({ portal, onNavigate }: PortalAuthViewProps) {
         setErrorMsg(result.error ?? 'Authentication failed. Check your details and try again.');
         return;
       }
-      if (!portal) onNavigate(getPortalHomeRoute(result.data.role));
+      if (!portal) {
+        onNavigate(getPortalHomeRouteForUser(result.data, data.departments));
+      } else if (portal === 'security') {
+        onNavigate('/security');
+      }
     } catch {
       setErrorMsg('Sign-in failed. Check your connection and try again.');
     } finally {
@@ -103,6 +119,7 @@ export function PortalAuthView({ portal, onNavigate }: PortalAuthViewProps) {
     if (!portal) return true;
     if (portal === 'admin') return role === 'admin' || role === 'super_admin';
     if (portal === 'department_head') return role === 'department_head' || role === 'executive_board';
+    if (portal === 'security') return isSecurityAccount(currentUser, data.departments);
     return role === portal;
   };
   const wrongRole = Boolean(portal && currentUser && !hasAccess(currentUser.role));
@@ -214,7 +231,7 @@ export function PortalAuthView({ portal, onNavigate }: PortalAuthViewProps) {
               <div className="mt-3 flex flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={() => onNavigate(getPortalHomeRoute(currentUser.role))}
+                  onClick={() => onNavigate(getPortalHomeRouteForUser(currentUser, data.departments))}
                   className="rounded-md bg-[color:var(--wm-emerald)] px-3 py-2 text-[11px] font-semibold text-[#eef4ef] hover:bg-[#357a5b]"
                 >
                   Open my portal <ArrowRight className="ml-1 inline h-3 w-3" />

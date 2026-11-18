@@ -22,9 +22,10 @@ import { HeadPasswordSetupView } from './components/admin/HeadPasswordSetupView'
 import { ToastViewport } from './components/admin/ToastViewport';
 import { AdminPortal } from './components/admin/portals/AdminPortal';
 import { DepartmentHeadPortal } from './components/admin/portals/DepartmentHeadPortal';
+import { SecurityScannerPortal } from './components/admin/portals/SecurityScannerPortal';
 import { SuperAdminPortal } from './components/admin/portals/SuperAdminPortal';
 import { AdminStoreProvider, useAdminStore } from './context/AdminStoreContext';
-import { canAccessPortal, getPortalHomeRoute } from './utils/adminPermissions';
+import { canAccessPortal, getPortalHomeRouteForUser } from './utils/adminPermissions';
 import type { PortalKey } from './types/admin';
 import { isAdminRoute, usePathname } from './utils/router';
 
@@ -90,38 +91,54 @@ function PublicWebsite() {
 }
 
 function AdminRouter({ pathname, navigate }: { pathname: string; navigate: (path: string) => void }) {
-  const { currentUser, authReady } = useAdminStore();
+  const { currentUser, authReady, data } = useAdminStore();
   const isLegacyEbRoute = pathname === '/eb' || pathname.startsWith('/eb/');
   const requestedPortal: PortalKey | null =
     pathname === '/super-admin' || pathname.startsWith('/super-admin/') ? 'super_admin' :
     pathname === '/admin' || pathname.startsWith('/admin/') ? 'admin' :
+    pathname === '/security' || pathname.startsWith('/security/') ? 'security' :
     pathname === '/head' || pathname.startsWith('/head/') || isLegacyEbRoute ? 'department_head' : null;
-  const loginPortal: PortalKey | undefined = pathname === '/admin-login' ? 'admin' : pathname === '/eb-login' ? 'executive_board' : pathname === '/head-login' ? 'department_head' : pathname === '/super-admin-login' ? 'super_admin' : undefined;
+  const loginPortal: PortalKey | undefined =
+    pathname === '/admin-login' ? 'admin' :
+    pathname === '/eb-login' ? 'executive_board' :
+    pathname === '/head-login' ? 'department_head' :
+    pathname === '/super-admin-login' ? 'super_admin' :
+    pathname === '/security-login' ? 'security' : undefined;
   const isEbSignup = pathname === '/eb-signup';
   const isHeadSetup = pathname === '/head-setup';
 
   useEffect(() => {
     if (!authReady || isHeadSetup) return;
     if (!currentUser && requestedPortal) {
-      navigate(isLegacyEbRoute ? '/eb-login' : requestedPortal === 'department_head' ? '/head-login' : requestedPortal === 'super_admin' ? '/super-admin-login' : '/admin-login');
+      navigate(
+        isLegacyEbRoute ? '/eb-login' :
+        requestedPortal === 'department_head' ? '/head-login' :
+        requestedPortal === 'super_admin' ? '/super-admin-login' :
+        requestedPortal === 'security' ? '/security-login' :
+        '/admin-login'
+      );
       return;
     }
     if (currentUser && loginPortal) {
-      navigate(getPortalHomeRoute(currentUser.role));
+      if (loginPortal === 'security' && canAccessPortal(currentUser, 'security', data.departments)) {
+        navigate('/security');
+      } else {
+        navigate(getPortalHomeRouteForUser(currentUser, data.departments));
+      }
       return;
     }
     if (currentUser && !requestedPortal && !loginPortal) {
-      navigate(getPortalHomeRoute(currentUser.role));
+      navigate(getPortalHomeRouteForUser(currentUser, data.departments));
       return;
     }
-    if (currentUser && isLegacyEbRoute && canAccessPortal(currentUser, 'department_head')) {
+    if (currentUser && isLegacyEbRoute && canAccessPortal(currentUser, 'department_head', data.departments)) {
       navigate(pathname.replace(/^\/eb(?=\/|$)/, '/head'));
       return;
     }
-    if (currentUser && requestedPortal && !canAccessPortal(currentUser, requestedPortal)) {
-      navigate(getPortalHomeRoute(currentUser.role));
+    if (currentUser && requestedPortal && !canAccessPortal(currentUser, requestedPortal, data.departments)) {
+      navigate(getPortalHomeRouteForUser(currentUser, data.departments));
     }
-  }, [authReady, currentUser, requestedPortal, loginPortal, navigate, isHeadSetup, isLegacyEbRoute, pathname]);
+  }, [authReady, currentUser, data.departments, requestedPortal, loginPortal, navigate, isHeadSetup, isLegacyEbRoute, pathname]);
 
   if (!authReady) {
     return (
@@ -134,7 +151,7 @@ function AdminRouter({ pathname, navigate }: { pathname: string; navigate: (path
     );
   }
 
-  if (requestedPortal && (!currentUser || !canAccessPortal(currentUser, requestedPortal))) return null;
+  if (requestedPortal && (!currentUser || !canAccessPortal(currentUser, requestedPortal, data.departments))) return null;
   if (!requestedPortal && currentUser && !isHeadSetup) return null;
 
   return (
@@ -143,6 +160,8 @@ function AdminRouter({ pathname, navigate }: { pathname: string; navigate: (path
         <SuperAdminPortal pathname={pathname} onNavigate={navigate} />
       ) : requestedPortal === 'admin' ? (
         <AdminPortal pathname={pathname} onNavigate={navigate} />
+      ) : requestedPortal === 'security' ? (
+        <SecurityScannerPortal pathname={pathname} onNavigate={navigate} />
       ) : requestedPortal === 'department_head' ? (
         <DepartmentHeadPortal
           pathname={isLegacyEbRoute ? pathname.replace(/^\/eb(?=\/|$)/, '/head') : pathname}

@@ -729,3 +729,287 @@ export async function fetchPersonalQrPass(
     source: 'local',
   };
 }
+
+// =========================================================
+// LIVE QR PASS SCANNER & CHECK-IN MANAGEMENT (willow-qr)
+// =========================================================
+
+export type QrValidationStatus =
+  | 'valid'
+  | 'already_checked_in'
+  | 'invalid'
+  | 'revoked'
+  | 'not_eligible';
+
+export interface LiveQrPassExtended extends LiveQrPass {
+  checked_in_by?: string | null;
+  checked_in_by_name?: string | null;
+  revoked_at?: string | null;
+  revoke_reason?: string | null;
+  application_code?: string | null;
+  application_status?: string | null;
+  department_name?: string | null;
+  committee_name?: string | null;
+}
+
+export interface LiveQrScanEvent {
+  id: string;
+  pass_id: string | null;
+  holder_name: string | null;
+  result: string;
+  gate_location: string;
+  scanned_at: string;
+  scanned_by?: string | null;
+  scanned_by_name?: string | null;
+  scanner_role?: string | null;
+  token_value_masked?: string | null;
+  application_id?: string | null;
+  application_code?: string | null;
+  department_name?: string | null;
+  committee_name?: string | null;
+  previous_checked_in_at?: string | null;
+  previous_checked_in_gate?: string | null;
+  detail_message?: string | null;
+}
+
+export interface LiveQrValidationResponse {
+  status: QrValidationStatus;
+  result: string;
+  message: string;
+  pass_id: string | null;
+  holder_name: string | null;
+  role_label: string | null;
+  category: string | null;
+  department_name: string | null;
+  committee_name: string | null;
+  application_code: string | null;
+  application_id?: string | null;
+  application_status?: string | null;
+  department_id?: string | null;
+  user_id?: string | null;
+  pass_active: boolean | null;
+  checked_in_at: string | null;
+  checked_in_gate: string | null;
+  checked_in_by_name?: string | null;
+  gate_location: string;
+  scanned_at: string;
+  committed: boolean;
+}
+
+export interface LiveQrCorrectionLog {
+  id: string;
+  pass_id: string;
+  holder_name: string;
+  application_id?: string | null;
+  action_type: 'reset_checkin' | 'manual_checkin' | 'update_gate' | 'revoke_pass' | 'reactivate_pass';
+  reason: string;
+  previous_checked_in_at?: string | null;
+  previous_checked_in_gate?: string | null;
+  previous_active?: boolean | null;
+  new_checked_in_at?: string | null;
+  new_checked_in_gate?: string | null;
+  new_active?: boolean | null;
+  corrected_by?: string | null;
+  corrected_by_name: string;
+  corrected_by_role: string;
+  created_at: string;
+}
+
+export interface AdminQrRegistryMetrics {
+  total_issued: number;
+  active_issued: number;
+  checked_in: number;
+  remaining: number;
+  revoked: number;
+}
+
+export function normalizeValidationResponse(
+  raw: Record<string, any>,
+  fallbackGate: string,
+  committed: boolean,
+): LiveQrValidationResponse {
+  const rawResult = String(raw.result || '');
+  let status: QrValidationStatus = (raw.status as QrValidationStatus) || 'invalid';
+  if (!raw.status) {
+    if (rawResult === 'valid_checkin' || rawResult === 'valid_preview') status = 'valid';
+    else if (rawResult === 'already_checked_in' || rawResult === 'duplicate_recent') status = 'already_checked_in';
+    else if (rawResult === 'revoked_pass') status = 'revoked';
+    else if (rawResult === 'not_eligible') status = 'not_eligible';
+    else status = 'invalid';
+  }
+  return {
+    status,
+    result: rawResult || status,
+    message: String(raw.message || ''),
+    pass_id: raw.pass_id ?? null,
+    holder_name: raw.holder_name ?? null,
+    role_label: raw.role_label ?? null,
+    category: raw.category ?? null,
+    department_name: raw.department_name ?? null,
+    committee_name: raw.committee_name ?? null,
+    application_code: raw.application_code ?? null,
+    application_id: raw.application_id ?? null,
+    application_status: raw.application_status ?? null,
+    department_id: raw.department_id ?? null,
+    user_id: raw.user_id ?? null,
+    pass_active: typeof raw.pass_active === 'boolean' ? raw.pass_active : null,
+    checked_in_at: raw.checked_in_at ?? null,
+    checked_in_gate: raw.checked_in_gate ?? null,
+    checked_in_by_name: raw.checked_in_by_name ?? null,
+    gate_location: String(raw.gate_location || fallbackGate),
+    scanned_at: String(raw.scanned_at || new Date().toISOString()),
+    committed: typeof raw.committed === 'boolean' ? raw.committed : committed,
+  };
+}
+
+export async function verifyQrPassToken(
+  token: string,
+  gateLocation: string,
+): Promise<{ ok: boolean; validation?: LiveQrValidationResponse; error?: string }> {
+  const { data, error } = await supabase.functions.invoke('willow-qr', {
+    body: { action: 'verify', token: token.trim(), gate_location: gateLocation },
+  });
+  if (error || data?.error) {
+    return { ok: false, error: data?.error || error?.message || 'Verification failed.' };
+  }
+  return {
+    ok: true,
+    validation: normalizeValidationResponse(data as Record<string, any>, gateLocation, false),
+  };
+}
+
+export async function commitQrPassCheckin(
+  token: string,
+  gateLocation: string,
+): Promise<{ ok: boolean; validation?: LiveQrValidationResponse; error?: string }> {
+  const { data, error } = await supabase.functions.invoke('willow-qr', {
+    body: { action: 'checkin', token: token.trim(), gate_location: gateLocation },
+  });
+  if (error || data?.error) {
+    return { ok: false, error: data?.error || error?.message || 'Check-in failed.' };
+  }
+  return {
+    ok: true,
+    validation: normalizeValidationResponse(data as Record<string, any>, gateLocation, true),
+  };
+}
+
+export async function fetchMySecurityScans(): Promise<{
+  scans: LiveQrScanEvent[];
+  error?: string;
+}> {
+  const { data, error } = await supabase.functions.invoke('willow-qr', {
+    body: { action: 'my_scans' },
+  });
+  if (error || data?.error) {
+    return { scans: [], error: data?.error || error?.message };
+  }
+  return { scans: (data?.scans ?? []) as LiveQrScanEvent[] };
+}
+
+export async function fetchAdminQrDashboard(): Promise<{
+  passes: LiveQrPassExtended[];
+  scans: LiveQrScanEvent[];
+  correctionLogs: LiveQrCorrectionLog[];
+  metrics: AdminQrRegistryMetrics;
+  error?: string;
+}> {
+  const [listRes, scanRes, corrRes] = await Promise.all([
+    supabase.functions.invoke('willow-qr', { body: { action: 'list' } }),
+    supabase.functions.invoke('willow-qr', { body: { action: 'scan_log' } }),
+    supabase.functions.invoke('willow-qr', { body: { action: 'correction_logs' } }),
+  ]);
+
+  const passes = ((listRes.data?.passes ?? []) as LiveQrPassExtended[]);
+  const activePasses = passes.filter((p) => p.active !== false);
+  const checkedInCount = activePasses.filter((p) => Boolean(p.checked_in_at)).length;
+  const fallbackMetrics: AdminQrRegistryMetrics = {
+    total_issued: passes.length,
+    active_issued: activePasses.length,
+    checked_in: checkedInCount,
+    remaining: activePasses.length - checkedInCount,
+    revoked: passes.filter((p) => p.active === false).length,
+  };
+
+  return {
+    passes,
+    scans: ((scanRes.data?.scans ?? []) as LiveQrScanEvent[]),
+    correctionLogs: ((corrRes.data?.logs ?? []) as LiveQrCorrectionLog[]),
+    metrics: (listRes.data?.metrics as AdminQrRegistryMetrics) || fallbackMetrics,
+    error: listRes.data?.error || listRes.error?.message || scanRes.data?.error || scanRes.error?.message,
+  };
+}
+
+export async function correctQrCheckinRecord(payload: {
+  passId: string;
+  correctionAction: 'reset_checkin' | 'manual_checkin' | 'update_gate';
+  gateLocation?: string;
+  reason: string;
+}): Promise<{ ok: boolean; pass?: LiveQrPassExtended; warning?: string; error?: string }> {
+  const { data, error } = await supabase.functions.invoke('willow-qr', {
+    body: {
+      action: 'correct_checkin',
+      pass_id: payload.passId,
+      correction_action: payload.correctionAction,
+      gate_location: payload.gateLocation,
+      reason: payload.reason.trim(),
+    },
+  });
+  if (error || data?.error) {
+    return { ok: false, error: data?.error || error?.message || 'Correction failed.' };
+  }
+  return { ok: true, pass: data?.pass as LiveQrPassExtended, warning: data?.warning };
+}
+
+export async function setQrPassActiveState(
+  passId: string,
+  activate: boolean,
+  reason?: string,
+): Promise<{ ok: boolean; pass?: LiveQrPassExtended; error?: string }> {
+  const { data, error } = await supabase.functions.invoke('willow-qr', {
+    body: {
+      action: activate ? 'activate' : 'revoke',
+      pass_id: passId,
+      reason: reason?.trim() || undefined,
+    },
+  });
+  if (error || data?.error) {
+    return { ok: false, error: data?.error || error?.message || 'Pass update failed.' };
+  }
+  return { ok: true, pass: data?.pass as LiveQrPassExtended };
+}
+
+export async function issueConferenceQrPass(payload: {
+  holderName: string;
+  holderEmail?: string;
+  roleLabel: string;
+  category?: string;
+}): Promise<{ ok: boolean; pass?: LiveQrPassExtended; error?: string }> {
+  const { data, error } = await supabase.functions.invoke('willow-qr', {
+    body: {
+      action: 'issue',
+      holder_name: payload.holderName.trim(),
+      holder_email: payload.holderEmail?.trim() || null,
+      role_label: payload.roleLabel.trim() || 'Conference Participant',
+      category: payload.category || 'Delegate',
+    },
+  });
+  if (error || data?.error) {
+    return { ok: false, error: data?.error || error?.message || 'Could not issue pass.' };
+  }
+  return { ok: true, pass: data?.pass as LiveQrPassExtended };
+}
+
+export async function backfillStaffQrPasses(): Promise<{
+  ok: boolean;
+  message?: string;
+  error?: string;
+}> {
+  const { data, error } = await supabase.functions.invoke('willow-qr', {
+    body: { action: 'ensure_profile_passes' },
+  });
+  if (error || data?.error) {
+    return { ok: false, error: data?.error || error?.message || 'Could not backfill passes.' };
+  }
+  return { ok: true, message: data?.message };
+}

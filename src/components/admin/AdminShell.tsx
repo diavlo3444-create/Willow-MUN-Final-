@@ -35,7 +35,7 @@ const NAV_ICONS: Record<string, typeof LayoutDashboard> = {
   sponsors: Tag, schedule: Calendar, announcements: Megaphone, documents: FileCode,
   faqs: HelpCircle, gallery: ImageIcon, teams: Users, groups: FolderKanban,
   workspace: FolderKanban, shifts: Clock, deployment: MapPin, attendance: ScanLine,
-  qr: QrCode, 'website-editor': Globe, pages: LayoutDashboard, sections: Layers,
+  qr: QrCode, scanner: ScanLine, history: History, 'website-editor': Globe, pages: LayoutDashboard, sections: Layers,
   media: ImageIcon, navigation: ExternalLink, seo: Search, versions: History,
   email: Mail, messages: Inbox, notifications: Activity, registration: ClipboardList,
   reports: BarChart3, logs: Activity, settings: Settings, monitoring: Server,

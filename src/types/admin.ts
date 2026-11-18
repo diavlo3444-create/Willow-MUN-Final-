@@ -6,7 +6,7 @@
 
 export type RoleType = 'super_admin' | 'admin' | 'department_head' | 'executive_board';
 
-export type PortalKey = 'super_admin' | 'admin' | 'department_head' | 'executive_board';
+export type PortalKey = 'super_admin' | 'admin' | 'department_head' | 'executive_board' | 'security';
 
 export type PermissionKey =
   | 'applications.view'
@@ -562,7 +562,13 @@ export interface AttendanceScanRecord {
   holderName: string;
   departmentId: string | null;
   roleLabel: string;
-  result: 'valid_checkin' | 'duplicate_recent' | 'invalid_token' | 'revoked_pass';
+  result:
+    | 'valid_checkin'
+    | 'already_checked_in'
+    | 'duplicate_recent'
+    | 'invalid_token'
+    | 'revoked_pass'
+    | 'not_eligible';
   scannedBy: string;
   gateLocation: string;
   scannedAt: string;

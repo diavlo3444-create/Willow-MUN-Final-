@@ -974,7 +974,14 @@ export function AccountManagementView({
                     <select
                       required
                       value={formDepartmentId}
-                      onChange={(e) => setFormDepartmentId(e.target.value)}
+                      onChange={(e) => {
+                        const nextId = e.target.value;
+                        setFormDepartmentId(nextId);
+                        const dept = deptByIdOrSlug.get(nextId);
+                        if (!editingAccount && dept && normalizeDepartmentSlug(dept.slug) === 'security') {
+                          setFormPermissions((prev) => ({ ...prev, 'qr.scan': true }));
+                        }
+                      }}
                       className="mt-1.5 h-10 w-full rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-canvas)] px-3 text-sm text-[color:var(--wm-ink)]"
                     >
                       <option value="">Select department…</option>

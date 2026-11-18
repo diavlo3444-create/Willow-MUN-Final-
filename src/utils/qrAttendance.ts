@@ -58,6 +58,14 @@ export function evaluateQrScan(
     };
   }
 
+  if (matched.checkedIn) {
+    return {
+      result: 'already_checked_in',
+      pass: matched,
+      message: `Already checked in: ${matched.holderName} has already used this conference pass.`,
+    };
+  }
+
   return {
     result: 'valid_checkin',
     pass: matched,

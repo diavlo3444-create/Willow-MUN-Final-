@@ -1,45 +1,55 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { QRCodeCanvas, QRCodeSVG } from 'qrcode.react';
 import {
-  Camera,
-  CameraOff,
+  AlertTriangle,
   CheckCircle2,
+  ClipboardCheck,
+  Clock,
   Download,
+  FileWarning,
+  History,
+  QrCode,
   RefreshCw,
   ScanLine,
+  Search,
   ShieldAlert,
+  UserCheck,
+  Users,
+  Wrench,
   X,
   XCircle,
 } from 'lucide-react';
 import { useAdminStore } from '../../../context/AdminStoreContext';
-import { supabase } from '../../../lib/supabase';
+import {
+  backfillStaffQrPasses,
+  commitQrPassCheckin,
+  correctQrCheckinRecord,
+  fetchAdminQrDashboard,
+  issueConferenceQrPass,
+  setQrPassActiveState,
+  verifyQrPassToken,
+  type AdminQrRegistryMetrics,
+  type LiveQrCorrectionLog,
+  type LiveQrPassExtended,
+  type LiveQrScanEvent,
+  type LiveQrValidationResponse,
+} from '../../../services/liveBackendService';
 import { hasPermission } from '../../../utils/adminPermissions';
 import { MyQrCard } from '../MyQrModal';
+import { QrCameraScanner } from '../QrCameraScanner';
+import { QrValidationResultCard } from '../QrValidationResultCard';
 import { WmSkeleton } from '../WmSkeleton';
 
-type Pass = {
-  id: string;
-  user_id: string | null;
-  holder_name: string;
-  holder_email: string | null;
-  role_label: string;
-  category: string;
-  department_id: string | null;
-  active: boolean;
-  checked_in_at: string | null;
-  checked_in_gate: string | null;
-  token_value?: string;
-  created_at: string;
-};
+type AdminQrTab = 'scanner' | 'registry' | 'scans' | 'audit' | 'my_qr';
 
-type Scan = {
-  id: string;
-  holder_name: string | null;
-  result: string;
-  gate_location: string;
-  scanned_at: string;
-  pass_id: string | null;
-};
+const GATES = [
+  'Main Entrance',
+  'VIP Entrance',
+  'Committee Hall',
+  'Registration Desk',
+  'Staff Entrance',
+  'Admin Desk',
+];
 
 export function QrAttendanceView({
   mode,
@@ -48,34 +58,63 @@ export function QrAttendanceView({
   mode: 'qr' | 'attendance';
   actingUserOverride?: ReturnType<typeof useAdminStore>['testModeHeadUser'];
 }) {
-  const { currentUser, pushToast } = useAdminStore();
+  const { currentUser, data, pushToast } = useAdminStore();
   const actor = actingUserOverride ?? currentUser;
   const isAdmin = actor?.role === 'admin' || actor?.role === 'super_admin';
-  const canScan = isAdmin || hasPermission(actor, 'qr.scan');
-  const canManage = isAdmin || hasPermission(actor, 'qr.manage');
+  const canScan = isAdmin || hasPermission(actor, 'qr.scan', data.departments);
+  const canManage = isAdmin || hasPermission(actor, 'qr.manage', data.departments);
 
-  const [passes, setPasses] = useState<Pass[]>([]);
-  const [scans, setScans] = useState<Scan[]>([]);
+  const [activeTab, setActiveTab] = useState<AdminQrTab>(() =>
+    mode === 'attendance' ? 'registry' : canScan ? 'scanner' : 'my_qr',
+  );
+  useEffect(() => {
+    setActiveTab(mode === 'attendance' ? 'registry' : canScan ? 'scanner' : 'my_qr');
+  }, [mode, canScan]);
+
+  const [passes, setPasses] = useState<LiveQrPassExtended[]>([]);
+  const [scans, setScans] = useState<LiveQrScanEvent[]>([]);
+  const [correctionLogs, setCorrectionLogs] = useState<LiveQrCorrectionLog[]>([]);
+  const [metrics, setMetrics] = useState<AdminQrRegistryMetrics>({
+    total_issued: 0,
+    active_issued: 0,
+    checked_in: 0,
+    remaining: 0,
+    revoked: 0,
+  });
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+
+  // Scanner state
   const [scanInput, setScanInput] = useState('');
+  const [pendingToken, setPendingToken] = useState('');
   const [gateLocation, setGateLocation] = useState('Main Entrance');
-  const [lastResult, setLastResult] = useState<{
-    result: string;
-    holder_name?: string | null;
-    role_label?: string | null;
-    gate_location?: string;
-  } | null>(null);
+  const [confirmBeforeCheckin, setConfirmBeforeCheckin] = useState(true);
+  const [validation, setValidation] = useState<LiveQrValidationResponse | null>(null);
   const [scanError, setScanError] = useState('');
-  const [scannerOpen, setScannerOpen] = useState(false);
+
+  // Filters
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'checked_in' | 'remaining' | 'revoked'>('all');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [scanResultFilter, setScanResultFilter] = useState<'all' | 'valid' | 'duplicate' | 'failed'>('all');
+
+  // Issue pass form & QR preview modal
   const [newHolder, setNewHolder] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [newRole, setNewRole] = useState('Conference Participant');
-  const [issuedPass, setIssuedPass] = useState<Pass | null>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const scannedTokenRef = useRef('');
+  const [newCategory, setNewCategory] = useState('Delegate');
+  const [issuedPass, setIssuedPass] = useState<LiveQrPassExtended | null>(null);
   const modalCanvasHostRef = useRef<HTMLDivElement>(null);
+
+  // Check-in correction modal
+  const [correctionPass, setCorrectionPass] = useState<LiveQrPassExtended | null>(null);
+  const [correctionAction, setCorrectionAction] = useState<'reset_checkin' | 'manual_checkin' | 'update_gate'>('reset_checkin');
+  const [correctionGate, setCorrectionGate] = useState('Admin Desk');
+  const [correctionReason, setCorrectionReason] = useState('');
+
+  // Revoke / Activate modal with reason
+  const [togglePassTarget, setTogglePassTarget] = useState<LiveQrPassExtended | null>(null);
+  const [toggleReason, setToggleReason] = useState('');
 
   const load = useCallback(async () => {
     if (!canManage) {
@@ -83,18 +122,14 @@ export function QrAttendanceView({
       return;
     }
     setLoading(true);
-    const [registry, log] = await Promise.all([
-      supabase.functions.invoke('willow-qr', { body: { action: 'list' } }),
-      supabase.functions.invoke('willow-qr', { body: { action: 'scan_log' } }),
-    ]);
-    if (registry?.error) {
-      pushToast({ tone: 'error', title: 'Pass registry unavailable', description: registry.error.message });
-    } else {
-      setPasses(registry?.data?.passes ?? []);
+    const res = await fetchAdminQrDashboard();
+    if (res.error) {
+      pushToast({ tone: 'error', title: 'QR registry unavailable', description: res.error });
     }
-    if (!log?.error) {
-      setScans(log?.data?.scans ?? []);
-    }
+    setPasses(res.passes);
+    setScans(res.scans);
+    setCorrectionLogs(res.correctionLogs);
+    setMetrics(res.metrics);
     setLoading(false);
   }, [canManage, pushToast]);
 
@@ -102,177 +137,183 @@ export function QrAttendanceView({
     void load();
   }, [load]);
 
-  const stopCamera = useCallback(() => {
-    if (streamRef.current) streamRef.current.getTracks().forEach((track) => track.stop());
-    streamRef.current = null;
-    if (videoRef.current) videoRef.current.srcObject = null;
-  }, []);
-
-  const scanToken = useCallback(
-    async (token: string) => {
+  const handleScanOrManual = useCallback(
+    async (rawToken: string) => {
       if (!canScan) {
         setScanError('Scanner authorization required.');
         return;
       }
+      const cleanToken = rawToken.trim();
+      if (!cleanToken) return;
+
+      setScanError('');
       setBusy(true);
-      const { data: response, error } = await supabase.functions.invoke('willow-qr', {
-        body: { action: 'scan', token, gate_location: gateLocation },
-      });
+      setPendingToken(cleanToken);
+
+      const res = confirmBeforeCheckin
+        ? await verifyQrPassToken(cleanToken, gateLocation)
+        : await commitQrPassCheckin(cleanToken, gateLocation);
+
       setBusy(false);
-      if (error || response?.error) {
-        setScanError(response?.error || error?.message || 'Scan failed.');
-        setLastResult(null);
+
+      if (!res.ok || !res.validation) {
+        setScanError(res.error || 'Verification failed.');
+        setValidation(null);
         return;
       }
-      setScanError('');
-      setLastResult(response);
+
+      const v = res.validation;
+      setValidation(v);
       setScanInput('');
-      if (response.result === 'valid_checkin') {
+
+      if (v.status === 'valid' && v.committed) {
         pushToast({
           tone: 'success',
-          title: 'Check-in successful',
-          description: `${response.holder_name} · ${gateLocation}`,
+          title: 'Check-in recorded',
+          description: `${v.holder_name || 'Attendee'} · ${gateLocation}`,
         });
-      } else if (response.result === 'duplicate_recent') {
+      } else if (v.status === 'already_checked_in') {
         pushToast({
           tone: 'warning',
           title: 'Already checked in',
-          description: response.holder_name || 'This pass has already been used.',
+          description: v.holder_name || 'Pass has already been used.',
         });
-      } else {
+      } else if (v.status !== 'valid') {
         pushToast({
           tone: 'error',
-          title: response.result === 'revoked_pass' ? 'Pass revoked' : 'Invalid QR pass',
-          description: 'Do not admit this pass holder.',
+          title:
+            v.status === 'revoked'
+              ? 'Pass revoked'
+              : v.status === 'not_eligible'
+                ? 'Applicant not eligible'
+                : 'Invalid QR pass',
+          description: v.message,
         });
       }
+
       await load();
     },
-    [canScan, gateLocation, load, pushToast],
+    [canScan, confirmBeforeCheckin, gateLocation, load, pushToast],
   );
 
-  useEffect(() => {
-    if (!scannerOpen) {
-      stopCamera();
+  const handleConfirmPendingCheckin = async () => {
+    if (!pendingToken) return;
+    setBusy(true);
+    setScanError('');
+    const res = await commitQrPassCheckin(pendingToken, gateLocation);
+    setBusy(false);
+
+    if (!res.ok || !res.validation) {
+      setScanError(res.error || 'Could not record check-in.');
       return;
     }
-    let interval = 0;
-    let cancelled = false;
-    const start = async () => {
-      try {
-        if (!('mediaDevices' in navigator) || !navigator.mediaDevices.getUserMedia) {
-          throw new Error('Camera access is not available in this browser.');
-        }
-        const Detector = (window as any).BarcodeDetector;
-        if (!Detector) {
-          throw new Error('Live camera detection is unavailable in this browser. Enter or scan the token manually below.');
-        }
-        const detector = new Detector({ formats: ['qr_code'] });
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: 'environment' } },
-          audio: false,
-        });
-        if (cancelled) {
-          stream.getTracks().forEach((track) => track.stop());
-          return;
-        }
-        streamRef.current = stream;
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          await videoRef.current.play();
-        }
-        interval = window.setInterval(async () => {
-          const video = videoRef.current;
-          if (!video || video.readyState < 2 || busy) return;
-          try {
-            const codes = await detector.detect(video);
-            const value = codes?.[0]?.rawValue;
-            if (value && value !== scannedTokenRef.current) {
-              scannedTokenRef.current = value;
-              setScannerOpen(false);
-              await scanToken(value);
-              window.setTimeout(() => {
-                scannedTokenRef.current = '';
-              }, 1200);
-            }
-          } catch {
-            // Wait for the next camera frame
-          }
-        }, 350);
-      } catch (error) {
-        setScanError(error instanceof Error ? error.message : 'Could not start camera.');
-        setScannerOpen(false);
-      }
-    };
-    void start();
-    return () => {
-      cancelled = true;
-      if (interval) window.clearInterval(interval);
-      stopCamera();
-    };
-  }, [scannerOpen, stopCamera, scanToken, busy]);
+
+    const v = res.validation;
+    setValidation(v);
+    if (v.status === 'valid' && v.committed) {
+      pushToast({
+        tone: 'success',
+        title: 'Check-in recorded',
+        description: `${v.holder_name || 'Attendee'} · ${gateLocation}`,
+      });
+    } else if (v.status === 'already_checked_in') {
+      pushToast({ tone: 'warning', title: 'Already checked in', description: v.message });
+    } else {
+      pushToast({ tone: 'error', title: 'Check-in blocked', description: v.message });
+    }
+
+    await load();
+  };
 
   const issueGuestPass = async (event: FormEvent) => {
     event.preventDefault();
     if (!newHolder.trim() || !canManage) return;
     setBusy(true);
-    const { data: response, error } = await supabase.functions.invoke('willow-qr', {
-      body: {
-        action: 'issue',
-        holder_name: newHolder.trim(),
-        holder_email: newEmail.trim() || null,
-        role_label: newRole,
-        category: 'Delegate',
-      },
+    const res = await issueConferenceQrPass({
+      holderName: newHolder,
+      holderEmail: newEmail,
+      roleLabel: newRole,
+      category: newCategory,
     });
     setBusy(false);
-    if (error || response?.error) {
-      pushToast({
-        tone: 'error',
-        title: 'Pass could not be issued',
-        description: response?.error || error?.message,
-      });
+    if (!res.ok || !res.pass) {
+      pushToast({ tone: 'error', title: 'Pass could not be issued', description: res.error });
       return;
     }
-    setIssuedPass(response.pass);
+    setIssuedPass(res.pass);
     setNewHolder('');
     setNewEmail('');
+    pushToast({ tone: 'success', title: 'Conference pass issued', description: res.pass.holder_name });
     await load();
   };
 
-  const issueMissing = async () => {
+  const handleBackfill = async () => {
     if (!canManage) return;
     setBusy(true);
-    const { data: response, error } = await supabase.functions.invoke('willow-qr', {
-      body: { action: 'ensure_profile_passes' },
-    });
+    const res = await backfillStaffQrPasses();
     setBusy(false);
-    if (error || response?.error) {
-      pushToast({
-        tone: 'error',
-        title: 'Could not issue account passes',
-        description: response?.error || error?.message,
-      });
+    if (!res.ok) {
+      pushToast({ tone: 'error', title: 'Could not verify staff passes', description: res.error });
     } else {
-      pushToast({ tone: 'success', title: 'QR passes verified', description: response.message });
+      pushToast({ tone: 'success', title: 'Staff passes verified', description: res.message });
     }
     await load();
   };
 
-  const setPassActive = async (pass: Pass) => {
-    if (!canManage) return;
-    const { data: response, error } = await supabase.functions.invoke('willow-qr', {
-      body: { action: pass.active ? 'revoke' : 'activate', pass_id: pass.id },
+  const openCorrectionModal = (pass: LiveQrPassExtended) => {
+    setCorrectionPass(pass);
+    setCorrectionAction(pass.checked_in_at ? 'reset_checkin' : 'manual_checkin');
+    setCorrectionGate(pass.checked_in_gate || 'Admin Desk');
+    setCorrectionReason('');
+  };
+
+  const handleCorrectionSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!correctionPass || correctionReason.trim().length < 3) return;
+    setBusy(true);
+    const res = await correctQrCheckinRecord({
+      passId: correctionPass.id,
+      correctionAction,
+      gateLocation: correctionGate,
+      reason: correctionReason,
     });
-    if (error || response?.error) {
-      pushToast({
-        tone: 'error',
-        title: 'Pass could not be updated',
-        description: response?.error || error?.message,
-      });
-    } else {
-      await load();
+    setBusy(false);
+    if (!res.ok) {
+      pushToast({ tone: 'error', title: 'Correction failed', description: res.error });
+      return;
     }
+    if (res.warning) {
+      pushToast({ tone: 'warning', title: 'Check-in updated with note', description: res.warning });
+    } else {
+      pushToast({
+        tone: 'success',
+        title: 'Check-in record updated',
+        description: `${correctionPass.holder_name} · logged to audit trail`,
+      });
+    }
+    setCorrectionPass(null);
+    await load();
+  };
+
+  const handleConfirmTogglePass = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!togglePassTarget) return;
+    const activate = !togglePassTarget.active;
+    setBusy(true);
+    const res = await setQrPassActiveState(togglePassTarget.id, activate, toggleReason);
+    setBusy(false);
+    if (!res.ok) {
+      pushToast({ tone: 'error', title: 'Update failed', description: res.error });
+      return;
+    }
+    pushToast({
+      tone: 'success',
+      title: activate ? 'Pass reactivated' : 'Pass revoked',
+      description: togglePassTarget.holder_name,
+    });
+    setTogglePassTarget(null);
+    setToggleReason('');
+    await load();
   };
 
   const downloadIssuedPassImage = () => {
@@ -320,97 +361,299 @@ export function QrAttendanceView({
     ctx.font = '500 14px ui-monospace, SFMono-Regular, Menlo, monospace';
     ctx.fillText(issuedPass.token_value, width / 2, 700, width - 80);
 
-    const slug = issuedPass.holder_name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'pass';
+    const slug =
+      issuedPass.holder_name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '') || 'pass';
     const link = document.createElement('a');
     link.href = out.toDataURL('image/png');
     link.download = `willow-mun-pass-${slug}.png`;
     link.click();
   };
 
-  const checkedIn = passes.filter((pass) => pass.checked_in_at).length;
+  const categories = useMemo(
+    () => Array.from(new Set(passes.map((p) => p.category).filter(Boolean))).sort(),
+    [passes],
+  );
+
+  const filteredPasses = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return passes.filter((p) => {
+      if (statusFilter === 'checked_in' && !p.checked_in_at) return false;
+      if (statusFilter === 'remaining' && (Boolean(p.checked_in_at) || !p.active)) return false;
+      if (statusFilter === 'revoked' && p.active) return false;
+      if (categoryFilter !== 'all' && p.category !== categoryFilter) return false;
+      if (!q) return true;
+      const haystack = `${p.holder_name} ${p.application_code || ''} ${p.token_value || ''} ${p.role_label} ${p.department_name || ''} ${p.committee_name || ''}`.toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [passes, searchQuery, statusFilter, categoryFilter]);
+
+  const filteredScans = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return scans.filter((s) => {
+      const isValid = s.result === 'valid_checkin';
+      const isDuplicate = s.result === 'already_checked_in' || s.result === 'duplicate_recent';
+      if (scanResultFilter === 'valid' && !isValid) return false;
+      if (scanResultFilter === 'duplicate' && !isDuplicate) return false;
+      if (scanResultFilter === 'failed' && (isValid || isDuplicate)) return false;
+      if (!q) return true;
+      return `${s.holder_name || ''} ${s.application_code || ''} ${s.gate_location} ${s.scanned_by_name || ''} ${s.detail_message || ''}`
+        .toLowerCase()
+        .includes(q);
+    });
+  }, [scans, scanResultFilter, searchQuery]);
+
+  const failedAndDuplicateCount = useMemo(
+    () => scans.filter((s) => s.result !== 'valid_checkin').length,
+    [scans],
+  );
+
+  const awaitingConfirmation = Boolean(
+    validation && validation.status === 'valid' && !validation.committed,
+  );
 
   return (
     <div className="space-y-5">
-      {mode === 'qr' && <MyQrCard actorOverride={actor} />}
+      {/* Live Attendance KPI Summary */}
+      {canManage && (
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="wm-surface-panel p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-mono uppercase tracking-[0.16em] text-[color:var(--wm-ink-muted)]">
+                Total Passes Issued
+              </span>
+              <QrCode className="h-4 w-4 text-[color:var(--wm-accent)]" aria-hidden="true" />
+            </div>
+            <p className="wm-serif mt-2 text-2xl font-semibold text-[color:var(--wm-ink)]">
+              {metrics.total_issued}
+            </p>
+            <p className="mt-1 text-[11px] text-[color:var(--wm-ink-muted)]">
+              {metrics.active_issued} active · {metrics.revoked} revoked
+            </p>
+          </div>
 
-      {canScan && (
+          <div className="wm-surface-panel p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-mono uppercase tracking-[0.16em] text-[color:var(--wm-ink-muted)]">
+                Checked In
+              </span>
+              <UserCheck className="h-4 w-4 text-emerald-400" aria-hidden="true" />
+            </div>
+            <p className="wm-serif mt-2 text-2xl font-semibold text-emerald-300">
+              {metrics.checked_in}
+            </p>
+            <p className="mt-1 text-[11px] text-[color:var(--wm-ink-muted)]">
+              {metrics.active_issued > 0
+                ? `${Math.round((metrics.checked_in / metrics.active_issued) * 100)}% of active passes`
+                : 'No active passes'}
+            </p>
+          </div>
+
+          <div className="wm-surface-panel p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-mono uppercase tracking-[0.16em] text-[color:var(--wm-ink-muted)]">
+                Remaining Attendees
+              </span>
+              <Users className="h-4 w-4 text-[#ede6ca]" aria-hidden="true" />
+            </div>
+            <p className="wm-serif mt-2 text-2xl font-semibold text-[#ede6ca]">
+              {metrics.remaining}
+            </p>
+            <p className="mt-1 text-[11px] text-[color:var(--wm-ink-muted)]">
+              Active passes not yet scanned
+            </p>
+          </div>
+
+          <div className="wm-surface-panel p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-mono uppercase tracking-[0.16em] text-[color:var(--wm-ink-muted)]">
+                Failed & Duplicate Scans
+              </span>
+              <AlertTriangle className="h-4 w-4 text-amber-300" aria-hidden="true" />
+            </div>
+            <p className="wm-serif mt-2 text-2xl font-semibold text-amber-200">
+              {failedAndDuplicateCount}
+            </p>
+            <p className="mt-1 text-[11px] text-[color:var(--wm-ink-muted)]">
+              Out of {scans.length} logged scan events
+            </p>
+          </div>
+        </section>
+      )}
+
+      {/* Workspace Navigation Tabs */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="QR Scanner Views">
+          {canScan && (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'scanner'}
+              onClick={() => setActiveTab('scanner')}
+              className={`inline-flex h-9 items-center gap-2 rounded-md border px-3.5 text-xs font-medium transition-colors ${
+                activeTab === 'scanner'
+                  ? 'border-[color:var(--wm-accent)] bg-[#2d6a4f]/35 text-[color:var(--wm-ink)]'
+                  : 'border-[color:var(--wm-hairline)] bg-[color:var(--wm-surface)] text-[color:var(--wm-ink-secondary)] hover:text-[color:var(--wm-ink)]'
+              }`}
+            >
+              <ScanLine className="h-3.5 w-3.5" aria-hidden="true" />
+              Live Scanner
+            </button>
+          )}
+
+          {canManage && (
+            <>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === 'registry'}
+                onClick={() => setActiveTab('registry')}
+                className={`inline-flex h-9 items-center gap-2 rounded-md border px-3.5 text-xs font-medium transition-colors ${
+                  activeTab === 'registry'
+                    ? 'border-[color:var(--wm-accent)] bg-[#2d6a4f]/35 text-[color:var(--wm-ink)]'
+                    : 'border-[color:var(--wm-hairline)] bg-[color:var(--wm-surface)] text-[color:var(--wm-ink-secondary)] hover:text-[color:var(--wm-ink)]'
+                }`}
+              >
+                <ClipboardCheck className="h-3.5 w-3.5" aria-hidden="true" />
+                Attendee Registry ({passes.length})
+              </button>
+
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === 'scans'}
+                onClick={() => setActiveTab('scans')}
+                className={`inline-flex h-9 items-center gap-2 rounded-md border px-3.5 text-xs font-medium transition-colors ${
+                  activeTab === 'scans'
+                    ? 'border-[color:var(--wm-accent)] bg-[#2d6a4f]/35 text-[color:var(--wm-ink)]'
+                    : 'border-[color:var(--wm-hairline)] bg-[color:var(--wm-surface)] text-[color:var(--wm-ink-secondary)] hover:text-[color:var(--wm-ink)]'
+                }`}
+              >
+                <FileWarning className="h-3.5 w-3.5" aria-hidden="true" />
+                Scan Activity & Alerts ({scans.length})
+              </button>
+
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeTab === 'audit'}
+                onClick={() => setActiveTab('audit')}
+                className={`inline-flex h-9 items-center gap-2 rounded-md border px-3.5 text-xs font-medium transition-colors ${
+                  activeTab === 'audit'
+                    ? 'border-[color:var(--wm-accent)] bg-[#2d6a4f]/35 text-[color:var(--wm-ink)]'
+                    : 'border-[color:var(--wm-hairline)] bg-[color:var(--wm-surface)] text-[color:var(--wm-ink-secondary)] hover:text-[color:var(--wm-ink)]'
+                }`}
+              >
+                <History className="h-3.5 w-3.5" aria-hidden="true" />
+                Corrections Audit ({correctionLogs.length})
+              </button>
+            </>
+          )}
+
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'my_qr'}
+            onClick={() => setActiveTab('my_qr')}
+            className={`inline-flex h-9 items-center gap-2 rounded-md border px-3.5 text-xs font-medium transition-colors ${
+              activeTab === 'my_qr'
+                ? 'border-[color:var(--wm-accent)] bg-[#2d6a4f]/35 text-[color:var(--wm-ink)]'
+                : 'border-[color:var(--wm-hairline)] bg-[color:var(--wm-surface)] text-[color:var(--wm-ink-secondary)] hover:text-[color:var(--wm-ink)]'
+            }`}
+          >
+            <QrCode className="h-3.5 w-3.5" aria-hidden="true" />
+            My Personal QR
+          </button>
+        </div>
+
+        {canManage && activeTab !== 'my_qr' && (
+          <button
+            type="button"
+            disabled={loading}
+            onClick={() => void load()}
+            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-inset)] px-3 text-xs text-[color:var(--wm-ink)] hover:bg-[color:var(--wm-overlay)] disabled:opacity-50"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
+            Refresh
+          </button>
+        )}
+      </div>
+
+      {/* TAB 1: LIVE ADMIN SCANNER */}
+      {activeTab === 'scanner' && canScan && (
         <section className="wm-surface-panel overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[color:var(--wm-hairline)] px-4 py-3.5">
             <div className="flex items-center gap-2.5">
               <ScanLine className="h-4 w-4 text-[color:var(--wm-accent)]" aria-hidden="true" />
               <div>
-                <h2 className="text-xs font-semibold text-[color:var(--wm-ink)]">Security Checkpoint Scanner</h2>
+                <h2 className="text-xs font-semibold text-[color:var(--wm-ink)]">
+                  Admin Pass Scanner & Verification Desk
+                </h2>
                 <p className="mt-0.5 text-[10px] text-[color:var(--wm-ink-muted)]">
-                  Scan QR passes via camera or enter a credential token for backend lookup
+                  Validate delegate and staff QR credentials against live conference eligibility
                 </p>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                setScannerOpen((v) => !v);
-                setScanError('');
-              }}
-              className="inline-flex h-8 items-center gap-2 rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-inset)] px-3 text-[11px] font-medium text-[color:var(--wm-focal)] hover:bg-[color:var(--wm-overlay)]"
-            >
-              {scannerOpen ? (
-                <>
-                  <CameraOff className="h-3.5 w-3.5" aria-hidden="true" /> Stop camera
-                </>
-              ) : (
-                <>
-                  <Camera className="h-3.5 w-3.5" aria-hidden="true" /> Open camera
-                </>
-              )}
-            </button>
+            <label className="flex items-center gap-2 text-[11px] text-[color:var(--wm-ink-secondary)]">
+              <span>Gate:</span>
+              <select
+                value={gateLocation}
+                onChange={(e) => setGateLocation(e.target.value)}
+                className="h-8 rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-canvas)] px-2.5 text-xs text-[color:var(--wm-ink)]"
+              >
+                {GATES.map((g) => (
+                  <option key={g} value={g}>
+                    {g}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
 
-          <div className="grid gap-4 p-4 lg:grid-cols-2">
-            <div className="space-y-3">
-              {scannerOpen && (
-                <video
-                  ref={videoRef}
-                  muted
-                  playsInline
-                  className="aspect-video w-full rounded-md border border-[color:var(--wm-hairline-strong)] bg-black object-cover"
+          <div className="grid gap-5 p-4 lg:grid-cols-2">
+            <div className="space-y-4">
+              <QrCameraScanner
+                size="panel"
+                busy={busy}
+                pauseWhenLocked={awaitingConfirmation}
+                onDetectToken={handleScanOrManual}
+              />
+
+              <label className="flex cursor-pointer items-center justify-between gap-3 rounded-md border border-[color:var(--wm-hairline)] bg-[color:var(--wm-inset)] px-3 py-2 text-xs">
+                <span className="text-[color:var(--wm-ink-secondary)]">
+                  Require explicit confirmation before completing check-in
+                </span>
+                <input
+                  type="checkbox"
+                  checked={confirmBeforeCheckin}
+                  onChange={(e) => setConfirmBeforeCheckin(e.target.checked)}
+                  className="h-4 w-4 accent-[#2d6a4f]"
                 />
-              )}
+              </label>
+
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
-                  if (scanInput.trim()) void scanToken(scanInput.trim());
+                  if (scanInput.trim()) void handleScanOrManual(scanInput);
                 }}
-                className="space-y-3"
+                className="flex flex-col gap-2 sm:flex-row"
               >
-                <label className="block text-[11px] text-[color:var(--wm-ink-secondary)]">
-                  QR token
-                  <input
-                    value={scanInput}
-                    onChange={(e) => setScanInput(e.target.value)}
-                    placeholder="Scan or paste WMQR-… token"
-                    className="mt-1 h-10 w-full rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-canvas)] px-3 font-mono text-xs text-[color:var(--wm-ink)]"
-                  />
-                </label>
-                <label className="block text-[11px] text-[color:var(--wm-ink-secondary)]">
-                  Checkpoint location
-                  <select
-                    value={gateLocation}
-                    onChange={(e) => setGateLocation(e.target.value)}
-                    className="mt-1 h-10 w-full rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-canvas)] px-3 text-xs text-[color:var(--wm-ink)]"
-                  >
-                    <option>Main Entrance</option>
-                    <option>VIP Entrance</option>
-                    <option>Committee Hall</option>
-                    <option>Staff Entrance</option>
-                  </select>
-                </label>
+                <input
+                  value={scanInput}
+                  onChange={(e) => setScanInput(e.target.value)}
+                  placeholder="Manual fallback: enter WMQR-… token"
+                  className="h-10 flex-1 rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-canvas)] px-3 font-mono text-xs text-[color:var(--wm-ink)]"
+                />
                 <button
                   disabled={busy || !scanInput.trim()}
-                  className="h-9 w-full rounded-md bg-[color:var(--wm-emerald)] px-4 text-xs font-semibold text-[#eef4ef] hover:bg-[#357a5b] disabled:opacity-50"
+                  className="h-10 rounded-md bg-[color:var(--wm-emerald)] px-4 text-xs font-semibold text-[#eef4ef] hover:bg-[#357a5b] disabled:opacity-50"
                 >
-                  {busy ? 'Verifying…' : 'Verify & Check In'}
+                  {busy ? 'Checking…' : confirmBeforeCheckin ? 'Verify Pass' : 'Verify & Check In'}
                 </button>
               </form>
+
               {scanError && (
                 <p role="alert" className="text-[11px] text-rose-300">
                   {scanError}
@@ -418,67 +661,47 @@ export function QrAttendanceView({
               )}
             </div>
 
-            <div className="wm-surface-inset flex min-h-48 flex-col justify-center p-4">
-              {!lastResult ? (
-                <div className="text-center">
-                  <ShieldAlert className="mx-auto h-7 w-7 text-[color:var(--wm-ink-muted)]" aria-hidden="true" />
-                  <p className="mt-2 text-xs text-[color:var(--wm-ink-secondary)]">
-                    Waiting for a pass to be scanned
-                  </p>
-                </div>
-              ) : (
-                <div className="text-center">
-                  {lastResult.result === 'valid_checkin' ? (
-                    <CheckCircle2 className="mx-auto h-9 w-9 text-emerald-400" aria-hidden="true" />
-                  ) : lastResult.result === 'duplicate_recent' ? (
-                    <ShieldAlert className="mx-auto h-9 w-9 text-amber-300" aria-hidden="true" />
-                  ) : (
-                    <XCircle className="mx-auto h-9 w-9 text-rose-400" aria-hidden="true" />
-                  )}
-                  <p
-                    className={
-                      'mt-3 text-sm font-semibold ' +
-                      (lastResult.result === 'valid_checkin'
-                        ? 'text-emerald-300'
-                        : lastResult.result === 'duplicate_recent'
-                          ? 'text-amber-200'
-                          : 'text-rose-300')
-                    }
-                  >
-                    {lastResult.result === 'valid_checkin'
-                      ? 'CHECK-IN APPROVED'
-                      : lastResult.result === 'duplicate_recent'
-                        ? 'ALREADY CHECKED IN'
-                        : lastResult.result === 'revoked_pass'
-                          ? 'PASS REVOKED'
-                          : 'INVALID PASS'}
-                  </p>
-                  <p className="mt-1 text-xs text-[color:var(--wm-ink)]">
-                    {lastResult.holder_name || 'No matching person found'}
-                  </p>
-                  <p className="mt-1 text-[10px] text-[color:var(--wm-ink-muted)]">
-                    {lastResult.role_label || ''} · {lastResult.gate_location || gateLocation}
-                  </p>
-                </div>
-              )}
+            <div>
+              <QrValidationResultCard
+                validation={validation}
+                busy={busy}
+                variant="admin"
+                onConfirmCheckin={() => void handleConfirmPendingCheckin()}
+                onResetResult={() => {
+                  setValidation(null);
+                  setPendingToken('');
+                  setScanError('');
+                }}
+                onOpenCorrection={(passId) => {
+                  const found = passes.find((p) => p.id === passId);
+                  if (found) {
+                    openCorrectionModal(found);
+                  } else {
+                    setActiveTab('registry');
+                  }
+                }}
+              />
             </div>
           </div>
         </section>
       )}
 
-      {canManage && (
+      {/* TAB 2: PASS & CHECK-IN REGISTRY */}
+      {activeTab === 'registry' && canManage && (
         <section className="wm-surface-panel overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[color:var(--wm-hairline)] px-4 py-3.5">
             <div>
-              <h2 className="text-xs font-semibold text-[color:var(--wm-ink)]">Conference Pass Registry</h2>
+              <h2 className="text-xs font-semibold text-[color:var(--wm-ink)]">
+                Conference Pass & Attendee Check-In Registry
+              </h2>
               <p className="mt-0.5 text-[10px] text-[color:var(--wm-ink-muted)]">
-                {passes.length} issued passes · {checkedIn} checked in
+                Search attendees, filter attendance status, and record audited corrections
               </p>
             </div>
             <button
               type="button"
               disabled={busy}
-              onClick={() => void issueMissing()}
+              onClick={() => void handleBackfill()}
               className="inline-flex h-8 items-center gap-2 rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-inset)] px-3 text-[11px] text-[color:var(--wm-focal)] hover:bg-[color:var(--wm-overlay)] disabled:opacity-50"
             >
               <RefreshCw className="h-3 w-3" aria-hidden="true" />
@@ -486,9 +709,50 @@ export function QrAttendanceView({
             </button>
           </div>
 
+          {/* Search & Filter Toolbar */}
+          <div className="grid gap-2 border-b border-[color:var(--wm-hairline)] bg-[color:var(--wm-inset)]/50 p-3 sm:grid-cols-[1fr_auto_auto]">
+            <label className="relative">
+              <Search
+                className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[color:var(--wm-ink-muted)]"
+                aria-hidden="true"
+              />
+              <input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search attendee name, registration ID (WM-…), or token…"
+                className="h-9 w-full rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-canvas)] pl-8 pr-3 text-xs text-[color:var(--wm-ink)]"
+              />
+            </label>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
+              aria-label="Filter check-in status"
+              className="h-9 rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-canvas)] px-3 text-xs text-[color:var(--wm-ink)]"
+            >
+              <option value="all">All Statuses</option>
+              <option value="checked_in">Checked In</option>
+              <option value="remaining">Remaining (Not Checked In)</option>
+              <option value="revoked">Revoked</option>
+            </select>
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              aria-label="Filter pass category"
+              className="h-9 rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-canvas)] px-3 text-xs text-[color:var(--wm-ink)]"
+            >
+              <option value="all">All Categories</option>
+              {categories.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Issue Manual Pass Form */}
           <form
             onSubmit={issueGuestPass}
-            className="grid gap-2 border-b border-[color:var(--wm-hairline)] p-4 sm:grid-cols-[1fr_1fr_1fr_auto]"
+            className="grid gap-2 border-b border-[color:var(--wm-hairline)] p-4 sm:grid-cols-[1.2fr_1fr_1fr_auto_auto]"
           >
             <input
               value={newHolder}
@@ -510,38 +774,85 @@ export function QrAttendanceView({
               placeholder="Role label"
               className="h-9 rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-canvas)] px-3 text-xs text-[color:var(--wm-ink)]"
             />
+            <select
+              value={newCategory}
+              onChange={(e) => setNewCategory(e.target.value)}
+              aria-label="Pass category"
+              className="h-9 rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-canvas)] px-3 text-xs text-[color:var(--wm-ink)]"
+            >
+              <option value="Delegate">Delegate</option>
+              <option value="Staff">Staff</option>
+              <option value="Security">Security</option>
+              <option value="Department Head">Department Head</option>
+              <option value="Executive">Executive</option>
+            </select>
             <button
               disabled={busy}
               className="h-9 rounded-md bg-[color:var(--wm-emerald)] px-4 text-xs font-semibold text-[#eef4ef] hover:bg-[#357a5b] disabled:opacity-50"
             >
-              Issue Guest Pass
+              Issue Pass
             </button>
           </form>
 
           {loading ? (
             <div className="p-4">
-              <WmSkeleton variant="table" rows={4} />
+              <WmSkeleton variant="table" rows={5} />
             </div>
-          ) : passes.length === 0 ? (
+          ) : filteredPasses.length === 0 ? (
             <p className="p-8 text-center text-xs text-[color:var(--wm-ink-muted)]">
-              No passes issued in Supabase yet. Every registered user receives a permanent credential automatically.
+              No passes match the current search or filter.
             </p>
           ) : (
             <div className="divide-y divide-[color:var(--wm-hairline)]">
-              {passes.map((pass) => (
-                <div key={pass.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-xs font-medium text-[color:var(--wm-ink)]">{pass.holder_name}</p>
-                    <p className="mt-0.5 truncate text-[10px] text-[color:var(--wm-ink-secondary)]">
-                      {pass.holder_email || pass.role_label} · {pass.category}
+              {filteredPasses.map((pass) => (
+                <div
+                  key={pass.id}
+                  className="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="min-w-0 space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="truncate text-xs font-semibold text-[color:var(--wm-ink)]">
+                        {pass.holder_name}
+                      </p>
+                      {pass.application_code && (
+                        <span className="rounded border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-inset)] px-1.5 py-0.5 font-mono text-[10px] text-[#ede6ca]">
+                          {pass.application_code}
+                        </span>
+                      )}
+                      {pass.application_status && (
+                        <span className="rounded border border-white/10 px-1.5 py-0.5 font-mono text-[9.5px] uppercase text-[color:var(--wm-ink-muted)]">
+                          App: {pass.application_status}
+                        </span>
+                      )}
+                    </div>
+                    <p className="truncate text-[11px] text-[color:var(--wm-ink-secondary)]">
+                      {pass.role_label} · {pass.category}
+                      {pass.committee_name
+                        ? ` · ${pass.committee_name}`
+                        : pass.department_name
+                          ? ` · ${pass.department_name}`
+                          : ''}
                     </p>
-                    <p className="mt-1 text-[10px] text-[color:var(--wm-ink-muted)]">
+                    <p className="text-[10.5px] text-[color:var(--wm-ink-muted)]">
                       {pass.checked_in_at
-                        ? `Checked in ${new Date(pass.checked_in_at).toLocaleString()} · ${pass.checked_in_gate}`
+                        ? `Checked in ${new Date(pass.checked_in_at).toLocaleString()} · ${pass.checked_in_gate || 'Entrance'}${pass.checked_in_by_name ? ` (by ${pass.checked_in_by_name})` : ''}`
                         : 'Not checked in yet'}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span
+                      className={`rounded-md border px-2 py-1 text-[10px] font-mono uppercase ${
+                        !pass.active
+                          ? 'border-rose-400/35 bg-rose-500/10 text-rose-200'
+                          : pass.checked_in_at
+                            ? 'border-emerald-400/35 bg-emerald-500/10 text-emerald-200'
+                            : 'border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-inset)] text-[color:var(--wm-ink-secondary)]'
+                      }`}
+                    >
+                      {!pass.active ? 'Revoked' : pass.checked_in_at ? 'Checked In' : 'Pending'}
+                    </span>
+
                     {pass.token_value && (
                       <button
                         type="button"
@@ -551,19 +862,22 @@ export function QrAttendanceView({
                         View QR
                       </button>
                     )}
-                    <span
-                      className={
-                        'rounded-md border px-2 py-1 text-[10px] ' +
-                        (pass.active
-                          ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-200'
-                          : 'border-rose-400/30 bg-rose-500/10 text-rose-200')
-                      }
-                    >
-                      {pass.active ? 'Active' : 'Revoked'}
-                    </span>
+
                     <button
                       type="button"
-                      onClick={() => void setPassActive(pass)}
+                      onClick={() => openCorrectionModal(pass)}
+                      className="inline-flex items-center gap-1 rounded-md border border-[color:var(--wm-accent)]/40 bg-[#2d6a4f]/22 px-2.5 py-1.5 text-[11px] font-medium text-[color:var(--wm-focal)] hover:bg-[#2d6a4f]/40"
+                    >
+                      <Wrench className="h-3 w-3" aria-hidden="true" />
+                      Correct Check-In
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTogglePassTarget(pass);
+                        setToggleReason('');
+                      }}
                       className="rounded-md border border-[color:var(--wm-hairline)] px-2.5 py-1.5 text-[11px] text-[color:var(--wm-ink-secondary)] hover:text-[color:var(--wm-ink)]"
                     >
                       {pass.active ? 'Revoke' : 'Reactivate'}
@@ -576,43 +890,320 @@ export function QrAttendanceView({
         </section>
       )}
 
-      {canManage && mode === 'attendance' && (
+      {/* TAB 3: SCAN ACTIVITY & FAILED/DUPLICATE ALERTS */}
+      {activeTab === 'scans' && canManage && (
         <section className="wm-surface-panel overflow-hidden">
-          <div className="border-b border-[color:var(--wm-hairline)] px-4 py-3">
-            <h2 className="text-xs font-semibold text-[color:var(--wm-ink)]">Recent Scan Activity</h2>
-            <p className="mt-0.5 text-[10px] text-[color:var(--wm-ink-muted)]">Latest 200 scanner events</p>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[color:var(--wm-hairline)] px-4 py-3.5">
+            <div>
+              <h2 className="text-xs font-semibold text-[color:var(--wm-ink)]">
+                Scan Activity, Failed & Duplicate Attempts
+              </h2>
+              <p className="mt-0.5 text-[10px] text-[color:var(--wm-ink-muted)]">
+                Review every checkpoint scan including blocked duplicate, revoked, ineligible, and invalid attempts
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search attendee, gate, scanner…"
+                className="h-8 rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-canvas)] px-3 text-xs text-[color:var(--wm-ink)]"
+              />
+              <select
+                value={scanResultFilter}
+                onChange={(e) => setScanResultFilter(e.target.value as typeof scanResultFilter)}
+                aria-label="Filter scan outcome"
+                className="h-8 rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-canvas)] px-2.5 text-xs text-[color:var(--wm-ink)]"
+              >
+                <option value="all">All Scan Events ({scans.length})</option>
+                <option value="valid">Valid Check-Ins</option>
+                <option value="duplicate">Duplicate / Already Checked In</option>
+                <option value="failed">Failed / Invalid / Revoked / Ineligible</option>
+              </select>
+            </div>
           </div>
+
           <div className="divide-y divide-[color:var(--wm-hairline)]">
-            {scans.length === 0 ? (
-              <p className="p-6 text-center text-xs text-[color:var(--wm-ink-muted)]">No scans recorded.</p>
+            {filteredScans.length === 0 ? (
+              <p className="p-8 text-center text-xs text-[color:var(--wm-ink-muted)]">
+                No scan events match the selected filter.
+              </p>
             ) : (
-              scans.map((scan) => (
-                <div key={scan.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
-                  <div>
-                    <p className="text-xs text-[color:var(--wm-ink)]">{scan.holder_name || 'Unknown token'}</p>
-                    <p className="mt-0.5 text-[10px] text-[color:var(--wm-ink-muted)]">
-                      {scan.gate_location} · {new Date(scan.scanned_at).toLocaleString()}
-                    </p>
-                  </div>
-                  <span
-                    className={
-                      'rounded-md border px-2 py-1 text-[10px] uppercase ' +
-                      (scan.result === 'valid_checkin'
-                        ? 'border-emerald-400/25 text-emerald-200'
-                        : scan.result === 'duplicate_recent'
-                          ? 'border-amber-400/25 text-amber-200'
-                          : 'border-rose-400/25 text-rose-200')
-                    }
+              filteredScans.map((scan) => {
+                const isValid = scan.result === 'valid_checkin';
+                const isDup =
+                  scan.result === 'already_checked_in' || scan.result === 'duplicate_recent';
+                return (
+                  <div
+                    key={scan.id}
+                    className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
                   >
-                    {scan.result.replaceAll('_', ' ')}
-                  </span>
-                </div>
-              ))
+                    <div className="flex items-start gap-3">
+                      {isValid ? (
+                        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
+                      ) : isDup ? (
+                        <Clock className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
+                      ) : (
+                        <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-400" />
+                      )}
+                      <div>
+                        <p className="text-xs font-medium text-[color:var(--wm-ink)]">
+                          {scan.holder_name || `Unrecognized token (${scan.token_value_masked || 'unknown'})`}
+                          {scan.application_code ? ` · ${scan.application_code}` : ''}
+                        </p>
+                        <p className="mt-0.5 text-[10.5px] text-[color:var(--wm-ink-muted)]">
+                          {scan.gate_location} · {new Date(scan.scanned_at).toLocaleString()}
+                          {scan.scanned_by_name ? ` · Scanned by ${scan.scanned_by_name}` : ''}
+                        </p>
+                        {scan.detail_message && (
+                          <p className="mt-0.5 text-[10.5px] text-[color:var(--wm-ink-secondary)]">
+                            {scan.detail_message}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <span
+                      className={`rounded-md border px-2 py-1 text-[10px] font-mono uppercase ${
+                        isValid
+                          ? 'border-emerald-400/25 bg-emerald-500/10 text-emerald-200'
+                          : isDup
+                            ? 'border-amber-400/30 bg-amber-500/10 text-amber-200'
+                            : 'border-rose-400/30 bg-rose-500/10 text-rose-200'
+                      }`}
+                    >
+                      {scan.result.replaceAll('_', ' ')}
+                    </span>
+                  </div>
+                );
+              })
             )}
           </div>
         </section>
       )}
 
+      {/* TAB 4: ADMINISTRATIVE CORRECTIONS AUDIT TRAIL */}
+      {activeTab === 'audit' && canManage && (
+        <section className="wm-surface-panel overflow-hidden">
+          <div className="border-b border-[color:var(--wm-hairline)] px-4 py-3.5">
+            <h2 className="text-xs font-semibold text-[color:var(--wm-ink)]">
+              Check-In Corrections Audit Trail
+            </h2>
+            <p className="mt-0.5 text-[10px] text-[color:var(--wm-ink-muted)]">
+              Immutable record of manual check-ins, resets, gate updates, and pass revocations
+            </p>
+          </div>
+
+          {correctionLogs.length === 0 ? (
+            <p className="p-8 text-center text-xs text-[color:var(--wm-ink-muted)]">
+              No administrative check-in corrections have been recorded yet.
+            </p>
+          ) : (
+            <div className="divide-y divide-[color:var(--wm-hairline)]">
+              {correctionLogs.map((entry) => (
+                <div key={entry.id} className="space-y-1 px-4 py-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs font-semibold text-[color:var(--wm-ink)]">
+                      {entry.holder_name}
+                    </p>
+                    <span className="rounded border border-[#ede6ca]/25 bg-[#ede6ca]/10 px-2 py-0.5 font-mono text-[10px] uppercase text-[#ede6ca]">
+                      {entry.action_type.replaceAll('_', ' ')}
+                    </span>
+                  </div>
+                  <p className="text-xs text-[color:var(--wm-ink-secondary)]">
+                    Reason: {entry.reason}
+                  </p>
+                  <p className="text-[10.5px] text-[color:var(--wm-ink-muted)]">
+                    By {entry.corrected_by_name} ({entry.corrected_by_role.replace('_', ' ')}) ·{' '}
+                    {new Date(entry.created_at).toLocaleString()}
+                    {entry.new_checked_in_gate ? ` · Gate: ${entry.new_checked_in_gate}` : ''}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* TAB 5: PERSONAL MY QR */}
+      {activeTab === 'my_qr' && <MyQrCard actorOverride={actor} />}
+
+      {/* Pass Correction Modal (with Mandatory Audit Reason) */}
+      {correctionPass && (
+        <div
+          className="fixed inset-0 z-[130] grid place-items-center bg-[#030906]/82 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Correct Check-In Record"
+          onClick={() => setCorrectionPass(null)}
+        >
+          <form
+            onClick={(e) => e.stopPropagation()}
+            onSubmit={(e) => void handleCorrectionSubmit(e)}
+            className="w-full max-w-md space-y-4 rounded-xl border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-surface)] p-5 shadow-2xl"
+          >
+            <div className="flex items-start justify-between gap-2 border-b border-[color:var(--wm-hairline)] pb-3">
+              <div>
+                <p className="text-[10px] font-mono uppercase tracking-[0.16em] text-[color:var(--wm-accent)]">
+                  Audited Check-In Correction
+                </p>
+                <h3 className="wm-serif mt-1 text-xl font-semibold text-[color:var(--wm-ink)]">
+                  {correctionPass.holder_name}
+                </h3>
+                <p className="text-[11px] text-[color:var(--wm-ink-muted)]">
+                  Current status:{' '}
+                  {correctionPass.checked_in_at
+                    ? `Checked in at ${correctionPass.checked_in_gate} (${new Date(correctionPass.checked_in_at).toLocaleString()})`
+                    : 'Not checked in'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCorrectionPass(null)}
+                aria-label="Close correction dialog"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-[color:var(--wm-ink-muted)] hover:bg-[color:var(--wm-inset)]"
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </div>
+
+            <label className="block text-xs text-[color:var(--wm-ink-secondary)]">
+              Correction Action
+              <select
+                value={correctionAction}
+                onChange={(e) =>
+                  setCorrectionAction(
+                    e.target.value as 'reset_checkin' | 'manual_checkin' | 'update_gate',
+                  )
+                }
+                className="mt-1.5 h-10 w-full rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-canvas)] px-3 text-xs text-[color:var(--wm-ink)]"
+              >
+                <option value="reset_checkin">Reset Check-In to Pending (Undo Accidental Scan)</option>
+                <option value="manual_checkin">Record Manual Check-In</option>
+                <option value="update_gate" disabled={!correctionPass.checked_in_at}>
+                  Update Check-In Gate Location
+                </option>
+              </select>
+            </label>
+
+            {correctionAction !== 'reset_checkin' && (
+              <label className="block text-xs text-[color:var(--wm-ink-secondary)]">
+                Gate / Checkpoint
+                <select
+                  value={correctionGate}
+                  onChange={(e) => setCorrectionGate(e.target.value)}
+                  className="mt-1.5 h-10 w-full rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-canvas)] px-3 text-xs text-[color:var(--wm-ink)]"
+                >
+                  {GATES.map((g) => (
+                    <option key={g} value={g}>
+                      {g}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+
+            <label className="block text-xs text-[color:var(--wm-ink-secondary)]">
+              Mandatory Audit Reason
+              <textarea
+                required
+                minLength={3}
+                rows={3}
+                value={correctionReason}
+                onChange={(e) => setCorrectionReason(e.target.value)}
+                placeholder="Explain why this check-in record is being corrected (recorded permanently)…"
+                className="mt-1.5 w-full rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-canvas)] p-3 text-xs text-[color:var(--wm-ink)]"
+              />
+            </label>
+
+            <div className="flex justify-end gap-2 border-t border-[color:var(--wm-hairline)] pt-3">
+              <button
+                type="button"
+                onClick={() => setCorrectionPass(null)}
+                className="h-9 rounded-md border border-[color:var(--wm-hairline)] px-3.5 text-xs text-[color:var(--wm-ink-secondary)]"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={busy || correctionReason.trim().length < 3}
+                className="h-9 rounded-md bg-[color:var(--wm-emerald)] px-4 text-xs font-semibold text-[#eef4ef] hover:bg-[#357a5b] disabled:opacity-50"
+              >
+                {busy ? 'Saving…' : 'Save Correction'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Revoke / Reactivate Modal */}
+      {togglePassTarget && (
+        <div
+          className="fixed inset-0 z-[130] grid place-items-center bg-[#030906]/82 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-label={togglePassTarget.active ? 'Revoke QR Pass' : 'Reactivate QR Pass'}
+          onClick={() => setTogglePassTarget(null)}
+        >
+          <form
+            onClick={(e) => e.stopPropagation()}
+            onSubmit={(e) => void handleConfirmTogglePass(e)}
+            className="w-full max-w-md space-y-4 rounded-xl border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-surface)] p-5 shadow-2xl"
+          >
+            <div className="flex items-start gap-3">
+              <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-300" aria-hidden="true" />
+              <div>
+                <h3 className="wm-serif text-lg font-semibold text-[color:var(--wm-ink)]">
+                  {togglePassTarget.active ? 'Revoke Pass' : 'Reactivate Pass'} —{' '}
+                  {togglePassTarget.holder_name}
+                </h3>
+                <p className="mt-1 text-xs text-[color:var(--wm-ink-secondary)]">
+                  {togglePassTarget.active
+                    ? 'Revoking immediately blocks entrance scanning for this pass without changing the permanent token.'
+                    : 'Reactivating restores conference entrance validity for this pass.'}
+                </p>
+              </div>
+            </div>
+
+            <label className="block text-xs text-[color:var(--wm-ink-secondary)]">
+              Audit Reason (optional)
+              <input
+                value={toggleReason}
+                onChange={(e) => setToggleReason(e.target.value)}
+                placeholder={
+                  togglePassTarget.active
+                    ? 'e.g. Withdrawn application or lost badge'
+                    : 'e.g. Verified re-entry authorization'
+                }
+                className="mt-1.5 h-10 w-full rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-canvas)] px-3 text-xs text-[color:var(--wm-ink)]"
+              />
+            </label>
+
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setTogglePassTarget(null)}
+                className="h-9 rounded-md border border-[color:var(--wm-hairline)] px-3.5 text-xs text-[color:var(--wm-ink-secondary)]"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={busy}
+                className={`h-9 rounded-md px-4 text-xs font-semibold text-white ${
+                  togglePassTarget.active
+                    ? 'bg-rose-700 hover:bg-rose-600'
+                    : 'bg-[color:var(--wm-emerald)] hover:bg-[#357a5b]'
+                }`}
+              >
+                {togglePassTarget.active ? 'Confirm Revoke' : 'Confirm Reactivate'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* View Issued QR Modal */}
       {issuedPass?.token_value && (
         <div
           className="fixed inset-0 z-[130] grid place-items-center bg-[#030906]/82 p-4 backdrop-blur-sm"

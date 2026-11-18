@@ -22,6 +22,7 @@ import { supabase } from '../lib/supabase';
 import {
   DEPARTMENT_HEAD_DEFAULT_PERMISSIONS,
   hasPermission,
+  isSecurityAccount,
   ROLE_DEFAULT_PERMISSIONS,
   normalizeDepartmentSlug,
   resolveUserPermissions,
@@ -582,6 +583,16 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
       if (expectedPortal === 'executive_board' && user.role !== 'executive_board') {
         await supabase.auth.signOut();
         return { ok: false, error: 'This account does not have access to the Executive Board sign-in.' };
+      }
+      if (expectedPortal === 'security' && !isSecurityAccount(user, departments)) {
+        await supabase.auth.signOut();
+        return {
+          ok: false,
+          error:
+            user.role === 'admin'
+              ? 'Administrator accounts must sign in at /admin-login to use the Admin Scanner.'
+              : 'This account is not authorized for Security entrance scanning.',
+        };
       }
       try {
         window.sessionStorage.removeItem(TEST_HEAD_STORAGE_KEY);

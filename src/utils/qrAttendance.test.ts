@@ -66,4 +66,19 @@ test('evaluateQrScan detects valid, duplicate, revoked, and invalid tokens accur
 
   const invalid = evaluateQrScan('UNKNOWN-999', passes, scans, '2026-11-17T09:10:00.000Z');
   assert.equal(invalid.result, 'invalid_token');
+
+  const alreadyUsedPass: QrPassRecord = {
+    ...passes[0],
+    id: 'qr-used',
+    token: 'WM26-USED-002',
+    checkedIn: true,
+    lastScannedAt: '2026-11-16T08:30:00.000Z',
+  };
+  const alreadyChecked = evaluateQrScan(
+    'WM26-USED-002',
+    [...passes, alreadyUsedPass],
+    scans,
+    '2026-11-17T09:10:00.000Z',
+  );
+  assert.equal(alreadyChecked.result, 'already_checked_in');
 });

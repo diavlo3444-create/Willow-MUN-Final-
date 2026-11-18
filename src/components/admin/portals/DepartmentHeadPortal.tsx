@@ -15,6 +15,7 @@ import { PortalAuthView } from '../PortalAuthView';
 import { CommitteesManagementView } from '../views/CommitteesManagementView';
 import { HeadApplicationsView } from '../views/HeadApplicationsView';
 import { HrAcceptedApplicantsView } from '../views/HrAcceptedApplicantsView';
+import { QrAttendanceView } from '../views/QrAttendanceView';
 
 interface DepartmentHeadPortalProps {
   pathname: string;
@@ -56,22 +57,26 @@ export function DepartmentHeadPortal({ pathname, onNavigate }: DepartmentHeadPor
       : null;
 
   const canViewApps = hasPermission(effectiveHead, 'applications.view', data.departments);
+  const canScanQr = hasPermission(effectiveHead, 'qr.scan', data.departments);
   const isHrHead = isHrActor(effectiveHead, data.departments);
   const isDccHead = isDccActor(effectiveHead, data.departments);
   const canViewQr = hasPermission(effectiveHead, 'qr.view_pass', data.departments);
 
   const defaultSection = canViewApps
     ? 'applications'
-    : isHrHead
-      ? 'hr-accepted'
-      : isDccHead
-        ? 'committees'
-        : 'qr';
+    : canScanQr
+      ? 'scanner'
+      : isHrHead
+        ? 'hr-accepted'
+        : isDccHead
+          ? 'committees'
+          : 'qr';
 
   const section = hasExplicitSection ? requestedSection : defaultSection;
 
   const isAllowedSection =
     (section === 'applications' && canViewApps) ||
+    (section === 'scanner' && canScanQr) ||
     (section === 'qr' && canViewQr) ||
     (section === 'hr-accepted' && isHrHead) ||
     (section === 'committees' && isDccHead);
@@ -146,16 +151,19 @@ export function DepartmentHeadPortal({ pathname, onNavigate }: DepartmentHeadPor
     effectiveHead.role === 'executive_board' ? 'Executive Board · Head' : 'Department Head';
 
   const activeNavId =
-    section === 'hr-accepted' && isHrHead
-      ? 'hr-accepted'
-      : section === 'committees' && isDccHead
-        ? 'committees'
-        : section === 'qr' && canViewQr
-          ? 'qr'
-          : defaultSection;
+    section === 'scanner' && canScanQr
+      ? 'scanner'
+      : section === 'hr-accepted' && isHrHead
+        ? 'hr-accepted'
+        : section === 'committees' && isDccHead
+          ? 'committees'
+          : section === 'qr' && canViewQr
+            ? 'qr'
+            : defaultSection;
 
   const pageTitles: Record<string, string> = {
     applications: `${assignedDepartment.name} Applications`,
+    scanner: 'Entrance QR Pass Scanner',
     'hr-accepted': 'HR · Accepted Applicants',
     committees: 'DCC · Committee Management',
     qr: 'My QR Credential',
@@ -197,6 +205,27 @@ export function DepartmentHeadPortal({ pathname, onNavigate }: DepartmentHeadPor
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             <span>Return to Assigned Workspace</span>
           </button>
+        </div>
+      ) : activeNavId === 'scanner' ? (
+        <div className="space-y-4">
+          <div className="wm-surface-panel flex flex-wrap items-center justify-between gap-3 p-4">
+            <div>
+              <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[color:var(--wm-accent)]">
+                Security Entrance Operations
+              </p>
+              <p className="mt-1 text-xs text-[color:var(--wm-ink-secondary)]">
+                Validate delegate and staff QR passes below or open the dedicated full-screen Security terminal.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => onNavigate('/security')}
+              className="inline-flex h-9 items-center gap-2 rounded-md bg-[color:var(--wm-emerald)] px-4 text-xs font-semibold text-[#eef4ef] hover:bg-[#357a5b]"
+            >
+              Open Full-Screen Security Scanner
+            </button>
+          </div>
+          <QrAttendanceView mode="qr" actingUserOverride={effectiveHead} />
         </div>
       ) : activeNavId === 'hr-accepted' ? (
         <HrAcceptedApplicantsView actingUserOverride={effectiveHead} />
