@@ -28,7 +28,7 @@ Deno.serve(async (req: Request) => {
     const pageUrl = new URL(req.url);
     const inviteToken = String(pageUrl.searchParams.get("token") || "").trim().toLowerCase();
     const email = cleanEmail(pageUrl.searchParams.get("email"));
-    if (!/^[a-f0-9]{64}$/.test(inviteToken) || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) {
+    if (!/^[a-f0-9]{64}$/.test(inviteToken) || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return json({ error: "This invitation link is missing required details. Ask the Super Admin for a new link." }, 400, origin);
     }
     const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (char) => ({
