@@ -1081,3 +1081,51 @@ section.mun-scroll-section:nth-of-type(odd)::before {
   }
   .mun-chapter-link::after { transition: none; }
 }
+
+
+/* Mobile visual system: one consistent willow-olive tone across both videos and sections. */
+@media (max-width: 767px) {
+  .willow-background-video,
+  .willow-intro-video {
+    filter: grayscale(1) sepia(0.34) hue-rotate(28deg) saturate(0.78);
+  }
+
+  section.mun-scroll-section::before,
+  section.mun-scroll-section:nth-of-type(even)::before,
+  section.mun-scroll-section:nth-of-type(odd)::before {
+    background: rgba(20, 24, 10, 0.62);
+    border-top-color: rgba(237, 230, 202, 0.10);
+    border-bottom-color: rgba(237, 230, 202, 0.08);
+  }
+
+  .mun-btn-interactive,
+  .mun-link-underline,
+  .mun-mobile-link-enter,
+  .mun-eb-card,
+  .mun-card,
+  .mun-committee-row {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  .mun-btn-interactive:active,
+  .mun-mobile-link-enter:active {
+    transform: scale(0.975);
+    opacity: 0.78;
+  }
+
+  .mun-eb-card:active,
+  .mun-card:active {
+    transform: scale(0.985);
+    border-color: rgba(237, 230, 202, 0.52);
+    background-color: rgba(237, 230, 202, 0.07);
+  }
+
+  .mun-committee-row:active {
+    background: rgba(237, 230, 202, 0.075);
+  }
+
+  .mun-link-underline:active {
+    opacity: 0.7;
+  }
+}
