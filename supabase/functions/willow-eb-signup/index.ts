@@ -28,7 +28,7 @@ Deno.serve(async (req: Request) => {
     const pageUrl = new URL(req.url);
     const inviteToken = String(pageUrl.searchParams.get("token") || "").trim().toLowerCase();
     const email = cleanEmail(pageUrl.searchParams.get("email"));
-    if (!/^[a-f0-9]{64}$/.test(inviteToken) || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (!/^[a-f0-9]{64}$/.test(inviteToken) || !/^[^\s@]+@[^\s@]+$/.test(email)) {
       return json({ error: "This invitation link is missing required details. Ask the Super Admin for a new link." }, 400, origin);
     }
     const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (char) => ({
@@ -86,7 +86,7 @@ form.addEventListener('submit',async(event)=>{
   const email = cleanEmail(body?.email);
   const password = String(body?.password || "");
   const inviteToken = String(body?.token || "").trim().toLowerCase();
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ error: "Enter a valid email address." }, 400, origin);
+  if (!/^[^\s@]+@[^\s@]+$/.test(email)) return json({ error: "Enter a valid email address." }, 400, origin);
   if (password.length < 10 || password.length > 128) return json({ error: "Password must be between 10 and 128 characters." }, 400, origin);
   if (!/^[a-f0-9]{64}$/.test(inviteToken)) return json({ error: "A valid private EB invitation link is required." }, 403, origin);
   const tokenDigest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(inviteToken));
