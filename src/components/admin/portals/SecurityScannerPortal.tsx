@@ -66,7 +66,6 @@ export function SecurityScannerPortal({
         : 'scanner';
 
   const [gateLocation, setGateLocation] = useState<string>('Main Entrance');
-  const [confirmBeforeCheckin, setConfirmBeforeCheckin] = useState<boolean>(true);
   const [attendanceAction, setAttendanceAction] = useState<'checkin' | 'checkout'>('checkin');
   const [manualToken, setManualToken] = useState<string>('');
   const [pendingToken, setPendingToken] = useState<string>('');
@@ -99,9 +98,7 @@ export function SecurityScannerPortal({
       setBusy(true);
       setPendingToken(cleanToken);
 
-      const response = confirmBeforeCheckin
-        ? await verifyQrPassAttendance(cleanToken, gateLocation, attendanceAction)
-        : await commitQrPassAttendance(cleanToken, gateLocation, attendanceAction);
+      const response = await verifyQrPassAttendance(cleanToken, gateLocation, attendanceAction);
 
       setBusy(false);
 
@@ -143,7 +140,7 @@ export function SecurityScannerPortal({
 
       await loadRecentScans();
     },
-    [attendanceAction, confirmBeforeCheckin, gateLocation, loadRecentScans, pushToast],
+    [attendanceAction, gateLocation, loadRecentScans, pushToast],
   );
 
   const handleConfirmPendingCheckin = useCallback(async () => {
@@ -466,7 +463,7 @@ export function SecurityScannerPortal({
                     disabled={busy || !manualToken.trim()}
                     className="h-11 rounded-md bg-[color:var(--wm-emerald)] px-5 text-xs font-semibold text-[#eef4ef] transition-colors hover:bg-[#357a5b] disabled:opacity-50"
                   >
-                    {busy ? 'Checking…' : confirmBeforeCheckin ? 'Verify Pass' : attendanceAction === 'checkout' ? 'Verify & Check Out' : 'Verify & Check In'}
+                    {busy ? 'Checking…' : 'Verify Pass'}
                   </button>
                 </form>
 
