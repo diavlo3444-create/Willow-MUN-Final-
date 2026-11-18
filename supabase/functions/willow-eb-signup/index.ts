@@ -67,6 +67,7 @@ Deno.serve(async (req: Request) => {
       is_active: true,
       title: invite.title,
       avatar_url: invite.avatar_url,
+      phone_number: invite.phone_number || null,
       eb_rank: invite.eb_rank,
       eb_permissions: invite.eb_permissions,
     }, { onConflict: "user_id" });
