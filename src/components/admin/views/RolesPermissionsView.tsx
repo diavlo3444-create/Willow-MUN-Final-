@@ -518,24 +518,75 @@ export function RolesPermissionsView({ section }: RolesPermissionsViewProps) {
 
 export function DepartmentTestingView() {
   const { data, currentUser } = useAdminStore();
-  const [liveHeadEmails, setLiveHeadEmails] = useState<Set<string>>(new Set());
+  const [serverHeads, setServerHeads] = useState<Array<{
+    user_id: string; full_name: string; email: string; role: string;
+    department_id: string | null; is_active: boolean; title: string; signup_status?: string;
+  }>>([]);
   const [loadingHeads, setLoadingHeads] = useState(true);
+  const [loadError, setLoadError] = useState('');
+
   useEffect(() => {
     let active = true;
+    setLoadingHeads(true);
     supabase.functions.invoke('willow-staff-admin', { body: { action: 'list' } }).then(({ data: response, error }) => {
       if (!active) return;
-      if (!error && !response?.error) {
-        setLiveHeadEmails(new Set((response?.accounts || []).filter((a: any) => a.role === 'department_head' && a.is_active === true).map((a: any) => String(a.email || '').toLowerCase())));
+      if (error || response?.error) {
+        setLoadError(response?.error || error?.message || 'Could not load Department Head accounts.');
+      } else {
+        setServerHeads((response?.accounts || []).filter((a: any) => a.role === 'department_head'));
       }
       setLoadingHeads(false);
-    }).catch(() => { if (active) setLoadingHeads(false); });
+    }).catch((error) => {
+      if (!active) return;
+      setLoadError(error instanceof Error ? error.message : 'Could not load Department Head accounts.');
+      setLoadingHeads(false);
+    });
     return () => { active = false; };
   }, []);
+
   const deptById = useMemo(
     () => new Map(data.departments.map((d) => [d.id, d])),
     [data.departments],
   );
-  const headUsers = data.users.filter((u) => u.role === 'department_head' && u.isActive && liveHeadEmails.has(u.email.toLowerCase()));
+
+  // Merge real provisioned profiles with the complete preloaded head roster.
+  // Do not intersect these lists: roster entries awaiting signup have no wm_profiles row yet.
+  const headRows = useMemo(() => {
+    const byEmail = new Map<string, {
+      id: string; testUserId?: string; fullName: string; email: string; title: string;
+      departmentId: string | null; isActive: boolean; status: 'Active' | 'Awaiting signup' | 'Suspended';
+    }>();
+    for (const account of serverHeads) {
+      const email = String(account.email || '').toLowerCase();
+      const roster = data.users.find((u) => u.role === 'department_head' &&
+        ((email && u.email.toLowerCase() === email) || u.id === account.user_id));
+      byEmail.set(email || account.user_id, {
+        id: account.user_id,
+        testUserId: roster?.id,
+        fullName: account.full_name || roster?.fullName || 'Department Head',
+        email: account.email || roster?.email || '',
+        title: account.title || roster?.title || 'Department Head',
+        departmentId: account.department_id || roster?.departmentId || null,
+        isActive: account.is_active,
+        status: !account.is_active ? 'Suspended' : account.signup_status === 'awaiting_signup' ? 'Awaiting signup' : 'Active',
+      });
+    }
+    for (const roster of data.users.filter((u) => u.role === 'department_head')) {
+      const email = roster.email.toLowerCase();
+      const key = email || roster.id;
+      if (!byEmail.has(key)) {
+        byEmail.set(key, {
+          id: roster.id, testUserId: roster.id, fullName: roster.fullName, email: roster.email,
+          title: roster.title || 'Department Head', departmentId: roster.departmentId,
+          isActive: roster.isActive, status: roster.isActive ? 'Awaiting signup' : 'Suspended',
+        });
+      } else {
+        const existing = byEmail.get(key)!;
+        if (!existing.testUserId) existing.testUserId = roster.id;
+      }
+    }
+    return [...byEmail.values()].sort((a, b) => a.fullName.localeCompare(b.fullName));
+  }, [serverHeads, data.users]);
 
   if (!canManageAccountsOrRoles(currentUser)) {
     return (
@@ -549,7 +600,6 @@ export function DepartmentTestingView() {
   }
 
   const openHeadTestTab = (headId: string) => {
-    // The child tab gets its own sessionStorage copy, so testing never changes this admin tab.
     const tab = window.open('about:blank', '_blank');
     if (!tab) {
       window.alert('The test tab was blocked. Allow pop-ups for willow-mun.vercel.app and try again.');
@@ -571,36 +621,37 @@ export function DepartmentTestingView() {
         <div className="text-xs space-y-1">
           <h2 className="text-base font-semibold text-[color:var(--wm-ink)]">Department Head Testing</h2>
           <p className="text-[color:var(--wm-ink-secondary)]">
-            Open a separate tab as the selected Department Head. The test tab keeps your Super Admin tab signed in, but uses the head's department scope and head-level permissions for its session.
+            Open a separate tab as the selected Department Head. This includes provisioned accounts and preloaded heads who are still eligible to sign up.
           </p>
         </div>
       </div>
       <section className="wm-surface-panel overflow-hidden">
         <div className="border-b border-[color:var(--wm-hairline)] px-4 py-3">
           <h3 className="text-sm font-semibold text-[color:var(--wm-ink)]">Department Head Accounts</h3>
-          <p className="mt-1 text-xs text-[color:var(--wm-ink-muted)]">Choose an active Department Head account to open a separate test tab. Only provisioned head accounts are shown.</p>
+          <p className="mt-1 text-xs text-[color:var(--wm-ink-muted)]">All saved head roster entries are listed, including heads who have not completed signup yet.</p>
         </div>
+        {loadError && <p role="alert" className="m-4 rounded border border-rose-400/30 bg-rose-500/10 p-3 text-xs text-rose-200">{loadError}</p>}
         {loadingHeads ? (
-          <p className="p-8 text-center text-sm text-[color:var(--wm-ink-muted)]">Loading active head accounts…</p>
-        ) : headUsers.length === 0 ? (
-          <p className="p-8 text-center text-sm text-[color:var(--wm-ink-muted)]">No active Department Head profiles are available to test.</p>
+          <p className="p-8 text-center text-sm text-[color:var(--wm-ink-muted)]">Loading head accounts…</p>
+        ) : headRows.length === 0 ? (
+          <p className="p-8 text-center text-sm text-[color:var(--wm-ink-muted)]">No Department Head entries were found in the saved roster or account directory.</p>
         ) : (
           <div className="divide-y divide-[color:var(--wm-hairline)]">
-            {headUsers.map((head) => {
-              const dept = head.departmentId ? deptById.get(head.departmentId) ?? null : null;
+            {headRows.map((head) => {
+              const dept = head.departmentId ? deptById.get(head.departmentId) ?? data.departments.find((d) => d.slug === head.departmentId) ?? null : null;
               const deptApps = data.applications.filter((a) => a.departmentId === head.departmentId);
               return (
-                <article key={head.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <article key={head.email || head.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-[color:var(--wm-ink)]">{head.fullName}</p>
-                    <p className="mt-1 text-xs text-[color:var(--wm-ink-secondary)]">{head.email}</p>
-                    <p className="mt-1 text-xs text-[color:var(--wm-ink-muted)]">{dept?.name || 'Unassigned Department'} · {deptApps.length} application(s)</p>
+                    <p className="mt-1 text-xs text-[color:var(--wm-ink-secondary)]">{head.email || 'Email not recorded'}</p>
+                    <p className="mt-1 text-xs text-[color:var(--wm-ink-muted)]">{dept?.name || head.title} · {deptApps.length} application(s)</p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="rounded border border-emerald-400/30 px-2 py-1 text-[10px] text-emerald-300">Active</span>
-                    <button type="button" disabled={!dept} onClick={() => openHeadTestTab(head.id)} className="inline-flex h-9 items-center gap-2 rounded bg-[color:var(--wm-focal)] px-3 text-xs font-semibold text-[#12170c] hover:bg-[#dad3b4] disabled:opacity-40">
+                    <span className={`rounded border px-2 py-1 text-[10px] ${head.status === 'Active' ? 'border-emerald-400/30 text-emerald-300' : head.status === 'Suspended' ? 'border-rose-400/30 text-rose-300' : 'border-amber-400/30 text-amber-200'}`}>{head.status}</span>
+                    <button type="button" disabled={!head.testUserId || !dept} onClick={() => head.testUserId && openHeadTestTab(head.testUserId)} title={!head.testUserId ? 'This head has no local test identity yet' : !dept ? 'This head has no linked department' : 'Open head portal in a new tab'} className="inline-flex h-9 items-center gap-2 rounded bg-[color:var(--wm-focal)] px-3 text-xs font-semibold text-[#12170c] hover:bg-[#dad3b4] disabled:opacity-40">
                       <FlaskConical className="h-3.5 w-3.5" aria-hidden="true" />
-                      Open head test
+                      Sign in as
                     </button>
                   </div>
                 </article>
