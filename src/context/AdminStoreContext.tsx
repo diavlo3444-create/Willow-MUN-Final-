@@ -399,7 +399,15 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
       .select('user_id, full_name, role, department_id, is_active, title, division, avatar_url, eb_permissions, eb_rank')
       .eq('user_id', authUser.id).maybeSingle();
     if (error || !profile || profile.is_active !== true) {
-      setCurrentUserId(null); setAuthReady(true); await supabase.auth.signOut(); return;
+      const completingEbSignup =
+        typeof window !== 'undefined' &&
+        window.location.pathname === '/eb-signup' &&
+        new URLSearchParams(window.location.search).get('finish') === '1' &&
+        Boolean(authUser.email_confirmed_at);
+      setCurrentUserId(null);
+      setAuthReady(true);
+      if (!completingEbSignup) await supabase.auth.signOut();
+      return;
     }
     const user = userFromProfile(profile, authUser);
     try {
