@@ -308,8 +308,8 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
       member = membersJson.members.find((entry) => entry.id === rosterId);
     }
     const departmentByGroup: Record<string, string> = {
-      media: 'media-press',
-      press: 'media-press',
+      media: 'media',
+      press: 'press',
       marketing: 'marketing',
       design: 'design',
       security: 'security',
