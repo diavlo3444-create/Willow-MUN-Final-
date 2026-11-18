@@ -66,8 +66,8 @@ describe('countryCodes and applicationForm helpers', () => {
 
   it('maps public tracks to exact backend department slugs', () => {
     assert.equal(mapTrackToDepartmentSlug('volunteer'), 'volunteers');
-    assert.equal(mapTrackToDepartmentSlug('media'), 'media-press');
-    assert.equal(mapTrackToDepartmentSlug('press'), 'media-press');
+    assert.equal(mapTrackToDepartmentSlug('media'), 'media');
+    assert.equal(mapTrackToDepartmentSlug('press'), 'press');
     assert.equal(mapTrackToDepartmentSlug('security'), 'security');
   });
 
