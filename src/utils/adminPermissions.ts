@@ -593,7 +593,11 @@ export function hasPermission(
       permission === 'applications.view_confidential' ||
       permission === 'applications.review'
     ) {
-      return user.permissions?.[permission] !== false;
+      const applicationDepartment = getActorDepartmentSlug(user, departments);
+      const applicationDepartmentAllowed =
+        ['media-press', 'security', 'volunteers'].includes(applicationDepartment || '') &&
+        (applicationDepartment !== 'media-press' || getMediaPressSubScope(user) !== null);
+      return applicationDepartmentAllowed && user.permissions?.[permission] !== false;
     }
     if (permission === 'qr.view_pass') {
       return user.permissions?.['qr.view_pass'] !== false;
@@ -610,6 +614,11 @@ export function hasPermission(
       permission === 'applications.view_confidential' ||
       permission === 'applications.review'
     ) {
+      const applicationDepartment = getActorDepartmentSlug(user, departments);
+      const applicationDepartmentAllowed =
+        ['media-press', 'security', 'volunteers'].includes(applicationDepartment || '') &&
+        (applicationDepartment !== 'media-press' || getMediaPressSubScope(user) !== null);
+      if (!applicationDepartmentAllowed) return false;
       if (typeof user.permissions?.[permission] === 'boolean') {
         return Boolean(user.permissions[permission]);
       }
