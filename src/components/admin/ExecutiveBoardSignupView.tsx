@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { ArrowLeft, Lock, UserPlus } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAdminStore } from '../../context/AdminStoreContext';
