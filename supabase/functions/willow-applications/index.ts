@@ -37,8 +37,8 @@ function getActorGender(profile: { title?: string | null; division?: string | nu
   return null;
 }
 
-function isHrProfile(profile: { department_id?: string | null; title?: string | null; division?: string | null }): boolean {
-  const dept = String(profile.department_id || "").trim().toLowerCase();
+function isHrProfile(profile: { department_slug?: string | null; title?: string | null; division?: string | null }): boolean {
+  const dept = String(profile.department_slug || "").trim().toLowerCase();
   if (dept === "hr" || dept === "human-resources" || dept === "human_resources") return true;
   const label = `${profile.title || ""} ${profile.division || ""}`.toLowerCase();
   return /\b(hr|human\s+resources)\b/.test(label);
@@ -125,9 +125,15 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Your account is not active." }, 403);
   }
 
+  const { data: actorDepartment } = actor.department_id
+    ? await admin.from("wm_departments").select("id,slug").eq("id", actor.department_id).maybeSingle()
+    : { data: null };
+  const actorDeptSlug = String(actorDepartment?.slug || "").trim().toLowerCase();
+  const actorLabel = `${actor.title || ""} ${actor.division || ""}`.toLowerCase();
+  const actorApplicationType = actorLabel.includes("press") ? "press" : actorLabel.includes("media") ? "media" : null;
   const isAdmin = actor.role === "super_admin" || actor.role === "admin";
   const isHead = actor.role === "department_head";
-  const isHr = isHrProfile(actor);
+  const isHr = isHrProfile({ ...actor, department_slug: actorDeptSlug });
 
   if (action === "hr_accepted") {
     if (!isAdmin && !isHr) {
@@ -162,7 +168,7 @@ Deno.serve(async (req: Request) => {
     }
 
     if (isHead) {
-      const actorDept = String(actor.department_id || "").trim().toLowerCase();
+      const actorDept = actorDeptSlug;
       const actorGender = getActorGender(actor);
       if (!actorDept || !actorGender) {
         return json({ error: "Department and gender division are required on your Head profile." }, 403);
@@ -180,6 +186,7 @@ Deno.serve(async (req: Request) => {
         .filter(
           (row: any) =>
             row.department_id.toLowerCase() === actorDept &&
+            (actorDept !== "media-press" || (actorApplicationType !== null && String(row.application_type || "").toLowerCase() === actorApplicationType)) &&
             String(row.gender || "").trim().toLowerCase() === actorGender,
         );
       return json({ applications: scoped });
@@ -201,13 +208,17 @@ Deno.serve(async (req: Request) => {
     if (fetchError || !existing) return json({ error: "Application not found." }, 404);
 
     const appDept = mapDepartment(existing.application_type, existing.department_id);
+    const { data: appDepartment } = await admin.from("wm_departments").select("id").eq("slug", appDept).maybeSingle();
 
     if (isHead) {
-      const actorDept = String(actor.department_id || "").trim().toLowerCase();
+      const actorDept = actorDeptSlug;
       const actorGender = getActorGender(actor);
       const appGender = String(existing.gender || "").trim().toLowerCase();
       if (!actorDept || appDept.toLowerCase() !== actorDept) {
         return json({ error: "Department Heads cannot modify applications outside their department." }, 403);
+      }
+      if (actorDept === "media-press" && (!actorApplicationType || String(existing.application_type || "").toLowerCase() !== actorApplicationType)) {
+        return json({ error: "Media and Press applications are isolated." }, 403);
       }
       if (!actorGender || appGender !== actorGender) {
         return json({ error: "Department Heads cannot modify applications outside their gender division." }, 403);
@@ -253,7 +264,7 @@ Deno.serve(async (req: Request) => {
             holder_email: updated.email,
             role_label: updated.position || `${updated.application_type} Participant`,
             category: updated.application_type === "delegate" ? "Delegate" : "Staff",
-            department_id: appDept,
+            department_id: appDepartment?.id ?? null,
             active: true,
             token_value: makeOpaqueToken(),
           },
