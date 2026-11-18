@@ -533,7 +533,8 @@ body.intro-on {
   position: fixed;
   inset: 0;
   z-index: 40;
-  background: radial-gradient(ellipse at 50% 45%, #363c20 0%, #232814 55%, #14180a 100%);
+  /* Transparent so the exact same looping site background remains visible beneath the intro. */
+  background: transparent;
   opacity: 0;
   pointer-events: none;
   transition: opacity 1.8s ease;
@@ -1091,7 +1092,7 @@ section.mun-scroll-section:nth-of-type(odd)::before {
   }
 
   body.intro-on .willow-intro-backdrop {
-    background: #232814;
+    background: transparent;
   }
 
   section.mun-scroll-section::before,
