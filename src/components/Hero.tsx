@@ -102,7 +102,7 @@ export function Hero({ cursorEffectsActive = false }: HeroProps) {
                 onClick={(event) => handleSmoothAnchor(event, '#committees')}
                 className="mun-link-underline inline-flex min-h-[44px] items-center text-[13px] font-medium text-[#ede6ca] hover:text-[#c9d98a]"
               >
-                Explore chambers
+                Explore committees
               </a>
             </div>
           </div>
@@ -127,7 +127,7 @@ export function Hero({ cursorEffectsActive = false }: HeroProps) {
           </div>
           <div className="mun-hero-detail">
             <p className="font-mono text-[9px] uppercase tracking-[0.17em] text-[#cfc8aa]/75 sm:text-[10px]">
-              Committee chambers
+              Committees
             </p>
             <p className="mt-1.5 font-serif text-xl font-medium text-[#f1ecd9] sm:text-2xl">
               {CONFERENCE_DATA.committees.items.length} planned
