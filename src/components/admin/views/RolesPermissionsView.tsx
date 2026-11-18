@@ -637,14 +637,22 @@ export function DepartmentTestingView() {
     );
   }
 
-  const openHeadTestTab = (headId: string) => {
+  const openHeadTestTab = (head: { id: string; testUserId?: string; fullName: string; email: string; title: string; departmentId: string | null }) => {
     const tab = window.open('about:blank', '_blank');
     if (!tab) {
       window.alert('The test tab was blocked. Allow pop-ups for willow-mun.vercel.app and try again.');
       return;
     }
     try {
-      tab.sessionStorage.setItem('willow_mun_test_head_uid_v3', headId);
+      const targetId = head.testUserId || head.id;
+      tab.sessionStorage.setItem('willow_mun_test_head_uid_v3', targetId);
+      tab.sessionStorage.setItem('willow_mun_test_head_profile_v1', JSON.stringify({
+        id: targetId,
+        fullName: head.fullName,
+        email: head.email,
+        title: head.title,
+        departmentId: head.departmentId,
+      }));
       tab.location.replace('/head');
     } catch {
       tab.close();
@@ -687,7 +695,7 @@ export function DepartmentTestingView() {
                   </div>
                   <div className="flex items-center gap-2">
                     <span className={`rounded border px-2 py-1 text-[10px] ${head.status === 'Active' ? 'border-emerald-400/30 text-emerald-300' : head.status === 'Suspended' ? 'border-rose-400/30 text-rose-300' : 'border-amber-400/30 text-amber-200'}`}>{head.status}</span>
-                    <button type="button" disabled={!dept} onClick={() => openHeadTestTab(head.testUserId || head.id)} title={!dept ? 'This head has no linked department' : 'Open head portal in a new tab'} className="inline-flex h-9 items-center gap-2 rounded bg-[color:var(--wm-focal)] px-3 text-xs font-semibold text-[#12170c] hover:bg-[#dad3b4] disabled:opacity-40">
+                    <button type="button" disabled={!dept} onClick={() => openHeadTestTab(head)} title={!dept ? 'This head has no linked department' : 'Open head portal in a new tab'} className="inline-flex h-9 items-center gap-2 rounded bg-[color:var(--wm-focal)] px-3 text-xs font-semibold text-[#12170c] hover:bg-[#dad3b4] disabled:opacity-40">
                       <FlaskConical className="h-3.5 w-3.5" aria-hidden="true" />
                       Sign in as
                     </button>
