@@ -598,8 +598,8 @@ export function hasPermission(
     ) {
       const applicationDepartment = getActorDepartmentSlug(user, departments);
       const applicationDepartmentAllowed =
-        ['media-press', 'security', 'volunteers'].includes(applicationDepartment || '') &&
-        (applicationDepartment !== 'media-press' || getMediaPressSubScope(user) !== null);
+        ['media', 'press', 'security', 'volunteers'].includes(applicationDepartment || '') &&
+        (applicationDepartment !== 'media' && applicationDepartment !== 'press' || getMediaPressSubScope(user) !== null);
       return applicationDepartmentAllowed && user.permissions?.[permission] !== false;
     }
     if (permission === 'qr.view_pass') {
