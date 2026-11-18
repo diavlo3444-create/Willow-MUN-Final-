@@ -205,6 +205,14 @@ export function ExecutiveBoardAccountsView() {
   };
 
   const copySetupLink = async (account: Account) => {
+    if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(account.email.trim())) {
+      pushToast({
+        tone: 'error',
+        title: 'Valid email required',
+        description: 'Update this EB roster entry with a valid email address before generating its private invitation.',
+      });
+      return;
+    }
     if (!account.member_key) {
       pushToast({ tone: 'error', title: 'Roster entry unavailable', description: 'Refresh the directory and try again.' });
       return;
