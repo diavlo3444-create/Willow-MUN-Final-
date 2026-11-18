@@ -10,9 +10,9 @@ const corsHeaders = {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-function isDccOrAdmin(profile: { role: string; department_id?: string | null; title?: string | null; division?: string | null; eb_permissions?: Record<string, boolean> | null }): boolean {
+function isDccOrAdmin(profile: { role: string; department_slug?: string | null; title?: string | null; division?: string | null; eb_permissions?: Record<string, boolean> | null }): boolean {
   if (profile.role === "super_admin" || profile.role === "admin") return true;
-  const dept = String(profile.department_id || "").trim().toLowerCase();
+  const dept = String(profile.department_slug || "").trim().toLowerCase();
   if (dept === "dcc" || dept === "delegate-affairs" || dept === "delegate_affairs") return true;
   if (profile.eb_permissions?.manage_committees === true) return true;
   const label = `${profile.title || ""} ${profile.division || ""}`.toLowerCase();
@@ -60,7 +60,11 @@ Deno.serve(async (req: Request) => {
     .eq("user_id", authData.user.id)
     .maybeSingle();
 
-  if (actorError || !actor || actor.is_active !== true || !isDccOrAdmin(actor)) {
+  const { data: actorDepartment } = actor?.department_id
+    ? await admin.from("wm_departments").select("slug").eq("id", actor.department_id).maybeSingle()
+    : { data: null };
+  const scopedActor = actor ? { ...actor, department_slug: actorDepartment?.slug || null } : null;
+  if (actorError || !scopedActor || scopedActor.is_active !== true || !isDccOrAdmin(scopedActor)) {
     return json({ error: "Committee management is restricted to DCC, Admins, and Super Admins." }, 403);
   }
 
