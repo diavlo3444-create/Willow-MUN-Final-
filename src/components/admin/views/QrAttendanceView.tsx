@@ -175,10 +175,8 @@ export function QrAttendanceView({
           description: `${v.holder_name || 'Attendee'} · ${gateLocation}`,
         });
       } else if (v.status === 'checkout_warning' || v.status === 'not_checked_in') {
-        pushToast({ tone: 'warning', title: 'Check-out needs attention', description: v.message });
-      } else if (v.status === 'checkout_warning') {
-      pushToast({ tone: 'warning', title: 'Repeat check-out warning', description: v.message });
-    } else if (v.status === 'already_checked_in' || v.status === 'not_checked_in') {
+        pushToast({ tone: 'warning', title: v.status === 'checkout_warning' ? 'Repeat check-out warning' : 'Not checked in', description: v.message });
+      } else if (v.status === 'already_checked_in') {
         pushToast({
           tone: 'warning',
           title: 'Already checked in',
@@ -222,8 +220,8 @@ export function QrAttendanceView({
         title: attendanceAction === 'checkout' ? 'Check-out recorded' : 'Check-in recorded',
         description: `${v.holder_name || 'Attendee'} · ${gateLocation}`,
       });
-    } else if (v.status === 'already_checked_in') {
-      pushToast({ tone: 'warning', title: 'Already checked in', description: v.message });
+    } else if (v.status === 'already_checked_in' || v.status === 'not_checked_in') {
+      pushToast({ tone: 'warning', title: 'Attendance status warning', description: v.message });
     } else {
       pushToast({ tone: 'error', title: 'Check-in blocked', description: v.message });
     }
