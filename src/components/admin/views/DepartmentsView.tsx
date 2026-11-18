@@ -1,5 +1,5 @@
 import { useMemo, useState, type FormEvent } from 'react';
-import { Building2, Edit2, UserPlus, X } from 'lucide-react';
+import { Edit2, X } from 'lucide-react';
 import { useAdminStore } from '../../../context/AdminStoreContext';
 import type { Department } from '../../../types/admin';
 import { canManageAccountsOrRoles, hasPermission } from '../../../utils/adminPermissions';
@@ -27,7 +27,6 @@ export function DepartmentsView({
   const [editing, setEditing] = useState<Department | null>(null);
 
 
-  const canManageDepts = hasPermission(effectiveActor, 'departments.manage');
   const canToggleReg = hasPermission(effectiveActor, 'departments.toggle_registration');
   const canAssignHead = canManageAccountsOrRoles(effectiveActor);
 
@@ -51,17 +50,6 @@ export function DepartmentsView({
 
   return (
     <div className="space-y-4">
-      {!lockedDepartmentId && canManageDepts && false && (
-        <div className="wm-surface-panel px-5 py-3.5 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-xs text-[color:var(--wm-ink-secondary)]">
-            <Building2 className="h-4 w-4 text-[color:var(--wm-accent)]" aria-hidden="true" />
-            <span>
-              Configure organizing departments, capacities, intake toggles, and Department Head linkages.
-            </span>
-          </div>
-
-        </div>
-      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {visibleDepartments.map((dept) => {
