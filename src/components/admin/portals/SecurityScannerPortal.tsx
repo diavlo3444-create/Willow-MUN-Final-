@@ -14,9 +14,9 @@ import {
 } from 'lucide-react';
 import { useAdminStore } from '../../../context/AdminStoreContext';
 import {
-  commitQrPassCheckin,
+  commitQrPassAttendance,
   fetchMySecurityScans,
-  verifyQrPassToken,
+  verifyQrPassAttendance,
   type LiveQrScanEvent,
   type LiveQrValidationResponse,
 } from '../../../services/liveBackendService';
@@ -67,6 +67,7 @@ export function SecurityScannerPortal({
 
   const [gateLocation, setGateLocation] = useState<string>('Main Entrance');
   const [confirmBeforeCheckin, setConfirmBeforeCheckin] = useState<boolean>(true);
+  const [attendanceAction, setAttendanceAction] = useState<'checkin' | 'checkout'>('checkin');
   const [manualToken, setManualToken] = useState<string>('');
   const [pendingToken, setPendingToken] = useState<string>('');
   const [busy, setBusy] = useState<boolean>(false);
@@ -99,8 +100,8 @@ export function SecurityScannerPortal({
       setPendingToken(cleanToken);
 
       const response = confirmBeforeCheckin
-        ? await verifyQrPassToken(cleanToken, gateLocation)
-        : await commitQrPassCheckin(cleanToken, gateLocation);
+        ? await verifyQrPassAttendance(cleanToken, gateLocation, attendanceAction)
+        : await commitQrPassAttendance(cleanToken, gateLocation, attendanceAction);
 
       setBusy(false);
 
@@ -140,14 +141,14 @@ export function SecurityScannerPortal({
 
       await loadRecentScans();
     },
-    [confirmBeforeCheckin, gateLocation, loadRecentScans, pushToast],
+    [attendanceAction, confirmBeforeCheckin, gateLocation, loadRecentScans, pushToast],
   );
 
   const handleConfirmPendingCheckin = useCallback(async () => {
     if (!pendingToken) return;
     setScanError('');
     setBusy(true);
-    const res = await commitQrPassCheckin(pendingToken, gateLocation);
+    const res = await commitQrPassAttendance(pendingToken, gateLocation, attendanceAction, validation?.status === 'checkout_warning');
     setBusy(false);
 
     if (!res.ok || !res.validation) {
@@ -161,7 +162,7 @@ export function SecurityScannerPortal({
     if (v.status === 'valid' && v.committed) {
       pushToast({
         tone: 'success',
-        title: 'Check-In Recorded',
+        title: attendanceAction === 'checkout' ? 'Check-Out Recorded' : 'Check-In Recorded',
         description: `${v.holder_name || 'Attendee'} · ${gateLocation}`,
       });
     } else if (v.status === 'already_checked_in') {
@@ -179,7 +180,7 @@ export function SecurityScannerPortal({
     }
 
     await loadRecentScans();
-  }, [gateLocation, loadRecentScans, pendingToken, pushToast]);
+  }, [attendanceAction, gateLocation, loadRecentScans, pendingToken, pushToast, validation?.status]);
 
   const handleManualSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -225,7 +226,7 @@ export function SecurityScannerPortal({
   }
 
   const awaitingConfirmation = Boolean(
-    validation && validation.status === 'valid' && !validation.committed,
+    validation && ((validation.status === 'valid' && !validation.committed) || validation.status === 'checkout_warning'),
   );
 
   return (
@@ -355,7 +356,7 @@ export function SecurityScannerPortal({
             ) : (
               <div className="divide-y divide-[color:var(--wm-hairline)]">
                 {recentScans.map((scan) => {
-                  const isValid = scan.result === 'valid_checkin';
+                  const isValid = scan.result === 'valid_checkin' || scan.result === 'valid_checkout';
                   const isDuplicate =
                     scan.result === 'already_checked_in' || scan.result === 'duplicate_recent';
                   return (
@@ -413,6 +414,10 @@ export function SecurityScannerPortal({
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
+                  <div className="inline-flex rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-inset)] p-1" aria-label="Attendance action">
+                    <button type="button" onClick={() => { setAttendanceAction('checkin'); setValidation(null); }} className={`rounded px-3 py-1.5 text-[11px] font-semibold transition ${attendanceAction === 'checkin' ? 'bg-emerald-600 text-white shadow' : 'text-[color:var(--wm-ink-secondary)] hover:text-[color:var(--wm-ink)]'}`}>Check In</button>
+                    <button type="button" onClick={() => { setAttendanceAction('checkout'); setValidation(null); }} className={`rounded px-3 py-1.5 text-[11px] font-semibold transition ${attendanceAction === 'checkout' ? 'bg-amber-600 text-white shadow' : 'text-[color:var(--wm-ink-secondary)] hover:text-[color:var(--wm-ink)]'}`}>Check Out</button>
+                  </div>
                   <label className="flex items-center gap-2 text-[11px] text-[color:var(--wm-ink-secondary)]">
                     <span>Gate:</span>
                     <select
@@ -441,7 +446,7 @@ export function SecurityScannerPortal({
               <div className="space-y-3 border-t border-[color:var(--wm-hairline)] pt-3.5">
                 <label className="flex cursor-pointer items-center justify-between gap-3 rounded-md border border-[color:var(--wm-hairline)] bg-[color:var(--wm-inset)] px-3 py-2 text-xs">
                   <span className="text-[color:var(--wm-ink-secondary)]">
-                    Verify pass details before recording check-in
+                    Review pass details before recording {attendanceAction === 'checkout' ? 'check-out' : 'check-in'}
                   </span>
                   <input
                     type="checkbox"
@@ -463,7 +468,7 @@ export function SecurityScannerPortal({
                     disabled={busy || !manualToken.trim()}
                     className="h-11 rounded-md bg-[color:var(--wm-emerald)] px-5 text-xs font-semibold text-[#eef4ef] transition-colors hover:bg-[#357a5b] disabled:opacity-50"
                   >
-                    {busy ? 'Checking…' : confirmBeforeCheckin ? 'Verify Pass' : 'Verify & Check In'}
+                    {busy ? 'Checking…' : confirmBeforeCheckin ? 'Verify Pass' : attendanceAction === 'checkout' ? 'Verify & Check Out' : 'Verify & Check In'}
                   </button>
                 </form>
 
@@ -481,6 +486,7 @@ export function SecurityScannerPortal({
                 validation={validation}
                 busy={busy}
                 variant="security"
+                attendanceAction={attendanceAction}
                 onConfirmCheckin={() => void handleConfirmPendingCheckin()}
                 onResetResult={() => {
                   setValidation(null);
@@ -534,7 +540,7 @@ export function SecurityScannerPortal({
                                   : 'border-rose-400/35 text-rose-200'
                             }`}
                           >
-                            {isValid ? 'VALID' : isDup ? 'USED' : 'DENIED'}
+                            {scan.result === 'valid_checkout' ? 'CHECKED OUT' : scan.result === 'valid_checkin' ? 'CHECKED IN' : isDup ? 'USED' : 'DENIED'}
                           </span>
                         </div>
                       );
