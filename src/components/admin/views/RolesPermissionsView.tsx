@@ -12,6 +12,7 @@ import {
   X,
 } from 'lucide-react';
 import { useAdminStore } from '../../../context/AdminStoreContext';
+import { supabase } from '../../../lib/supabase';
 import type {
   PermissionDefinition,
   PermissionKey,
@@ -520,12 +521,12 @@ export function DepartmentTestingView({
 }: {
   onEnterTestingMode: () => void;
 }) {
-  const { data, currentUser, enterDepartmentTestMode } = useAdminStore();
+  const { data, currentUser } = useAdminStore();
   const deptById = useMemo(
     () => new Map(data.departments.map((d) => [d.id, d])),
     [data.departments],
   );
-  const headUsers = data.users.filter((u) => u.role === 'department_head');
+  const headUsers = data.users.filter((u) => u.role === 'department_head' && u.isActive);
 
   if (!canManageAccountsOrRoles(currentUser)) {
     return (
@@ -538,95 +539,65 @@ export function DepartmentTestingView({
     );
   }
 
+  const openHeadTestTab = (headId: string) => {
+    // The child tab gets its own sessionStorage copy, so testing never changes this admin tab.
+    const tab = window.open('about:blank', '_blank');
+    if (!tab) {
+      window.alert('The test tab was blocked. Allow pop-ups for willow-mun.vercel.app and try again.');
+      return;
+    }
+    try {
+      tab.sessionStorage.setItem('willow_mun_test_head_uid_v3', headId);
+      tab.location.replace('/head');
+      onEnterTestingMode();
+    } catch {
+      tab.close();
+      window.alert('Could not start the isolated head test session. Please allow same-site storage and try again.');
+    }
+  };
+
   return (
     <div className="space-y-5">
       <div className="wm-surface-panel p-5 flex items-start gap-3">
-        <FlaskConical
-          className="h-5 w-5 text-[color:var(--wm-accent)] mt-0.5 shrink-0"
-          aria-hidden="true"
-        />
+        <FlaskConical className="h-5 w-5 text-[color:var(--wm-accent)] mt-0.5 shrink-0" aria-hidden="true" />
         <div className="text-xs space-y-1">
-          <h2 className="text-base font-semibold text-[color:var(--wm-ink)]">
-            Department Access Testing Mode
-          </h2>
+          <h2 className="text-base font-semibold text-[color:var(--wm-ink)]">Department Head Testing</h2>
           <p className="text-[color:var(--wm-ink-secondary)]">
-            Launch an isolated <code className="text-[color:var(--wm-ink)]">/head</code> preview
-            session acting as any Department Head account to verify department-scoped applications,
-            Stage 1 recommendation workflow, 13-module workspace isolation, and QR passes without
-            signing out of your Super Admin session.
+            Open a separate tab as the selected Department Head. The test tab keeps your Super Admin tab signed in, but uses the head's department scope and head-level permissions for its session.
           </p>
         </div>
       </div>
-
-      {/* Unified Head Preview Launcher Table */}
       <section className="wm-surface-panel overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[700px] border-collapse text-left text-xs">
-            <thead>
-              <tr className="border-b border-[color:var(--wm-hairline)] bg-[color:var(--wm-inset)] text-[10px] font-semibold uppercase tracking-[0.12em] text-[color:var(--wm-ink-muted)]">
-                <th className="py-3 px-4">Department Head</th>
-                <th className="py-3 px-4">Assigned Department</th>
-                <th className="py-3 px-4">Intake & Volume</th>
-                <th className="py-3 px-4">Status</th>
-                <th className="py-3 px-4 text-right">Preview Session</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[color:var(--wm-hairline)]">
-              {headUsers.map((head) => {
-                const dept = head.departmentId ? deptById.get(head.departmentId) ?? null : null;
-                const deptApps = data.applications.filter(
-                  (a) => a.departmentId === head.departmentId,
-                );
-
-                return (
-                  <tr key={head.id} className="hover:bg-[#ede6ca]/[0.03]">
-                    <td className="py-3.5 px-4">
-                      <p className="text-sm font-medium text-[color:var(--wm-ink)]">
-                        {head.fullName}
-                      </p>
-                      <p className="text-[11px] text-[color:var(--wm-ink-secondary)]">
-                        {head.email}
-                      </p>
-                    </td>
-                    <td className="py-3.5 px-4 font-medium text-[color:var(--wm-accent)]">
-                      {dept ? dept.name : 'Unassigned Department'}
-                    </td>
-                    <td className="py-3.5 px-4 font-mono text-[11px] text-[color:var(--wm-ink-secondary)] tabular-nums">
-                      {deptApps.length} app(s) ·{' '}
-                      {dept?.registrationOpen ? 'Intake Open' : 'Intake Closed'}
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <span
-                        className={`rounded border px-2 py-0.5 text-[10px] capitalize font-medium ${
-                          head.isActive
-                            ? 'border-emerald-400/35 bg-emerald-500/[0.1] text-emerald-200'
-                            : 'border-rose-400/35 bg-rose-500/[0.1] text-rose-200'
-                        }`}
-                      >
-                        {head.status}
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4 text-right">
-                      <button
-                        type="button"
-                        disabled={!dept}
-                        onClick={() => {
-                          if (enterDepartmentTestMode(head.id)) {
-                            onEnterTestingMode();
-                          }
-                        }}
-                        className="inline-flex h-8 items-center gap-1.5 rounded bg-[color:var(--wm-focal)] px-3 text-xs font-semibold text-[#12170c] hover:bg-[#dad3b4] disabled:opacity-40 cursor-pointer"
-                      >
-                        <FlaskConical className="h-3.5 w-3.5" aria-hidden="true" />
-                        <span>Launch /head as {head.fullName.split(' ')[0]}</span>
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div className="border-b border-[color:var(--wm-hairline)] px-4 py-3">
+          <h3 className="text-sm font-semibold text-[color:var(--wm-ink)]">Department Head Accounts</h3>
+          <p className="mt-1 text-xs text-[color:var(--wm-ink-muted)]">Choose a head to open their portal in a new tab. Only active head profiles available in the current account roster are shown.</p>
         </div>
+        {headUsers.length === 0 ? (
+          <p className="p-8 text-center text-sm text-[color:var(--wm-ink-muted)]">No active Department Head profiles are available to test.</p>
+        ) : (
+          <div className="divide-y divide-[color:var(--wm-hairline)]">
+            {headUsers.map((head) => {
+              const dept = head.departmentId ? deptById.get(head.departmentId) ?? null : null;
+              const deptApps = data.applications.filter((a) => a.departmentId === head.departmentId);
+              return (
+                <article key={head.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-[color:var(--wm-ink)]">{head.fullName}</p>
+                    <p className="mt-1 text-xs text-[color:var(--wm-ink-secondary)]">{head.email}</p>
+                    <p className="mt-1 text-xs text-[color:var(--wm-ink-muted)]">{dept?.name || 'Unassigned Department'} · {deptApps.length} application(s)</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="rounded border border-emerald-400/30 px-2 py-1 text-[10px] text-emerald-300">Active</span>
+                    <button type="button" disabled={!dept} onClick={() => openHeadTestTab(head.id)} className="inline-flex h-9 items-center gap-2 rounded bg-[color:var(--wm-focal)] px-3 text-xs font-semibold text-[#12170c] hover:bg-[#dad3b4] disabled:opacity-40">
+                      <FlaskConical className="h-3.5 w-3.5" aria-hidden="true" />
+                      Sign in as head
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
       </section>
     </div>
   );
