@@ -176,6 +176,7 @@ Deno.serve(async (req: Request) => {
   }
 
   const action = String(body?.action || "");
+  const attendanceAction = String(body?.attendance_action || "checkin") === "checkout" ? "checkout" : "checkin";
 
   // --------------------------------------------------------------------------
   // 1. Personal QR Credential (any active staff user; ignores client user_id)
@@ -249,6 +250,9 @@ Deno.serve(async (req: Request) => {
         checked_in_at: rawPayload.checked_in_at ?? null,
         checked_in_gate: rawPayload.checked_in_gate ?? null,
         checked_in_by_name: rawPayload.checked_in_by_name ?? null,
+        checked_out_at: rawPayload.checked_out_at ?? null,
+        checked_out_gate: rawPayload.checked_out_gate ?? null,
+        prior_checkout_count: rawPayload.prior_checkout_count ?? 0,
         gate_location: rawPayload.gate_location ?? gateLocation,
         scanned_at: rawPayload.scanned_at ?? new Date().toISOString(),
         committed: shouldCommit,
@@ -265,6 +269,18 @@ Deno.serve(async (req: Request) => {
         user_id: rawPayload.user_id ?? null,
       };
     };
+
+    // Check-out uses a separate row-locked RPC so repeat departures are confirmed safely.
+    if (attendanceAction === "checkout") {
+      const { data: checkoutResult, error: checkoutError } = await admin.rpc("wm_atomic_qr_checkout", {
+        p_token: scannedToken, p_gate_location: gateLocation, p_scanner_id: authData.user.id,
+        p_scanner_name: scannerName, p_scanner_role: scannerRole, p_commit: shouldCommit,
+        p_confirm_repeat: body?.confirm_repeat === true,
+      });
+      if (checkoutError) return json({ error: checkoutError.message || "Check-out failed." }, 400);
+      if (checkoutResult) return json(sanitizePayload(checkoutResult as Record<string, any>));
+      return json({ error: "Check-out could not be completed." }, 400);
+    }
 
     // Primary path: atomic row-locked PostgreSQL RPC
     const { data: rpcResult, error: rpcError } = await admin.rpc("wm_atomic_qr_checkin", {
@@ -691,6 +707,28 @@ Deno.serve(async (req: Request) => {
     }
 
     return json({ scans: rows });
+  }
+
+  if (action === "reset_all_attendance") {
+    if (!isSuperAdmin) return json({ error: "Only the Super Admin can reset all attendance records." }, 403);
+    const actorName = actor.full_name || authData.user.email || "Super Admin";
+    const { data: attendanceRows, error: scanReadError } = await admin.from("wm_qr_scans").select("id,result").in("result", ["valid_checkin", "valid_checkout"]);
+    if (scanReadError) return json({ error: scanReadError.message }, 400);
+    const checkinsCleared = (attendanceRows || []).filter((row: any) => row.result === "valid_checkin").length;
+    const checkoutsCleared = (attendanceRows || []).filter((row: any) => row.result === "valid_checkout").length;
+    const { data: resetPasses, error: resetError } = await admin.from("wm_qr_passes").update({
+      checked_in_at: null, checked_in_gate: null, checked_in_by: null, checked_in_by_name: null,
+      checked_out_at: null, checked_out_gate: null, checked_out_by: null, checked_out_by_name: null,
+    }).not("id", "is", null).select("id");
+    if (resetError) return json({ error: resetError.message }, 400);
+    const { error: clearError } = await admin.from("wm_qr_scans").delete().in("result", ["valid_checkin", "valid_checkout"]);
+    if (clearError) return json({ error: clearError.message }, 400);
+    const { error: auditError } = await admin.from("wm_qr_attendance_resets").insert({
+      reset_by: authData.user.id, reset_by_name: actorName, reset_by_role: actor.role,
+      passes_reset: (resetPasses || []).length, checkins_cleared: checkinsCleared, checkouts_cleared: checkoutsCleared,
+    });
+    if (auditError) return json({ error: "Attendance reset, but audit write failed: " + auditError.message }, 500);
+    return json({ success: true, passes_reset: (resetPasses || []).length, checkins_cleared: checkinsCleared, checkouts_cleared: checkoutsCleared });
   }
 
   // Strictly block Security, Department Heads, and non-Admin roles from administrative registry & corrections
