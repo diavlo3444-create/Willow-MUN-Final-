@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Link2, ShieldCheck, Users } from 'lucide-react';
 
 export function EbSignupLinkView() {
