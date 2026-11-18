@@ -50,13 +50,42 @@ Deno.serve(async (req: Request) => {
 
   try {
     if (action === "list") {
-      const [{ data: profiles, error: profileError }, { data: users, error: usersError }] = await Promise.all([
+      const [{ data: profiles, error: profileError }, { data: users, error: usersError }, { data: ebRoster, error: ebRosterError }] = await Promise.all([
         admin.from("wm_profiles").select("user_id,full_name,role,department_id,is_active,title,division,avatar_url,phone_number,eb_rank,eb_permissions,created_at").order("created_at", { ascending: false }),
         admin.auth.admin.listUsers({ page: 1, perPage: 1000 }),
+        admin.from("wm_eb_signup_allowlist")
+          .select("email,email_aliases,member_key,full_name,title,phone_number,department_id,avatar_url,eb_rank,eb_permissions,claimed_at,claimed_user_id")
+          .order("full_name"),
       ]);
-      if (profileError || usersError) throw profileError || usersError;
+      if (profileError || usersError || ebRosterError) throw profileError || usersError || ebRosterError;
       const emailById = new Map((users?.users || []).map((u: any) => [u.id, u.email || ""]));
-      return json({ accounts: (profiles || []).map((p: any) => ({ ...p, email: emailById.get(p.user_id) || "" })) });
+      const liveProfiles = (profiles || []).map((p: any) => ({
+        ...p,
+        email: emailById.get(p.user_id) || "",
+        ...(p.role === "executive_board" ? { signup_status: "claimed" } : {}),
+      }));
+      const claimedIds = new Set(liveProfiles.filter((p: any) => p.role === "executive_board").map((p: any) => p.user_id));
+      const pendingEb = (ebRoster || [])
+        .filter((entry: any) => !entry.claimed_at && !entry.claimed_user_id)
+        .filter((entry: any) => !claimedIds.has(entry.claimed_user_id))
+        .map((entry: any) => ({
+          user_id: `pending:${entry.member_key}`,
+          full_name: entry.full_name,
+          email: entry.email,
+          email_aliases: entry.email_aliases || [],
+          role: "executive_board",
+          department_id: entry.department_id,
+          is_active: true,
+          title: entry.title || "Executive Board",
+          avatar_url: entry.avatar_url || null,
+          phone_number: entry.phone_number || "",
+          eb_rank: entry.eb_rank || "member",
+          eb_permissions: entry.eb_permissions || {},
+          created_at: null,
+          signup_status: "awaiting_signup",
+          member_key: entry.member_key,
+        }));
+      return json({ accounts: [...liveProfiles, ...pendingEb] });
     }
 
     if (action === "create") {
