@@ -687,7 +687,7 @@ export function DepartmentTestingView() {
                   </div>
                   <div className="flex items-center gap-2">
                     <span className={`rounded border px-2 py-1 text-[10px] ${head.status === 'Active' ? 'border-emerald-400/30 text-emerald-300' : head.status === 'Suspended' ? 'border-rose-400/30 text-rose-300' : 'border-amber-400/30 text-amber-200'}`}>{head.status}</span>
-                    <button type="button" disabled={!head.testUserId || !dept} onClick={() => head.testUserId && openHeadTestTab(head.testUserId)} title={!head.testUserId ? 'This head has no local test identity yet' : !dept ? 'This head has no linked department' : 'Open head portal in a new tab'} className="inline-flex h-9 items-center gap-2 rounded bg-[color:var(--wm-focal)] px-3 text-xs font-semibold text-[#12170c] hover:bg-[#dad3b4] disabled:opacity-40">
+                    <button type="button" disabled={!dept} onClick={() => openHeadTestTab(head.testUserId || head.id)} title={!dept ? 'This head has no linked department' : 'Open head portal in a new tab'} className="inline-flex h-9 items-center gap-2 rounded bg-[color:var(--wm-focal)] px-3 text-xs font-semibold text-[#12170c] hover:bg-[#dad3b4] disabled:opacity-40">
                       <FlaskConical className="h-3.5 w-3.5" aria-hidden="true" />
                       Sign in as
                     </button>
