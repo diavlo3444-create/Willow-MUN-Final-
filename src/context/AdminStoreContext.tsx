@@ -21,6 +21,7 @@ import { conferenceDataService } from '../services/mockDataService';
 import { supabase } from '../lib/supabase';
 import {
   DEPARTMENT_HEAD_DEFAULT_PERMISSIONS,
+  hasPermission,
   ROLE_DEFAULT_PERMISSIONS,
   normalizeDepartmentSlug,
   resolveUserPermissions,
