@@ -26,11 +26,7 @@ export function DepartmentHeadPortal({ pathname, onNavigate }: DepartmentHeadPor
   const section = segments[0] || 'overview';
   const paramId = segments[1] || null;
 
-  const isTestingAsHead =
-    currentUser !== null &&
-    currentUser.role === 'super_admin' &&
-    currentUser.isActive &&
-    testModeHeadUser !== null;
+  const isTestingAsHead = testModeHeadUser !== null;
 
   const isDirectHead =
     currentUser !== null &&
@@ -38,11 +34,7 @@ export function DepartmentHeadPortal({ pathname, onNavigate }: DepartmentHeadPor
     currentUser.isActive &&
     currentUser.status === 'active';
 
-  const effectiveHead = isTestingAsHead
-    ? testModeHeadUser
-    : isDirectHead
-      ? currentUser
-      : null;
+  const effectiveHead = testModeHeadUser ?? (isDirectHead ? currentUser : null);
 
   const assignedDepartment =
     effectiveHead && effectiveHead.departmentId
