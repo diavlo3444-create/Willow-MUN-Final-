@@ -119,7 +119,9 @@ export function QrValidationResultCard({
       {/* Large, unmistakable banner */}
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-white/10 pb-4">
         <div className="flex items-center gap-3">
-          {isValidConfirmed || isValidAwaitingConfirm ? (
+          {isCheckoutWarning || isNotCheckedIn || isAlready ? (
+            <Clock className="h-9 w-9 shrink-0 text-amber-300" aria-hidden="true" />
+          ) : isValidConfirmed || isValidAwaitingConfirm ? (
             <CheckCircle2 className="h-9 w-9 shrink-0 text-emerald-300" aria-hidden="true" />
           ) : isAlready ? (
             <Clock className="h-9 w-9 shrink-0 text-amber-300" aria-hidden="true" />
