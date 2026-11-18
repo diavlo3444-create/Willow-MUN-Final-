@@ -199,27 +199,16 @@ export function ExecutiveBoardAccountsView() {
   };
 
   const copySetupLink = async (account: Account) => {
-    if (!account.member_key) return;
-    const { data, error: invokeError } = await supabase.functions.invoke('willow-staff-admin', {
-      body: { action: 'create_eb_invite', member_key: account.member_key },
-    });
-    if (invokeError || data?.error || !data?.url) {
-      pushToast({
-        tone: 'error',
-        title: 'Setup link could not be created',
-        description: data?.error || invokeError?.message || 'Try again.',
-      });
-      return;
-    }
+    const sharedUrl = `${window.location.origin}/eb-signup`;
     try {
-      await navigator.clipboard.writeText(data.url);
+      await navigator.clipboard.writeText(sharedUrl);
       pushToast({
         tone: 'success',
-        title: 'Personal setup link copied',
-        description: `Share it privately with ${account.full_name}.`,
+        title: 'Shared EB signup link copied',
+        description: `This same link works for every EB member, including ${account.full_name}.`,
       });
     } catch {
-      setManualSetupLink({ name: account.full_name, url: data.url });
+      setManualSetupLink({ name: 'Shared EB signup', url: sharedUrl });
     }
   };
 
@@ -457,7 +446,7 @@ export function ExecutiveBoardAccountsView() {
                         onClick={() => void copySetupLink(account)}
                         className="rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-inset)] px-3 py-2 text-xs text-[color:var(--wm-ink)]"
                       >
-                        Copy setup link
+                        Copy shared signup link
                       </button>
                     </>
                   ) : (
