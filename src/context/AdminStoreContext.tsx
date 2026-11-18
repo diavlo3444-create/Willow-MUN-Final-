@@ -184,16 +184,20 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
   });
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
-  const currentUser = useMemo(() => {
+  const authenticatedUser = useMemo(() => {
     if (!currentUserId) return null;
     const found = data.users.find((u) => u.id === currentUserId);
     return found && found.isActive && found.status === 'active' ? found : null;
   }, [currentUserId, data.users]);
 
+  // A test tab presents the selected head as the active actor throughout the UI.
+  // The underlying Supabase session remains the authenticated Super Admin session.
   const testModeHeadUser = useMemo(() => {
-    if (!currentUser || currentUser.role !== 'super_admin' || !testModeHeadUserId) return null;
-    return data.users.find((u) => u.id === testModeHeadUserId && u.role === 'department_head') ?? null;
-  }, [currentUser, data.users, testModeHeadUserId]);
+    if (!authenticatedUser || authenticatedUser.role !== 'super_admin' || !testModeHeadUserId) return null;
+    return data.users.find((u) => u.id === testModeHeadUserId && u.role === 'department_head' && u.isActive && u.status === 'active') ?? null;
+  }, [authenticatedUser, data.users, testModeHeadUserId]);
+
+  const currentUser = testModeHeadUser ?? authenticatedUser;
 
   const currentUserRef = useRef<AdminUser | null>(currentUser);
   currentUserRef.current = currentUser;
