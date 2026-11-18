@@ -51,22 +51,25 @@ export function scopeApplicationsForActor(
   if (actor.role === 'department_head') {
     if (!actor.departmentId) return [];
     const actorLabel = `${actor.title || ''} ${actor.division || ''}`.toLowerCase();
-    const actorGender = /female|women|woman|girl/.test(actorLabel)
+    const knownFemaleHeads = new Set(['selena', 'najla rami', 'maram ali']);
+    const knownMaleHeads = new Set(['fahad al kendi', 'fahad alkendi', 'yusef saad', 'yousef saad', 'saad usman']);
+    const actorName = actor.fullName.trim().toLowerCase();
+    const actorGender = /female|women|woman|girl/.test(actorLabel) || knownFemaleHeads.has(actorName)
       ? 'female'
-      : /male|men|man|boy/.test(actorLabel)
+      : /male|men|man|boy/.test(actorLabel) || knownMaleHeads.has(actorName)
         ? 'male'
         : null;
     return applications.filter((app) => {
       if (!canAccessDepartment(actor, app.departmentId)) return false;
       if (!actorGender) return true;
-      const genderAnswer = app.answers.find((answer) => /gender|sex/i.test(`${answer.label} ${answer.section}`))?.answer?.trim().toLowerCase() ?? '';
+      const genderAnswer = (app.answers ?? []).find((answer) => /gender|sex/i.test(`${answer.label} ${answer.section}`))?.answer?.trim().toLowerCase() ?? '';
       const applicantGender = /female|woman|girl/.test(genderAnswer)
         ? 'female'
         : /male|man|boy/.test(genderAnswer)
           ? 'male'
           : null;
       // If an applicant's gender is recorded, show it only to the matching head.
-      return !applicantGender || applicantGender === actorGender;
+      return applicantGender === actorGender;
     });
   }
 
