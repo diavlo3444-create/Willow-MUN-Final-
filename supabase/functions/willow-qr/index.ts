@@ -185,7 +185,7 @@ Deno.serve(async (req: Request) => {
     const { data: existing, error: fetchError } = await admin
       .from("wm_qr_passes")
       .select(
-        "id,user_id,application_id,holder_name,holder_email,role_label,category,department_id,active,checked_in_at,checked_in_gate,token_value,created_at",
+        "id,user_id,application_id,holder_name,holder_email,role_label,category,department_id,active,checked_in_at,checked_in_gate,checked_out_at,checked_out_gate,token_value,created_at",
       )
       .eq("user_id", authData.user.id)
       .maybeSingle();
