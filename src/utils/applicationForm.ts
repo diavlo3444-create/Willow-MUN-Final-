@@ -40,7 +40,7 @@ export const MEDIA_QUESTIONS: readonly RoleQuestionDefinition[] = [
     label: 'Why do you want to join the Media team at WILLOW MUN?',
     placeholder:
       'Share your motivation for visually documenting the conference and working inside the Communications wing.',
-    minLength: 15,
+    minLength: 20,
   },
   {
     id: 'media_q2',
@@ -72,7 +72,7 @@ export const PRESS_QUESTIONS: readonly RoleQuestionDefinition[] = [
     label: 'Why do you want to join the Press team at WILLOW MUN?',
     placeholder:
       'Share your interest in diplomatic journalism, conference reporting, and editorial storytelling.',
-    minLength: 15,
+    minLength: 20,
   },
   {
     id: 'press_q2',
@@ -106,7 +106,7 @@ export const VOLUNTEER_QUESTIONS: readonly RoleQuestionDefinition[] = [
       'What sets you apart from other volunteer applicants, and what qualities or skills make you a strong candidate for this role?',
     placeholder:
       'Share your initiative, dependability, calm under pressure, communication skills, and teamwork.',
-    minLength: 15,
+    minLength: 20,
   },
   {
     id: 'volunteer_q2',
