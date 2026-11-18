@@ -619,8 +619,8 @@ export function hasPermission(
     ) {
       const applicationDepartment = getActorDepartmentSlug(user, departments);
       const applicationDepartmentAllowed =
-        ['media-press', 'security', 'volunteers'].includes(applicationDepartment || '') &&
-        (applicationDepartment !== 'media-press' || getMediaPressSubScope(user) !== null);
+        ['media', 'press', 'security', 'volunteers'].includes(applicationDepartment || '') &&
+        (applicationDepartment !== 'media' && applicationDepartment !== 'press' || getMediaPressSubScope(user) !== null);
       if (!applicationDepartmentAllowed) return false;
       if (typeof user.permissions?.[permission] === 'boolean') {
         return Boolean(user.permissions[permission]);
