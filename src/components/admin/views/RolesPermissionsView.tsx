@@ -26,6 +26,7 @@ import {
   PERMISSION_DEFINITIONS,
 } from '../../../utils/adminPermissions';
 import { ConfirmDialog } from '../ConfirmDialog';
+import { WmSkeleton } from '../WmSkeleton';
 import membersJson from '../../../data/members.json';
 
 interface RolesPermissionsViewProps {
@@ -521,7 +522,7 @@ export function DepartmentTestingView() {
   const { data, currentUser } = useAdminStore();
   const [serverHeads, setServerHeads] = useState<Array<{
     user_id: string; full_name: string; email: string; role: string;
-    department_id: string | null; is_active: boolean; title: string; signup_status?: string;
+    department_id: string | null; division?: string | null; is_active: boolean; title: string; signup_status?: string;
   }>>([]);
   const [loadingHeads, setLoadingHeads] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -555,7 +556,7 @@ export function DepartmentTestingView() {
   const headRows = useMemo(() => {
     const byEmail = new Map<string, {
       id: string; testUserId?: string; fullName: string; email: string; title: string;
-      departmentId: string | null; isActive: boolean; status: 'Active' | 'Awaiting signup' | 'Suspended';
+      departmentId: string | null; division?: string | null; isActive: boolean; status: 'Active' | 'Awaiting signup' | 'Suspended';
     }>();
     for (const account of serverHeads) {
       const email = String(account.email || '').toLowerCase();
@@ -568,6 +569,7 @@ export function DepartmentTestingView() {
         email: account.email || roster?.email || '',
         title: account.title || roster?.title || 'Department Head',
         departmentId: account.department_id || roster?.departmentId || null,
+        division: account.division ?? roster?.division ?? null,
         isActive: account.is_active,
         status: !account.is_active ? 'Suspended' : account.signup_status === 'awaiting_signup' ? 'Awaiting signup' : 'Active',
       });
@@ -578,12 +580,13 @@ export function DepartmentTestingView() {
       if (!byEmail.has(key)) {
         byEmail.set(key, {
           id: roster.id, testUserId: roster.id, fullName: roster.fullName, email: roster.email,
-          title: roster.title || 'Department Head', departmentId: roster.departmentId,
+          title: roster.title || 'Department Head', departmentId: roster.departmentId, division: roster.division,
           isActive: roster.isActive, status: roster.isActive ? 'Awaiting signup' : 'Suspended',
         });
       } else {
         const existing = byEmail.get(key)!;
         if (!existing.testUserId) existing.testUserId = roster.id;
+        if (!existing.division && roster.division) existing.division = roster.division;
       }
     }
 
@@ -619,6 +622,7 @@ export function DepartmentTestingView() {
         email: '',
         title: member.role,
         departmentId,
+        division: null,
         isActive: true,
         status: 'Awaiting signup',
       });
@@ -637,7 +641,7 @@ export function DepartmentTestingView() {
     );
   }
 
-  const openHeadTestTab = (head: { id: string; testUserId?: string; fullName: string; email: string; title: string; departmentId: string | null }) => {
+  const openHeadTestTab = (head: { id: string; testUserId?: string; fullName: string; email: string; title: string; departmentId: string | null; division?: string | null }) => {
     const targetId = head.testUserId || head.id;
     const profile = {
       id: targetId,
@@ -645,6 +649,7 @@ export function DepartmentTestingView() {
       email: head.email,
       title: head.title,
       departmentId: head.departmentId,
+      division: head.division ?? null,
     };
     const url = new URL('/head', window.location.origin);
     url.searchParams.set('testHead', targetId);
@@ -673,7 +678,9 @@ export function DepartmentTestingView() {
         </div>
         {loadError && <p role="alert" className="m-4 rounded border border-rose-400/30 bg-rose-500/10 p-3 text-xs text-rose-200">{loadError}</p>}
         {loadingHeads ? (
-          <p className="p-8 text-center text-sm text-[color:var(--wm-ink-muted)]">Loading head accounts…</p>
+          <div className="p-4">
+            <WmSkeleton variant="table" rows={5} />
+          </div>
         ) : headRows.length === 0 ? (
           <p className="p-8 text-center text-sm text-[color:var(--wm-ink-muted)]">No Department Head entries were found in the public head roster or account directory.</p>
         ) : (

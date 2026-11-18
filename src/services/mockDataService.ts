@@ -234,21 +234,39 @@ class MockConferenceAdminService implements IConferenceAdminRepository {
     const app = this.snapshot.applications.find((a) => a.id === applicationId);
     if (!app) return { ok: false, error: 'Application not found.' };
 
-    if (!canReviewFinalDecision(actor, app)) {
+    if (actor.role === 'department_head' && status !== 'accepted' && status !== 'rejected') {
       this.appendLog(
         actor,
-        'Unauthorized Final Decision Blocked',
+        'Blocked Non-Decision Status Change by Head',
         'security',
         'application',
         app.id,
         app.applicantName,
-        'Department Heads submit Stage 1 recommendations only; final status reserved for Admins/Super Admins.',
+        `Department Heads may only accept or decline applications (attempted: ${status}).`,
         app.departmentId,
       );
       this.persist();
       return {
         ok: false,
-        error: 'Final acceptance/rejection requires Admin or Super Admin authority (Stage 2).',
+        error: 'Department Heads can only accept or decline applications.',
+      };
+    }
+
+    if (!canReviewFinalDecision(actor, app)) {
+      this.appendLog(
+        actor,
+        'Unauthorized Application Decision Blocked',
+        'security',
+        'application',
+        app.id,
+        app.applicantName,
+        'Attempted to update an application outside assigned department and gender scope.',
+        app.departmentId,
+      );
+      this.persist();
+      return {
+        ok: false,
+        error: 'You are not authorized to decide on this application (department & gender isolation enforced).',
       };
     }
 
@@ -260,7 +278,7 @@ class MockConferenceAdminService implements IConferenceAdminRepository {
     app.finalDecisionAt = timestamp;
     app.reviewedBy = actor.fullName;
     app.reviewedAt = timestamp;
-    if (decisionNotes !== undefined) {
+    if (decisionNotes !== undefined && actor.role !== 'department_head') {
       app.adminDecisionNotes = decisionNotes;
     }
 
@@ -269,14 +287,18 @@ class MockConferenceAdminService implements IConferenceAdminRepository {
       timestamp,
       actorName: actor.fullName,
       actorRole: actor.role,
-      summary: `Stage 2 Final Decision: ${previous.toUpperCase()} -> ${status.toUpperCase()}${
-        decisionNotes ? ` (${decisionNotes})` : ''
+      summary: `Decision: ${previous.toUpperCase()} -> ${status.toUpperCase()}${
+        decisionNotes && actor.role !== 'department_head' ? ` (${decisionNotes})` : ''
       }`,
     });
 
+    if (status === 'accepted') {
+      this.ensureApplicantQrPass(app);
+    }
+
     this.appendLog(
       actor,
-      `Final Decision: ${status.toUpperCase()}`,
+      `Application Decision: ${status.toUpperCase()}`,
       'application',
       'application',
       app.id,
@@ -647,19 +669,18 @@ class MockConferenceAdminService implements IConferenceAdminRepository {
     const dept = this.snapshot.departments.find((d) => d.id === departmentId);
     if (!dept) return { ok: false, error: 'Department not found.' };
 
-    const isHeadUpdatingOwn =
-      actor.role === 'department_head' &&
-      canAccessDepartment(actor, departmentId) &&
-      Object.keys(patch).every((k) => ['description', 'instructions', 'positions'].includes(k));
+    if (!hasPermission(actor, 'departments.manage') && !(
+      Object.keys(patch).length === 1 &&
+      'registrationOpen' in patch &&
+      hasPermission(actor, 'departments.toggle_registration')
+    )) {
+      return { ok: false, error: 'Not authorized to modify this department configuration.' };
+    }
 
     const isRegistrationOnly =
       Object.keys(patch).length === 1 &&
       'registrationOpen' in patch &&
       hasPermission(actor, 'departments.toggle_registration');
-
-    if (!hasPermission(actor, 'departments.manage') && !isHeadUpdatingOwn && !isRegistrationOnly) {
-      return { ok: false, error: 'Not authorized to modify this department configuration.' };
-    }
 
     Object.assign(dept, patch, { id: dept.id, slug: dept.slug, updatedAt: nowIso() });
     this.appendLog(
@@ -1154,6 +1175,9 @@ class MockConferenceAdminService implements IConferenceAdminRepository {
       `Published: ${clean.published ? 'Yes' : 'Draft'}`,
     );
     this.persist();
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('willowmun:committees-updated'));
+    }
     return { ok: true, data: structuredClone(clean) };
   }
 
@@ -1174,6 +1198,9 @@ class MockConferenceAdminService implements IConferenceAdminRepository {
       'Removed committee from roster.',
     );
     this.persist();
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('willowmun:committees-updated'));
+    }
     return { ok: true, data: true };
   }
 
@@ -1602,6 +1629,78 @@ class MockConferenceAdminService implements IConferenceAdminRepository {
   // =========================================================
   // QR PASSES & VENUE ATTENDANCE
   // =========================================================
+
+  private generateOpaqueQrToken(): string {
+    if (typeof globalThis.crypto !== 'undefined' && typeof globalThis.crypto.getRandomValues === 'function') {
+      const bytes = new Uint8Array(16);
+      globalThis.crypto.getRandomValues(bytes);
+      return 'WMQR-' + Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+    }
+    return `WMQR-${Date.now().toString(16).toUpperCase()}${Math.random().toString(16).slice(2, 10).toUpperCase()}`;
+  }
+
+  public ensurePersonalQrPass(actor: AdminUser): QrPassRecord {
+    const existing = this.snapshot.qrPasses.find(
+      (p) => p.userId === actor.id || p.id === `qr-user-${actor.id}`,
+    );
+    if (existing) {
+      return structuredClone(existing);
+    }
+
+    const category: QrPassRecord['category'] =
+      actor.role === 'super_admin' || actor.role === 'admin'
+        ? 'Executive'
+        : actor.role === 'department_head'
+          ? 'Department Head'
+          : actor.departmentId === 'security'
+            ? 'Security'
+            : 'Staff';
+
+    const created: QrPassRecord = {
+      id: `qr-user-${actor.id}`,
+      userId: actor.id,
+      token: this.generateOpaqueQrToken(),
+      holderName: actor.fullName,
+      roleLabel: actor.title || actor.role.replace(/_/g, ' '),
+      departmentId: actor.departmentId,
+      category,
+      active: actor.isActive,
+      checkedIn: false,
+      lastScannedAt: null,
+    };
+    this.snapshot.qrPasses.unshift(created);
+    this.persist();
+    return structuredClone(created);
+  }
+
+  private ensureApplicantQrPass(app: Application): QrPassRecord {
+    const existing = this.snapshot.qrPasses.find(
+      (p) => p.applicationId === app.id || p.id === `qr-app-${app.id}`,
+    );
+    if (existing) {
+      return structuredClone(existing);
+    }
+    const category: QrPassRecord['category'] =
+      app.departmentId === 'security'
+        ? 'Security'
+        : app.category === 'delegate'
+          ? 'Delegate'
+          : 'Staff';
+    const created: QrPassRecord = {
+      id: `qr-app-${app.id}`,
+      applicationId: app.id,
+      token: this.generateOpaqueQrToken(),
+      holderName: app.applicantName,
+      roleLabel: app.position || (app.category === 'delegate' ? 'Accepted Delegate' : 'Accepted Staff'),
+      departmentId: app.departmentId,
+      category,
+      active: true,
+      checkedIn: false,
+      lastScannedAt: null,
+    };
+    this.snapshot.qrPasses.unshift(created);
+    return structuredClone(created);
+  }
 
   public saveQrPass(actor: AdminUser, pass: QrPassRecord): ServiceResult<QrPassRecord> {
     if (!hasPermission(actor, 'qr.manage')) {

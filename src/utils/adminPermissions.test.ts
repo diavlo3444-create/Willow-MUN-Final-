@@ -9,9 +9,13 @@ import {
   canManageAccountsOrRoles,
   canReviewFinalDecision,
   canSubmitRecommendation,
+  canViewHrAcceptedApplication,
   DEPARTMENT_HEAD_DEFAULT_PERMISSIONS,
+  getActorGenderScope,
   getNavigationGroups,
   hasPermission,
+  isDccActor,
+  isHrActor,
   SUPER_ADMIN_PERMISSIONS,
 } from './adminPermissions';
 
@@ -38,9 +42,13 @@ function makeUser(overrides: Partial<AdminUser>): AdminUser {
   };
 }
 
-function makeApp(departmentId: string): Application {
+function makeApp(
+  departmentId: string,
+  gender: 'male' | 'female' | null = 'male',
+  status: Application['status'] = 'pending',
+): Application {
   return {
-    id: 'app-1',
+    id: `app-${departmentId}-${gender ?? 'unknown'}`,
     applicationCode: 'WM-2026-001',
     category: 'staff',
     applicantName: 'Applicant One',
@@ -51,10 +59,11 @@ function makeApp(departmentId: string): Application {
     city: 'Dubai',
     country: 'UAE',
     age: 19,
+    gender,
     departmentId,
     position: 'Officer',
     secondChoiceDepartmentId: null,
-    status: 'pending',
+    status,
     submittedAt: '2026-11-10T10:00:00.000Z',
     updatedAt: '2026-11-10T10:00:00.000Z',
     headRecommendation: 'none',
@@ -91,6 +100,12 @@ test('Super Admin has unrestricted access including accounts, roles, website CMS
   assert.equal(canAccessPortal(sa, 'super_admin'), true);
   assert.equal(canAccessPortal(sa, 'admin'), true);
   assert.equal(canAccessDepartment(sa, 'hr'), true);
+
+  const navGroups = getNavigationGroups(sa, 'super_admin');
+  const accessGroup = navGroups.find((g) => g.id === 'access-systems');
+  assert.ok(accessGroup);
+  assert.equal(accessGroup.items.some((i) => i.id === 'admins'), true);
+  assert.equal(accessGroup.items.some((i) => i.id === 'testing'), true);
 });
 
 test('Admin can operate conference and website CMS but is strictly blocked from accounts and roles', () => {
@@ -98,7 +113,6 @@ test('Admin can operate conference and website CMS but is strictly blocked from 
     role: 'admin',
     permissions: {
       ...ADMIN_DEFAULT_PERMISSIONS,
-      // Attempt to tamper flags in memory
       'accounts.manage_admins': true,
       'accounts.manage_heads': true,
       'roles.manage': true,
@@ -116,30 +130,117 @@ test('Admin can operate conference and website CMS but is strictly blocked from 
   assert.equal(hasPermission(tamperedAdmin, 'accounts.view'), true);
 
   const navGroups = getNavigationGroups(tamperedAdmin, 'admin');
-  const superGroup = navGroups.find((g) => g.id === 'super-admin-only');
-  assert.ok(superGroup);
-  assert.equal(superGroup.items.every((item) => item.readOnlyHint === true), true);
-  assert.equal(superGroup.items.some((item) => item.id === 'permission-defs'), false);
+  assert.equal(navGroups.some((g) => g.id === 'access-systems'), false);
 });
 
-test('Department Head is strictly isolated to assigned department and limited to Stage 1 recommendations', () => {
+test('Department Head is strictly isolated to department + gender and only has accept/decline and My QR', () => {
+  const femaleMediaHead = makeUser({
+    role: 'department_head',
+    roleDefinitionId: 'role-head',
+    departmentId: 'media-press',
+    division: 'Female Division',
+    title: 'Head of Media (Female)',
+    permissions: {
+      ...DEPARTMENT_HEAD_DEFAULT_PERMISSIONS,
+      'accounts.manage_heads': true,
+      'departments.manage': true,
+      'departments.workspace': true,
+      'operations.teams': true,
+      'operations.shifts': true,
+      'qr.manage': true,
+      'qr.scan': true,
+      'system.settings': true,
+    },
+  });
+
+  const mediaFemaleApp = makeApp('media-press', 'female');
+  const mediaMaleApp = makeApp('media-press', 'male');
+  const mediaUnknownGenderApp = makeApp('media-press', null);
+  const securityFemaleApp = makeApp('security', 'female');
+
+  assert.equal(getActorGenderScope(femaleMediaHead), 'female');
+  assert.equal(canAccessPortal(femaleMediaHead, 'department_head'), true);
+  assert.equal(canAccessPortal(femaleMediaHead, 'admin'), false);
+  assert.equal(canAccessDepartment(femaleMediaHead, 'media-press'), true);
+  assert.equal(canAccessDepartment(femaleMediaHead, 'security'), false);
+
+  assert.equal(canAccessApplication(femaleMediaHead, mediaFemaleApp), true);
+  assert.equal(canReviewFinalDecision(femaleMediaHead, mediaFemaleApp), true);
+  assert.equal(canAccessApplication(femaleMediaHead, mediaMaleApp), false);
+  assert.equal(canReviewFinalDecision(femaleMediaHead, mediaMaleApp), false);
+  assert.equal(canAccessApplication(femaleMediaHead, mediaUnknownGenderApp), false);
+  assert.equal(canAccessApplication(femaleMediaHead, securityFemaleApp), false);
+  assert.equal(canSubmitRecommendation(femaleMediaHead, mediaFemaleApp), false);
+
+  assert.equal(hasPermission(femaleMediaHead, 'departments.workspace'), false);
+  assert.equal(hasPermission(femaleMediaHead, 'operations.teams'), false);
+  assert.equal(hasPermission(femaleMediaHead, 'operations.shifts'), false);
+  assert.equal(hasPermission(femaleMediaHead, 'departments.manage'), false);
+  assert.equal(hasPermission(femaleMediaHead, 'qr.manage'), false);
+  assert.equal(hasPermission(femaleMediaHead, 'qr.scan'), false);
+  assert.equal(hasPermission(femaleMediaHead, 'system.settings'), false);
+  assert.equal(hasPermission(femaleMediaHead, 'committees.manage'), false);
+  assert.equal(hasPermission(femaleMediaHead, 'qr.view_pass'), true);
+
+  const nav = getNavigationGroups(femaleMediaHead, 'department_head');
+  assert.deepEqual(
+    nav[0].items.map((i) => i.id),
+    ['applications', 'qr'],
+  );
+});
+
+test('HR actor gains cross-department & cross-gender Accepted Applicants access without Super Admin rights', () => {
   const hrHead = makeUser({
     role: 'department_head',
     roleDefinitionId: 'role-head',
     departmentId: 'hr',
+    division: 'Male Division',
+    title: 'Head of HR (Male)',
     permissions: { ...DEPARTMENT_HEAD_DEFAULT_PERMISSIONS },
   });
-  const hrApp = makeApp('hr');
-  const mediaApp = makeApp('media-press');
 
-  assert.equal(canAccessPortal(hrHead, 'department_head'), true);
-  assert.equal(canAccessPortal(hrHead, 'admin'), false);
-  assert.equal(canAccessDepartment(hrHead, 'hr'), true);
-  assert.equal(canAccessDepartment(hrHead, 'media-press'), false);
-  assert.equal(canAccessApplication(hrHead, hrApp), true);
-  assert.equal(canAccessApplication(hrHead, mediaApp), false);
-  assert.equal(canSubmitRecommendation(hrHead, hrApp), true);
-  assert.equal(canReviewFinalDecision(hrHead, hrApp), false);
+  const acceptedSecurityFemale = makeApp('security', 'female', 'accepted');
+  const pendingSecurityFemale = makeApp('security', 'female', 'pending');
+
+  assert.equal(isHrActor(hrHead), true);
+  assert.equal(canViewHrAcceptedApplication(hrHead, acceptedSecurityFemale), true);
+  assert.equal(canViewHrAcceptedApplication(hrHead, pendingSecurityFemale), false);
+  assert.equal(canAccessApplication(hrHead, acceptedSecurityFemale), false);
+  assert.equal(canManageAccountsOrRoles(hrHead), false);
+
+  const nav = getNavigationGroups(hrHead, 'department_head');
+  assert.deepEqual(
+    nav[0].items.map((i) => i.id),
+    ['applications', 'hr-accepted', 'qr'],
+  );
+});
+
+test('DCC actor can manage committees without gaining Admin/Super Admin permissions', () => {
+  const dccMember = makeUser({
+    role: 'executive_board',
+    roleDefinitionId: 'role-executive-board',
+    departmentId: 'dcc',
+    title: 'Delegate Affairs (DCC) Coordinator',
+    permissions: { ...DEPARTMENT_HEAD_DEFAULT_PERMISSIONS, 'applications.view': false, 'applications.review': false },
+  });
+
+  assert.equal(isDccActor(dccMember), true);
+  assert.equal(hasPermission(dccMember, 'committees.manage'), true);
+  assert.equal(hasPermission(dccMember, 'accounts.manage_admins'), false);
+  assert.equal(hasPermission(dccMember, 'system.settings'), false);
+
+  const dccHead = makeUser({
+    role: 'department_head',
+    roleDefinitionId: 'role-head',
+    departmentId: 'dcc',
+    division: 'Female',
+    permissions: { ...DEPARTMENT_HEAD_DEFAULT_PERMISSIONS },
+  });
+  const nav = getNavigationGroups(dccHead, 'department_head');
+  assert.deepEqual(
+    nav[0].items.map((i) => i.id),
+    ['applications', 'committees', 'qr'],
+  );
 });
 
 test('Suspended or inactive users lose all portal and permission access', () => {
@@ -147,4 +248,7 @@ test('Suspended or inactive users lose all portal and permission access', () => 
   assert.equal(canAccessPortal(suspended, 'super_admin'), false);
   assert.equal(hasPermission(suspended, 'applications.view'), false);
   assert.equal(canManageAccountsOrRoles(suspended), false);
+  assert.equal(isHrActor(suspended), false);
+  assert.equal(isDccActor(suspended), false);
 });
+

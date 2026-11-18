@@ -168,6 +168,9 @@ interface AdminStoreContextValue {
   runHealthChecks: () => boolean;
   markNotificationsRead: () => void;
   recordSecurityViolation: (targetType: string, targetId: string, details: string) => void;
+  myQrModalOpen: boolean;
+  openMyQrModal: () => void;
+  closeMyQrModal: () => void;
 }
 
 const AdminStoreContext = createContext<AdminStoreContextValue | null>(null);
@@ -204,6 +207,7 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
     }
   });
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const [myQrModalOpen, setMyQrModalOpen] = useState(false);
 
   const authenticatedUser = useMemo(() => {
     if (!currentUserId) return null;
@@ -220,7 +224,7 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
 
     // The profile payload lets the testing page preview live directory accounts
     // even when their auth profile is not part of the local mock snapshot.
-    let profile: { id?: string; fullName?: string; email?: string; title?: string; departmentId?: string | null } | null = null;
+    let profile: { id?: string; fullName?: string; email?: string; title?: string; division?: string | null; departmentId?: string | null } | null = null;
     try {
       if (typeof window !== 'undefined') {
         const params = new URLSearchParams(window.location.search);
@@ -264,7 +268,7 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
       roleDefinitionId: 'department_head',
       title: profile?.title || member?.role || 'Department Head',
       departmentId,
-      division: null,
+      division: profile?.division ?? null,
       avatarUrl: null,
       isActive: true,
       status: 'active',
@@ -541,12 +545,13 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
   const updateApplicationStatus = useCallback(
     (applicationId: string, status: ApplicationStatus, decisionNotes?: string) => {
       if (!currentUser) return false;
+      const actingActor = testModeHeadUser ?? currentUser;
       return handleResult(
-        conferenceDataService.updateApplicationStatus(currentUser, applicationId, status, decisionNotes),
-        'Final decision recorded',
+        conferenceDataService.updateApplicationStatus(actingActor, applicationId, status, decisionNotes),
+        status === 'accepted' ? 'Application accepted' : status === 'rejected' ? 'Application declined' : 'Decision recorded',
       );
     },
-    [currentUser, handleResult],
+    [currentUser, testModeHeadUser, handleResult],
   );
 
   const submitHeadRecommendation = useCallback(
@@ -1254,6 +1259,9 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
     runHealthChecks,
     markNotificationsRead,
     recordSecurityViolation,
+    myQrModalOpen,
+    openMyQrModal: () => setMyQrModalOpen(true),
+    closeMyQrModal: () => setMyQrModalOpen(false),
   };
 
   return <AdminStoreContext.Provider value={value}>{children}</AdminStoreContext.Provider>;

@@ -74,7 +74,7 @@ export function ExecutiveBoardSignupView({ onNavigate }: { onNavigate: (path: st
                 <input id="eb-signup-confirm" type="password" autoComplete="new-password" minLength={10} required value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} placeholder="Enter the same password again" className="mt-1.5 h-11 w-full rounded border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-canvas)] px-3 text-sm" />
               </div>
               {error && <p role="alert" className="rounded border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">{error}</p>}
-              <button disabled={busy} type="submit" className="inline-flex h-11 w-full items-center justify-center gap-2 rounded bg-[color:var(--wm-focal)] px-4 text-sm font-semibold text-[#12170c] disabled:opacity-60">
+              <button disabled={busy} type="submit" className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-[color:var(--wm-emerald)] px-4 text-sm font-semibold text-[#eef4ef] transition hover:bg-[#357a5b] disabled:opacity-60">
                 <UserPlus className="h-4 w-4" /> {busy ? 'Creating account…' : 'Create EB account'}
               </button>
             </form>

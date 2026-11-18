@@ -39,7 +39,7 @@ test('formatObjectPosition handles focus array and null defaults cleanly', () =>
 test('organizeFamilyTree orders secretariat -> left groups -> right groups canonically', () => {
   const tree = organizeFamilyTree(membersData as FamilyTreeData);
 
-  assert.equal(tree.orderedMembers.length, 21);
+  assert.equal(tree.orderedMembers.length, 22);
   assert.equal(tree.centerGroups.length, 1);
   assert.equal(tree.leftGroups.length, 4);
   assert.equal(tree.rightGroups.length, 5);

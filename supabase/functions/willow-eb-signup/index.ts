@@ -87,6 +87,24 @@ Deno.serve(async (req: Request) => {
       .is("claimed_at", null);
     if (finishError) throw finishError;
 
+    const qrBytes = new Uint8Array(16);
+    crypto.getRandomValues(qrBytes);
+    const qrToken = "WMQR-" + Array.from(qrBytes, (b) => b.toString(16).padStart(2, "0")).join("").toUpperCase();
+    await admin
+      .from("wm_qr_passes")
+      .upsert(
+        {
+          user_id: createdUserId,
+          token_value: qrToken,
+          holder_name: invite.full_name,
+          role_label: invite.title || "Executive Board",
+          category: invite.department_id === "security" ? "Security" : "Executive",
+          department_id: invite.department_id,
+          active: true,
+        },
+        { onConflict: "user_id", ignoreDuplicates: true },
+      );
+
     return json({ success: true, message: "Your EB account has been created. You can now sign in." }, 201);
   } catch (error) {
     if (createdUserId) await admin.auth.admin.deleteUser(createdUserId);

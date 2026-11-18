@@ -387,8 +387,24 @@ export const ADMIN_DEFAULT_PERMISSIONS: PermissionMap = buildPermissionMap({
 export const DEPARTMENT_HEAD_DEFAULT_PERMISSIONS: PermissionMap = buildPermissionMap({
   'applications.view': true,
   'applications.view_confidential': true,
-  'applications.recommend': true,
-  'applications.notes': true,
+  'applications.review': true,
+  'applications.recommend': false,
+  'applications.notes': false,
+  'applications.bulk_actions': false,
+  'applications.export': false,
+  'applications.signup_links': false,
+  'departments.workspace': false,
+  'operations.teams': false,
+  'operations.shifts': false,
+  'operations.deployment': false,
+  'qr.view_pass': true,
+  'qr.scan': false,
+  'qr.manage': false,
+});
+
+export const EXECUTIVE_BOARD_DEFAULT_PERMISSIONS: PermissionMap = buildPermissionMap({
+  'applications.view': false,
+  'applications.view_confidential': false,
   'applications.review': false,
   'departments.workspace': true,
   'operations.teams': true,
@@ -402,16 +418,47 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<RoleType, PermissionMap> = {
   super_admin: SUPER_ADMIN_PERMISSIONS,
   admin: ADMIN_DEFAULT_PERMISSIONS,
   department_head: DEPARTMENT_HEAD_DEFAULT_PERMISSIONS,
-  executive_board: DEPARTMENT_HEAD_DEFAULT_PERMISSIONS,
+  executive_board: EXECUTIVE_BOARD_DEFAULT_PERMISSIONS,
 };
 
 const SUPER_ADMIN_ONLY_KEYS = new Set<PermissionKey>(
   PERMISSION_DEFINITIONS.filter((p) => p.superAdminOnly).map((p) => p.key),
 );
 
+export function getActorGenderScope(user: AdminUser | null | undefined): 'male' | 'female' | null {
+  if (!user) return null;
+  const label = `${user.division || ''} ${user.title || ''} ${user.fullName || ''}`.toLowerCase();
+  if (/\bfemale\b|\bwomen\b|\bwoman\b|\bgirls?\b/.test(label)) return 'female';
+  if (/\bmale\b|\bmen\b|\bman\b|\bboys?\b/.test(label)) return 'male';
+  return null;
+}
+
+export function isHrActor(user: AdminUser | null | undefined): boolean {
+  if (!user || !user.isActive || user.status !== 'active') return false;
+  if (user.role === 'super_admin' || user.role === 'admin') return true;
+  const dept = (user.departmentId || '').toLowerCase();
+  const title = `${user.title || ''} ${user.division || ''}`.toLowerCase();
+  return dept === 'hr' || dept === 'human-resources' || /\bhr\b|human resources/.test(title);
+}
+
+export function isDccActor(user: AdminUser | null | undefined): boolean {
+  if (!user || !user.isActive || user.status !== 'active') return false;
+  if (user.role === 'super_admin' || user.role === 'admin') return true;
+  if (user.ebPermissions?.manage_committees || user.permissions?.['committees.manage']) return true;
+  const dept = (user.departmentId || '').toLowerCase();
+  const title = `${user.title || ''} ${user.division || ''}`.toLowerCase();
+  return (
+    dept === 'dcc' ||
+    dept === 'delegate-affairs' ||
+    /\bdcc\b|delegate affairs|committees?\s*(chair|head|director|lead)/.test(title)
+  );
+}
+
 /**
  * Enforces that ONLY Super Admins can ever exercise account, role, or testing privileges,
  * regardless of UI state or manually mutated permission objects.
+ * Department Heads are strictly isolated to application review (dept + gender), personal My QR,
+ * and explicit HR / DCC domain modules when assigned to those departments.
  */
 export function hasPermission(
   user: AdminUser | null | undefined,
@@ -420,6 +467,34 @@ export function hasPermission(
   if (!user || !user.isActive || user.status !== 'active') return false;
   if (user.role === 'super_admin') return true;
   if (SUPER_ADMIN_ONLY_KEYS.has(permission)) return false;
+
+  if (user.role === 'department_head') {
+    if (
+      permission === 'applications.view' ||
+      permission === 'applications.view_confidential' ||
+      permission === 'applications.review' ||
+      permission === 'qr.view_pass'
+    ) {
+      return true;
+    }
+    if (permission === 'committees.manage') {
+      return isDccActor(user);
+    }
+    return false;
+  }
+
+  if (user.role === 'executive_board') {
+    if (permission === 'committees.manage') {
+      return isDccActor(user);
+    }
+    if (permission === 'qr.view_pass') {
+      return true;
+    }
+    if (permission === 'qr.scan') {
+      return Boolean(user.permissions?.['qr.scan'] || user.ebPermissions?.scan_qr);
+    }
+  }
+
   return Boolean(user.permissions[permission]);
 }
 
@@ -453,17 +528,33 @@ export function canAccessApplication(
   application: Application,
 ): boolean {
   if (!user || !user.isActive || user.status !== 'active') return false;
-  if (!hasPermission(user, 'applications.view')) return false;
-  if (user.role === 'department_head') {
-    return Boolean(user.departmentId && user.departmentId === application.departmentId);
+  if (user.role === 'super_admin' || user.role === 'admin') {
+    return hasPermission(user, 'applications.view');
   }
-  return true;
+  if (user.role === 'department_head') {
+    if (!user.departmentId || user.departmentId !== application.departmentId) return false;
+    const actorGender = getActorGenderScope(user);
+    const applicantGender = application.gender ? application.gender.toLowerCase() : null;
+    if (!actorGender || !applicantGender) return false;
+    return actorGender === applicantGender;
+  }
+  return false;
+}
+
+export function canViewHrAcceptedApplication(
+  user: AdminUser | null | undefined,
+  application: Application,
+): boolean {
+  if (!user || !user.isActive || user.status !== 'active') return false;
+  if (application.status !== 'accepted') return false;
+  return isHrActor(user);
 }
 
 export function canViewConfidentialApplicantInfo(
   user: AdminUser | null | undefined,
   application: Application,
 ): boolean {
+  if (canViewHrAcceptedApplication(user, application)) return true;
   if (!canAccessApplication(user, application)) return false;
   return hasPermission(user, 'applications.view_confidential');
 }
@@ -473,7 +564,9 @@ export function canReviewFinalDecision(
   application: Application,
 ): boolean {
   if (!user || !user.isActive || user.status !== 'active') return false;
-  if (user.role === 'department_head') return false; // Dept heads submit Stage 1 recommendations only
+  if (user.role === 'department_head') {
+    return canAccessApplication(user, application) && hasPermission(user, 'applications.review');
+  }
   return canAccessApplication(user, application) && hasPermission(user, 'applications.review');
 }
 
@@ -481,6 +574,8 @@ export function canSubmitRecommendation(
   user: AdminUser | null | undefined,
   application: Application,
 ): boolean {
+  if (!user || !user.isActive || user.status !== 'active') return false;
+  if (user.role === 'department_head') return false;
   if (!canAccessApplication(user, application)) return false;
   return hasPermission(user, 'applications.recommend');
 }
@@ -549,22 +644,20 @@ export function getNavigationGroups(
   const isSuper = user.role === 'super_admin';
 
   if (portal === 'department_head') {
-    const workspaceItems: NavItemConfig[] = [
-      { id: 'overview', label: 'Overview', path: '/head' },
+    const items: NavItemConfig[] = [
       { id: 'applications', label: 'Applications', path: '/head/applications', requiredPermission: 'applications.view' },
-      { id: 'qr', label: 'My QR Pass', path: '/head/qr', requiredPermission: 'qr.view_pass' },
+      ...(isHrActor(user)
+        ? [{ id: 'hr-accepted', label: 'Accepted Applicants', path: '/head/hr-accepted' } satisfies NavItemConfig]
+        : []),
+      ...(isDccActor(user)
+        ? [{ id: 'committees', label: 'Committees', path: '/head/committees', requiredPermission: 'committees.manage' } satisfies NavItemConfig]
+        : []),
+      { id: 'qr', label: 'My QR', path: '/head/qr', requiredPermission: 'qr.view_pass' },
     ];
-    const operationsItems: NavItemConfig[] = [
-      { id: 'workspace', label: 'Workspace', path: '/head/workspace', requiredPermission: 'departments.workspace' },
-      { id: 'teams', label: 'Groups', path: '/head/teams', requiredPermission: 'operations.teams' },
-      { id: 'shifts', label: 'Shifts & Roster', path: '/head/shifts', requiredPermission: 'operations.shifts' },
-    ];
-    const visibleWorkspace = workspaceItems.filter((item) => !item.requiredPermission || hasPermission(user, item.requiredPermission));
-    const visibleOperations = operationsItems.filter((item) => !item.requiredPermission || hasPermission(user, item.requiredPermission));
-    return [
-      ...(visibleWorkspace.length ? [{ id: 'department-workspace', label: 'Department Workspace', items: visibleWorkspace }] : []),
-      ...(visibleOperations.length ? [{ id: 'operations', label: 'Operations', items: visibleOperations }] : []),
-    ];
+    const visible = items.filter((item) => !item.requiredPermission || hasPermission(user, item.requiredPermission));
+    return visible.length
+      ? [{ id: 'head-portal', label: 'Department Review', items: visible }]
+      : [];
   }
 
   const groups: NavGroupConfig[] = [
@@ -574,12 +667,15 @@ export function getNavigationGroups(
       items: [
         { id: 'dashboard', label: 'Overview', path: base },
         { id: 'applications', label: 'Registrations', path: base + '/applications', requiredPermission: 'applications.view' },
+        ...(isHrActor(user)
+          ? [{ id: 'hr-accepted', label: 'Accepted Applicants', path: base + '/hr-accepted' } satisfies NavItemConfig]
+          : []),
         { id: 'executive-board', label: 'Executive Board', path: base + '/executive-board', requiredPermission: 'executive_board.manage' },
         { id: 'heads', label: 'Heads', path: base + '/heads', requiredPermission: 'accounts.view' },
         { id: 'departments', label: 'Departments', path: base + '/departments', requiredPermission: 'departments.view_all' },
         { id: 'reports', label: 'Reports', path: base + '/reports', requiredPermission: 'reports.view' },
         { id: 'attendance', label: 'Checked-In People', path: base + '/attendance', requiredPermission: 'qr.manage' },
-        { id: 'qr', label: 'Security Website', path: base + '/qr', requiredPermission: 'qr.view_pass' },
+        { id: 'qr', label: 'Security & QR', path: base + '/qr', requiredPermission: 'qr.view_pass' },
       ],
     },
     ...(isSuper
@@ -589,7 +685,7 @@ export function getNavigationGroups(
             label: 'Access & Systems',
             items: [
               { id: 'admins', label: 'Admin Accounts', path: base + '/admins', requiredPermission: 'accounts.view', superAdminOnly: true },
-              { id: 'testing', label: 'IT Super Admin', path: base + '/testing', requiredPermission: 'testing.impersonate_head', superAdminOnly: true },
+              { id: 'testing', label: 'Department Testing', path: base + '/testing', requiredPermission: 'testing.impersonate_head', superAdminOnly: true },
             ],
           } satisfies NavGroupConfig,
         ]

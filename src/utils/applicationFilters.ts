@@ -6,7 +6,12 @@ import type {
   Department,
   RecommendationDecision,
 } from '../types/admin';
-import { canAccessDepartment, hasPermission } from './adminPermissions';
+import {
+  canAccessDepartment,
+  getActorGenderScope,
+  hasPermission,
+  isHrActor,
+} from './adminPermissions';
 
 export type SortField =
   | 'submittedAt'
@@ -23,6 +28,7 @@ export type CategoryFilterValue = ApplicationCategory | 'all' | 'staff_group';
 export interface ApplicationFilterOptions {
   search?: string;
   departmentId?: string;
+  gender?: 'male' | 'female' | 'all';
   category?: CategoryFilterValue;
   position?: string;
   status?: ApplicationStatus | 'all';
@@ -50,20 +56,37 @@ export function scopeApplicationsForActor(
 
   if (actor.role === 'department_head') {
     if (!actor.departmentId) return [];
-    const actorLabel = `${actor.title || ''} ${actor.division || ''}`.toLowerCase();
-    const actorGender = /female|women|woman/.test(actorLabel)
-      ? 'female'
-      : /male|men|man/.test(actorLabel)
-        ? 'male'
-        : null;
+    const actorGender = getActorGenderScope(actor);
     if (!actorGender) return [];
     return applications.filter((app) => {
       if (!canAccessDepartment(actor, app.departmentId)) return false;
-      const applicantGender = (app as Application & { gender?: string }).gender?.toLowerCase();
+      const applicantGender = (app as Application & { gender?: string | null }).gender?.toLowerCase();
       return applicantGender === actorGender;
     });
   }
   return applications;
+}
+
+export function scopeAcceptedApplicationsForHr(
+  applications: Application[],
+  actor: AdminUser | null | undefined,
+  filters?: { search?: string; departmentId?: string; gender?: 'male' | 'female' | 'all' },
+): Application[] {
+  if (!isHrActor(actor)) return [];
+  const search = (filters?.search ?? '').trim().toLowerCase();
+  const dept = filters?.departmentId && filters.departmentId !== 'all' ? filters.departmentId : null;
+  const gender = filters?.gender && filters.gender !== 'all' ? filters.gender : null;
+
+  return applications
+    .filter((app) => app.status === 'accepted')
+    .filter((app) => (dept ? app.departmentId === dept : true))
+    .filter((app) => (gender ? (app.gender || '').toLowerCase() === gender : true))
+    .filter((app) => {
+      if (!search) return true;
+      const hay = `${app.applicantName} ${app.email} ${app.applicationCode} ${app.schoolOrUniversity} ${app.position} ${app.departmentId}`.toLowerCase();
+      return hay.includes(search);
+    })
+    .sort((a, b) => (b.finalDecisionAt || b.updatedAt || b.submittedAt).localeCompare(a.finalDecisionAt || a.updatedAt || a.submittedAt));
 }
 
 export function filterAndSortApplications(
@@ -74,6 +97,7 @@ export function filterAndSortApplications(
   const scoped = scopeApplicationsForActor(applications, actor);
   const query = (options.search ?? '').trim().toLowerCase();
   const deptFilter = options.departmentId && options.departmentId !== 'all' ? options.departmentId : null;
+  const genderFilter = options.gender && options.gender !== 'all' ? options.gender : null;
   const catFilter = options.category && options.category !== 'all' ? options.category : null;
   const posFilter = options.position && options.position !== 'all' ? options.position : null;
   const statusFilter = options.status && options.status !== 'all' ? options.status : null;
@@ -84,6 +108,7 @@ export function filterAndSortApplications(
 
   const filtered = scoped.filter((app) => {
     if (deptFilter && app.departmentId !== deptFilter) return false;
+    if (genderFilter && (app.gender || '').toLowerCase() !== genderFilter) return false;
     if (catFilter === 'staff_group') {
       if (app.category === 'delegate') return false;
     } else if (catFilter && app.category !== catFilter) {

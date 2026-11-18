@@ -637,22 +637,23 @@ body.intro-on * {
 }
 
 /* ============================================================================
-   Willow MUN Administration Platform (.wm-admin) Design System Tokens & Base
-   Scoped strictly to .wm-admin so public landing page styles stay untouched.
+   Willow MUN Administration Platform (.wm-admin) — Deep Forest Green Design System
+   Scoped strictly to .wm-admin and .wm-auth-page so public landing page stays untouched.
    ============================================================================ */
 .wm-admin {
-  --wm-canvas: #070708;
-  --wm-rail: #09090b;
-  --wm-surface: #0c0c0f;
-  --wm-inset: #111114;
-  --wm-overlay: #18181b;
-  --wm-hairline: rgba(255, 255, 255, 0.075);
-  --wm-hairline-strong: rgba(255, 255, 255, 0.15);
-  --wm-ink: #f4f2ec;
-  --wm-ink-secondary: #c7c3b8;
-  --wm-ink-muted: #96938b;
-  --wm-accent: #d4af37;
-  --wm-focal: #e5c158;
+  --wm-canvas: #06110c;
+  --wm-rail: #081711;
+  --wm-surface: #0b1c15;
+  --wm-inset: #0f241b;
+  --wm-overlay: #132c21;
+  --wm-hairline: rgba(148, 191, 165, 0.14);
+  --wm-hairline-strong: rgba(148, 191, 165, 0.28);
+  --wm-ink: #eef4ef;
+  --wm-ink-secondary: #b4cbbd;
+  --wm-ink-muted: #7fa08c;
+  --wm-accent: #74c69d;
+  --wm-focal: #95d5b2;
+  --wm-emerald: #2d6a4f;
   --font-admin-sans: var(--font-body);
   --font-admin-mono: var(--font-mono);
 }
@@ -660,10 +661,14 @@ body.intro-on * {
 .wm-admin {
   font-family: var(--font-admin-sans);
   background-color: var(--wm-canvas);
+  background-image:
+    radial-gradient(880px 440px at 14% -8%, rgba(45, 106, 79, 0.22), transparent 64%),
+    radial-gradient(680px 380px at 96% 0%, rgba(116, 198, 157, 0.08), transparent 60%);
   color: var(--wm-ink);
   font-size: 14px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .wm-admin .font-mono,
@@ -681,16 +686,18 @@ body.intro-on * {
   outline-offset: 2px;
 }
 
-.wm-surface-panel {
+.wm-admin .wm-surface-panel {
   background-color: var(--wm-surface);
   border: 1px solid var(--wm-hairline);
-  border-radius: 6px;
+  border-radius: 8px;
+  box-shadow: 0 10px 28px -18px rgba(0, 0, 0, 0.55);
 }
 
-.wm-surface-inset {
+.wm-admin .wm-surface-inset {
   background-color: var(--wm-inset);
   border: 1px solid var(--wm-hairline);
-  border-radius: 6px;
+  border-radius: 7px;
+  box-shadow: none;
 }
 
 .wm-section-kicker {
@@ -701,6 +708,121 @@ body.intro-on * {
   color: var(--wm-ink-muted);
 }
 
+.wm-admin button,
+.wm-admin a,
+.wm-admin input,
+.wm-admin select,
+.wm-admin textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.wm-auth-page {
+  background: #06110c;
+  background-image: radial-gradient(960px 480px at 18% -10%, rgba(45, 106, 79, 0.24), transparent 64%);
+}
+
+.wm-auth-page input:focus-visible {
+  outline: 1px solid rgba(116, 198, 157, 0.85);
+  outline-offset: 1px;
+}
+
+@media (max-width: 1023px) {
+  .wm-auth-page {
+    min-height: 100dvh;
+  }
+}
+
+.wm-admin .wm-display {
+  font-family: var(--font-heading, Georgia, serif);
+  font-weight: 600;
+  letter-spacing: 0.005em;
+}
+
+.wm-admin .wm-serif {
+  font-family: var(--font-serif, Georgia, serif);
+  font-weight: 600;
+  letter-spacing: -0.012em;
+}
+
+.wm-admin .wm-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 191, 165, 0.26) transparent;
+}
+
+.wm-admin .wm-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.wm-admin .wm-scroll::-webkit-scrollbar-thumb {
+  background: rgba(148, 191, 165, 0.24);
+  border-radius: 999px;
+  border: 2px solid var(--wm-surface);
+}
+
+@keyframes wm-skeleton-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.wm-skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(21, 48, 36, 0.72) 25%,
+    rgba(45, 106, 79, 0.34) 50%,
+    rgba(21, 48, 36, 0.72) 75%
+  );
+  background-size: 200% 100%;
+  animation: wm-skeleton-shimmer 1.55s ease-in-out infinite;
+}
+
+@keyframes willow-dashboard-page-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.wm-admin .wm-page-in {
+  animation: willow-dashboard-page-in 0.24s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes willow-dashboard-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.wm-admin .wm-overlay-in {
+  animation: willow-dashboard-overlay-in 0.16s ease-out both;
+}
+
+@keyframes willow-dashboard-drawer-in {
+  from {
+    transform: translateX(-12px);
+    opacity: 0.8;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.wm-admin .wm-drawer-in {
+  animation: willow-dashboard-drawer-in 0.2s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .wm-admin *,
   .wm-admin *::before,
@@ -709,30 +831,11 @@ body.intro-on * {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+  .wm-skeleton,
+  .wm-admin .wm-page-in,
+  .wm-admin .wm-overlay-in,
+  .wm-admin .wm-drawer-in {
+    animation: none !important;
+  }
 }
 
-
-
-/* WEST-inspired Willow administration treatment: restrained black and gold. */
-.wm-admin { background-color:var(--wm-canvas); background-image:radial-gradient(900px 460px at 14% -10%,rgba(212,175,55,.055),transparent 62%),radial-gradient(720px 420px at 100% 0%,rgba(255,255,255,.018),transparent 58%); color:var(--wm-ink); font-family:var(--font-admin-sans); -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; }
-.wm-admin .wm-surface-panel,.wm-admin .wm-surface-inset { border-radius:7px; box-shadow:none; }
-.wm-admin .wm-surface-panel { background:#0c0c0f; border-color:rgba(255,255,255,.075); }
-.wm-admin .wm-surface-inset { background:#111114; border-color:rgba(255,255,255,.075); }
-.wm-admin button,.wm-admin a,.wm-admin input,.wm-admin select,.wm-admin textarea { -webkit-tap-highlight-color:transparent; }
-.wm-auth-page { background:#070708; background-image:none; }
-.wm-auth-page input:focus-visible { outline:1px solid rgba(212,175,55,.85); outline-offset:1px; }
-@media(max-width:1023px){.wm-auth-page{min-height:100dvh;}}
-
-/* WEST dashboard shell primitives, scoped to Willow administration only. */
-.wm-admin .wm-display { font-family: var(--font-heading, Georgia, serif); font-weight: 600; letter-spacing: .005em; }
-.wm-admin .wm-serif { font-family: var(--font-serif, Georgia, serif); font-weight: 600; letter-spacing: -.012em; }
-.wm-admin .wm-scroll { scrollbar-width: thin; scrollbar-color: #2b2b2e transparent; }
-.wm-admin .wm-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
-.wm-admin .wm-scroll::-webkit-scrollbar-thumb { background: #2b2b2e; border-radius: 999px; border: 2px solid var(--wm-surface); }
-@keyframes willow-dashboard-page-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-.wm-admin .wm-page-in { animation: willow-dashboard-page-in .26s cubic-bezier(.22,1,.36,1) both; }
-@keyframes willow-dashboard-overlay-in { from { opacity: 0; } to { opacity: 1; } }
-.wm-admin .wm-overlay-in { animation: willow-dashboard-overlay-in .16s ease-out both; }
-@keyframes willow-dashboard-drawer-in { from { transform: translateX(-12px); opacity: .8; } to { transform: translateX(0); opacity: 1; } }
-.wm-admin .wm-drawer-in { animation: willow-dashboard-drawer-in .2s cubic-bezier(.22,1,.36,1) both; }
-@media (prefers-reduced-motion: reduce) { .wm-admin .wm-page-in, .wm-admin .wm-overlay-in, .wm-admin .wm-drawer-in { animation: none !important; } }

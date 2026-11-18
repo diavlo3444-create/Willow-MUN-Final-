@@ -528,6 +528,8 @@ export interface ShiftRecord {
 
 export interface QrPassRecord {
   id: string;
+  userId?: string | null;
+  applicationId?: string | null;
   token: string;
   holderName: string;
   roleLabel: string;

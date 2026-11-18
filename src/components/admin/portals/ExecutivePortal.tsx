@@ -6,6 +6,7 @@ import {
   canAccessPortal,
   canManageAccountsOrRoles,
   hasPermission,
+  isHrActor,
 } from '../../../utils/adminPermissions';
 import { AdminShell } from '../AdminShell';
 import { PortalAuthView } from '../PortalAuthView';
@@ -13,6 +14,8 @@ import { AccountsView } from '../views/AccountsView';
 import { HeadAccountsView } from '../views/HeadAccountsView';
 import { ActivityLogsView } from '../views/ActivityLogsView';
 import { ApplicationsView } from '../views/ApplicationsView';
+import { CommitteesManagementView } from '../views/CommitteesManagementView';
+import { HrAcceptedApplicantsView } from '../views/HrAcceptedApplicantsView';
 import { LiveStaffAccountsView } from '../views/LiveStaffAccountsView';
 import { LiveApplicationsView } from '../views/LiveApplicationsView';
 import {
@@ -51,7 +54,11 @@ const SECTION_META: Record<string, { title: string; subtitle: string }> = {
   },
   applications: {
     title: 'All Applications',
-    subtitle: 'Review Stage 1 Head Recommendations and finalize Stage 2 decisions.',
+    subtitle: 'Review and finalize applicant decisions across departments.',
+  },
+  'hr-accepted': {
+    title: 'Accepted Applicants (HR)',
+    subtitle: 'Cross-department directory of accepted applicants across every department and gender division.',
   },
   delegates: {
     title: 'Delegate Applications',
@@ -62,8 +69,8 @@ const SECTION_META: Record<string, { title: string; subtitle: string }> = {
     subtitle: 'Review Volunteer, Media, Press, and Security applications.',
   },
   recommendations: {
-    title: 'Stage 1 Department Recommendations',
-    subtitle: 'Applications recommended by Department Heads awaiting Stage 2 Admin confirmation.',
+    title: 'Department Recommendations',
+    subtitle: 'Applications across departments for administrative review.',
   },
   forms: {
     title: 'Application Form Builder',
@@ -115,7 +122,7 @@ const SECTION_META: Record<string, { title: string; subtitle: string }> = {
   },
   groups: {
     title: 'Department Workspace & Modules',
-    subtitle: 'Cross-department access to all 13 conference operational modules.',
+    subtitle: 'Cross-department access to all conference operational modules.',
   },
   shifts: {
     title: 'Shift Scheduling',
@@ -135,7 +142,7 @@ const SECTION_META: Record<string, { title: string; subtitle: string }> = {
   },
   qr: {
     title: 'QR Pass Registry & Personal ID',
-    subtitle: 'Inspect digital passes, issue credentials, and toggle pass activation.',
+    subtitle: 'Inspect personal QR credentials, scan checkpoints, and manage event pass states.',
   },
   'website-editor': {
     title: 'Website CMS: Draft & Live Preview',
@@ -175,7 +182,7 @@ const SECTION_META: Record<string, { title: string; subtitle: string }> = {
   },
   notifications: {
     title: 'Notifications Center',
-    subtitle: 'System notices, Stage 1 recommendations, and incoming inquiries.',
+    subtitle: 'System notices, alerts, and incoming inquiries.',
   },
   registration: {
     title: 'Registration Controls',
@@ -199,15 +206,15 @@ const SECTION_META: Record<string, { title: string; subtitle: string }> = {
   },
   admins: {
     title: 'Staff Accounts',
-    subtitle: 'Live staff account directory loaded directly from Supabase.'
+    subtitle: 'Live staff account directory loaded directly from Supabase.',
   },
   heads: {
     title: 'Department Head Directory',
-    subtitle: 'Department Head accounts and department linkages (Read-Only for Admin role).',
+    subtitle: 'Department Head accounts and department linkages.',
   },
   roles: {
     title: 'Role Management',
-    subtitle: 'Reusable conference role definitions (Read-Only for Admin role).',
+    subtitle: 'Reusable conference role definitions.',
   },
   'permission-defs': {
     title: 'Permission Definitions',
@@ -240,14 +247,32 @@ export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePorta
   const authorizedForPortal = currentUser !== null && canAccessPortal(currentUser, portal);
   const isSuperAdmin = canManageAccountsOrRoles(currentUser);
 
-  // Record security violation if an Admin directly visits a Super Admin-only route
   const isSuperOnlyRoute = section === 'admins' || section === 'testing' || section === 'eb-accounts';
   const attemptedForbiddenSuperRoute = authorizedForPortal && !isSuperAdmin && isSuperOnlyRoute;
   const westPortalSections = new Set([
-    'dashboard', 'applications', 'staff-apps', 'executive-board', 'heads', 'departments', 'reports',
-    'attendance', 'qr', 'website-editor', 'committees', 'secretariat', 'sponsors',
-    'schedule', 'announcements', 'documents', 'faqs', 'messages', 'settings',
-    'admins', 'eb-accounts', 'testing',
+    'dashboard',
+    'applications',
+    'hr-accepted',
+    'staff-apps',
+    'executive-board',
+    'heads',
+    'departments',
+    'reports',
+    'attendance',
+    'qr',
+    'website-editor',
+    'committees',
+    'secretariat',
+    'sponsors',
+    'schedule',
+    'announcements',
+    'documents',
+    'faqs',
+    'messages',
+    'settings',
+    'admins',
+    'eb-accounts',
+    'testing',
   ]);
   const unsupportedPortalSection = !westPortalSections.has(section);
 
@@ -282,15 +307,15 @@ export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePorta
   const renderDenied = (reason: string) => (
     <div
       role="alert"
-      className="rounded-md border border-rose-400/35 bg-rose-500/[0.08] p-8 text-center space-y-3"
+      className="wm-surface-panel space-y-3 border-rose-400/35 bg-rose-500/[0.06] p-8 text-center"
     >
-      <ShieldAlert className="mx-auto h-10 w-10 text-rose-200" aria-hidden="true" />
+      <ShieldAlert className="mx-auto h-10 w-10 text-rose-300" aria-hidden="true" />
       <h2 className="text-lg font-semibold text-rose-100">Access Restricted</h2>
       <p className="mx-auto max-w-md text-xs text-[color:var(--wm-ink-secondary)]">{reason}</p>
       <button
         type="button"
         onClick={() => onNavigate(basePath)}
-        className="inline-flex min-h-[38px] items-center gap-1.5 rounded bg-[color:var(--wm-focal)] px-4 text-xs font-semibold text-[#12170c] hover:bg-[#dad3b4] cursor-pointer"
+        className="inline-flex min-h-[38px] items-center gap-1.5 rounded-md bg-[color:var(--wm-emerald)] px-4 text-xs font-semibold text-[#eef4ef] hover:bg-[#357a5b] cursor-pointer"
       >
         <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
         <span>Return to {portalLabel} Dashboard</span>
@@ -317,16 +342,21 @@ export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePorta
       activeNavId={section}
       onNavigate={onNavigate}
       topActions={
-        <>
-          <a href={basePath + '/qr'} className="rounded-md border border-[#d4af37]/35 px-3 py-2 text-xs font-medium text-[#bfa04a] hover:bg-[#d4af37]/10">My QR Pass</a>
-          {isSuperAdmin && <a href={basePath + '/eb-accounts'} className="rounded-md border border-[#d4af37]/35 px-3 py-2 text-xs font-medium text-[#bfa04a] hover:bg-[#d4af37]/10">EB Signup & Accounts</a>}
-        </>
+        isSuperAdmin ? (
+          <button
+            type="button"
+            onClick={() => onNavigate(basePath + '/eb-accounts')}
+            className="rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-inset)] px-3 py-1.5 text-xs font-medium text-[color:var(--wm-focal)] transition-colors hover:bg-[color:var(--wm-overlay)]"
+          >
+            EB Signup & Accounts
+          </button>
+        ) : undefined
       }
       globalSearch={searchableSection ? globalSearch : undefined}
       onGlobalSearchChange={searchableSection ? setGlobalSearch : undefined}
     >
       {unsupportedPortalSection ? (
-        renderDenied('This section is not part of the WEST-style Willow management portal.')
+        renderDenied('This section is not part of the Willow MUN management portal.')
       ) : attemptedForbiddenSuperRoute ? (
         renderDenied(
           'This governance area is strictly restricted to Super Admin accounts. This navigation attempt has been recorded in the security audit log.',
@@ -338,6 +368,12 @@ export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePorta
           onFilterApplications={navigateFilteredApps}
           onSelectApplication={(appId) => onNavigate(`${basePath}/applications/${appId}`)}
         />
+      ) : section === 'hr-accepted' ? (
+        isHrActor(currentUser) ? (
+          <HrAcceptedApplicantsView />
+        ) : (
+          renderDenied('Accepted Applicants is restricted to HR and Administrators.')
+        )
       ) : section === 'applications' || section === 'staff-apps' ? (
         hasPermission(currentUser, 'applications.view') ? (
           <LiveApplicationsView selectedId={paramId} onClose={() => onNavigate(basePath + '/applications')} />
@@ -370,8 +406,13 @@ export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePorta
         ) : (
           renderDenied('Your account lacks forms.manage permission.')
         )
-      ) : section === 'committees' ||
-        section === 'executive-board' ||
+      ) : section === 'committees' ? (
+        hasPermission(currentUser, 'committees.manage') ? (
+          <CommitteesManagementView />
+        ) : (
+          renderDenied('Your account lacks committees.manage permission.')
+        )
+      ) : section === 'executive-board' ||
         section === 'sponsors' ||
         section === 'schedule' ||
         section === 'announcements' ||
@@ -393,7 +434,11 @@ export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePorta
       ) : section === 'groups' ? (
         <WorkspaceModulesView />
       ) : section === 'attendance' || section === 'qr' ? (
-        <QrAttendanceView mode={section} />
+        paramId && paramId !== currentUser.id && !hasPermission(currentUser, 'qr.manage') ? (
+          renderDenied('You may only inspect your own personal QR credential.')
+        ) : (
+          <QrAttendanceView mode={section} />
+        )
       ) : section === 'website-editor' ||
         section === 'pages' ||
         section === 'sections' ||

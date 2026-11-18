@@ -291,6 +291,7 @@ export interface IConferenceAdminRepository {
   deleteShift(actor: AdminUser, shiftId: string): ServiceResult<boolean>;
 
   // QR Passes & Attendance
+  ensurePersonalQrPass(actor: AdminUser): QrPassRecord;
   saveQrPass(actor: AdminUser, pass: QrPassRecord): ServiceResult<QrPassRecord>;
   scanQrToken(
     actor: AdminUser,
