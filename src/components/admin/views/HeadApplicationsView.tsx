@@ -387,50 +387,32 @@ export function HeadApplicationsView({
       ) : (
         <div className="space-y-2.5">
           <AnimatePresence initial={false}>
-            {filteredApps.map((app) => {
-              return (
-                <motion.article
-                  key={app.id}
-                  layout
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.18 }}
-                  className="wm-surface-panel flex flex-wrap items-center justify-between gap-4 p-4 transition-colors hover:border-[color:var(--wm-hairline-strong)]"
-                >
-                  <button
-                    type="button"
-                    onClick={() => onSelectApplication(app.id)}
-                    className="min-w-0 flex-1 text-left"
-                  >
-                    <div className="flex flex-wrap items-center gap-2">
+            {filteredApps.map((app) => (
+              <motion.article
+                key={app.id}
+                layout
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.18 }}
+                className="wm-surface-panel flex flex-wrap items-center justify-between gap-4 p-4 transition-colors hover:border-[color:var(--wm-hairline-strong)]"
+              >
+                <button type="button" onClick={() => onSelectApplication(app.id)} className="min-w-0 flex-1 text-left">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-mono text-[10px] uppercase tracking-wider text-[color:var(--wm-accent)]">{app.applicationCode}</span>
+                    <StatusBadge status={app.status} />
                     <span className="text-[10px] text-[color:var(--wm-ink-muted)]">{app.headRecommendation === 'recommend_accept' ? 'Recommended: Accept' : app.headRecommendation === 'recommend_reject' ? 'Recommended: Reject' : 'Awaiting recommendation'}</span>
-                    <button type="button" onClick={() => onSelectApplication(app.id)} className="inline-flex h-8 items-center rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-inset)] px-3 text-xs font-medium text-[color:var(--wm-ink)]">Review &amp; recommend</button>
                   </div>
-                </motion.article>
-              );
-            })}
+                  <h3 className="mt-1.5 truncate text-sm font-semibold text-[color:var(--wm-ink)]">{app.applicantName}</h3>
+                  <p className="mt-0.5 truncate text-xs text-[color:var(--wm-ink-secondary)]">{app.schoolOrUniversity || app.email} · Applied {new Date(app.submittedAt).toLocaleDateString()}</p>
+                </button>
+                <button type="button" onClick={() => onSelectApplication(app.id)} className="inline-flex h-8 items-center rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-inset)] px-3 text-xs font-medium text-[color:var(--wm-ink)]">Review &amp; recommend</button>
+              </motion.article>
+            ))}
           </AnimatePresence>
         </div>
       )}
 
-      <ConfirmDialog
-        open={Boolean(confirmDeclineApp)}
-        tone="danger"
-        title="Decline this application?"
-        description={
-          confirmDeclineApp
-            ? `Mark ${confirmDeclineApp.applicantName}'s application for ${deptName} as Declined.`
-            : ''
-        }
-        confirmLabel="Decline Application"
-        cancelLabel="Cancel"
-        onConfirm={() => {
-          if (confirmDeclineApp) void handleDecision(confirmDeclineApp, 'rejected');
-          setConfirmDeclineApp(null);
-        }}
-        onCancel={() => setConfirmDeclineApp(null)}
-      />
     </div>
   );
 }
