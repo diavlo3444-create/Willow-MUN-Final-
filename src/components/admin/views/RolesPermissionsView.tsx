@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import {
   Check,
   Copy,
@@ -516,17 +516,26 @@ export function RolesPermissionsView({ section }: RolesPermissionsViewProps) {
   );
 }
 
-export function DepartmentTestingView({
-  onEnterTestingMode,
-}: {
-  onEnterTestingMode: () => void;
-}) {
+export function DepartmentTestingView() {
   const { data, currentUser } = useAdminStore();
+  const [liveHeadEmails, setLiveHeadEmails] = useState<Set<string>>(new Set());
+  const [loadingHeads, setLoadingHeads] = useState(true);
+  useEffect(() => {
+    let active = true;
+    supabase.functions.invoke('willow-staff-admin', { body: { action: 'list' } }).then(({ data: response, error }) => {
+      if (!active) return;
+      if (!error && !response?.error) {
+        setLiveHeadEmails(new Set((response?.accounts || []).filter((a: any) => a.role === 'department_head' && a.is_active === true).map((a: any) => String(a.email || '').toLowerCase())));
+      }
+      setLoadingHeads(false);
+    }).catch(() => { if (active) setLoadingHeads(false); });
+    return () => { active = false; };
+  }, []);
   const deptById = useMemo(
     () => new Map(data.departments.map((d) => [d.id, d])),
     [data.departments],
   );
-  const headUsers = data.users.filter((u) => u.role === 'department_head' && u.isActive);
+  const headUsers = data.users.filter((u) => u.role === 'department_head' && u.isActive && liveHeadEmails.has(u.email.toLowerCase()));
 
   if (!canManageAccountsOrRoles(currentUser)) {
     return (
@@ -549,7 +558,6 @@ export function DepartmentTestingView({
     try {
       tab.sessionStorage.setItem('willow_mun_test_head_uid_v3', headId);
       tab.location.replace('/head');
-      onEnterTestingMode();
     } catch {
       tab.close();
       window.alert('Could not start the isolated head test session. Please allow same-site storage and try again.');
@@ -570,9 +578,11 @@ export function DepartmentTestingView({
       <section className="wm-surface-panel overflow-hidden">
         <div className="border-b border-[color:var(--wm-hairline)] px-4 py-3">
           <h3 className="text-sm font-semibold text-[color:var(--wm-ink)]">Department Head Accounts</h3>
-          <p className="mt-1 text-xs text-[color:var(--wm-ink-muted)]">Choose a head to open their portal in a new tab. Only active head profiles available in the current account roster are shown.</p>
+          <p className="mt-1 text-xs text-[color:var(--wm-ink-muted)]">Choose an active Department Head account to open a separate test tab. Only provisioned head accounts are shown.</p>
         </div>
-        {headUsers.length === 0 ? (
+        {loadingHeads ? (
+          <p className="p-8 text-center text-sm text-[color:var(--wm-ink-muted)]">Loading active head accounts…</p>
+        ) : headUsers.length === 0 ? (
           <p className="p-8 text-center text-sm text-[color:var(--wm-ink-muted)]">No active Department Head profiles are available to test.</p>
         ) : (
           <div className="divide-y divide-[color:var(--wm-hairline)]">
@@ -590,7 +600,7 @@ export function DepartmentTestingView({
                     <span className="rounded border border-emerald-400/30 px-2 py-1 text-[10px] text-emerald-300">Active</span>
                     <button type="button" disabled={!dept} onClick={() => openHeadTestTab(head.id)} className="inline-flex h-9 items-center gap-2 rounded bg-[color:var(--wm-focal)] px-3 text-xs font-semibold text-[#12170c] hover:bg-[#dad3b4] disabled:opacity-40">
                       <FlaskConical className="h-3.5 w-3.5" aria-hidden="true" />
-                      Sign in as head
+                      Open head test
                     </button>
                   </div>
                 </article>
