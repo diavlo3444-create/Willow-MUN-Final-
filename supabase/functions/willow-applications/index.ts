@@ -84,6 +84,26 @@ Deno.serve(async (req: Request) => {
     }
 
     const departmentId = mapDepartment(applicationType, body?.department_id);
+    let { data: targetDepartment, error: departmentLookupError } = await admin
+      .from("wm_departments")
+      .select("id,slug,registration_open")
+      .eq("slug", departmentId)
+      .maybeSingle();
+    if (!targetDepartment && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(departmentId)) {
+      const byId = await admin
+        .from("wm_departments")
+        .select("id,slug,registration_open")
+        .eq("id", departmentId)
+        .maybeSingle();
+      targetDepartment = byId.data;
+      departmentLookupError = byId.error;
+    }
+    if (departmentLookupError) return json({ error: "Could not verify registration status." }, 500);
+    if (!targetDepartment) return json({ error: "Registration is not configured for this application type." }, 400);
+    if (targetDepartment.registration_open !== true) {
+      return json({ error: "Registration for this department is currently closed." }, 403);
+    }
+
     const { data: inserted, error } = await admin
       .from("wm_applications")
       .insert({
