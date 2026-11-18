@@ -5,9 +5,12 @@ import type {
   ApplicationCategory,
   ApplicationStatus,
   CommitteeRecord,
+  Department,
   QrPassRecord,
 } from '../types/admin';
 import {
+  canAccessApplication,
+  getActorDepartmentSlug,
   getActorGenderScope,
   hasPermission,
   isDccActor,
@@ -97,6 +100,7 @@ export function mapLiveRowToApplication(row: LiveApplicationRow): Application {
   return {
     id: row.id,
     applicationCode: code,
+    applicationType: row.application_type,
     category,
     applicantName: row.applicant_name,
     gender,
@@ -159,6 +163,7 @@ export function mapLiveRowToApplication(row: LiveApplicationRow): Application {
 
 export async function fetchScopedApplicationsForActor(
   actor: AdminUser | null | undefined,
+  departments?: Department[],
 ): Promise<{ applications: Application[]; source: 'live' | 'table' | 'local'; error?: string }> {
   if (!actor || !actor.isActive || actor.status !== 'active') {
     return { applications: [], source: 'live', error: 'Authentication required.' };
@@ -171,15 +176,10 @@ export async function fetchScopedApplicationsForActor(
 
   if (!error && data && !data.error && Array.isArray(data.applications)) {
     const mapped = (data.applications as LiveApplicationRow[]).map(mapLiveRowToApplication);
-    // If Super Admin is previewing a simulated head/EB, apply client scope filter safely on top of live data
-    if (actor.role === 'department_head') {
-      const gender = getActorGenderScope(actor);
+    // Apply exact client-side head scope (used both for real heads and Super Admin "Sign In As" preview)
+    if (actor.role === 'department_head' || actor.role === 'executive_board') {
       return {
-        applications: mapped.filter(
-          (app) =>
-            app.departmentId === actor.departmentId &&
-            (!gender || (app.gender || '').toLowerCase() === gender),
-        ),
+        applications: mapped.filter((app) => canAccessApplication(actor, app, departments)),
         source: 'live',
       };
     }
@@ -189,17 +189,22 @@ export async function fetchScopedApplicationsForActor(
   // Fallback to direct RLS table read if Edge Function returned error or is mid-deploy
   try {
     let query = supabase.from('wm_applications').select('*').order('created_at', { ascending: false });
-    if (actor.role === 'department_head') {
+    if (actor.role === 'department_head' || actor.role === 'executive_board') {
+      const deptSlug = getActorDepartmentSlug(actor, departments);
       const gender = getActorGenderScope(actor);
-      if (!actor.departmentId || !gender) {
+      if (!deptSlug || !gender || !hasPermission(actor, 'applications.view', departments)) {
         return { applications: [], source: 'table' };
       }
-      query = query.eq('department_id', actor.departmentId).eq('gender', gender);
+      query = query.eq('department_id', deptSlug).eq('gender', gender);
     }
     const { data: rows, error: tableError } = await query;
     if (!tableError && Array.isArray(rows)) {
+      const mapped = (rows as LiveApplicationRow[]).map(mapLiveRowToApplication);
       return {
-        applications: (rows as LiveApplicationRow[]).map(mapLiveRowToApplication),
+        applications:
+          actor.role === 'department_head' || actor.role === 'executive_board'
+            ? mapped.filter((app) => canAccessApplication(actor, app, departments))
+            : mapped,
         source: 'table',
       };
     }
@@ -221,8 +226,9 @@ export async function fetchScopedApplicationsForActor(
 
 export async function fetchHrAcceptedApplications(
   actor: AdminUser | null | undefined,
+  departments?: Department[],
 ): Promise<{ applications: Application[]; error?: string }> {
-  if (!isHrActor(actor)) {
+  if (!isHrActor(actor, departments)) {
     return { applications: [], error: 'Only HR staff and Administrators can view cross-department accepted applicants.' };
   }
 
@@ -278,11 +284,13 @@ export async function submitHeadOrAdminDecision(
   applicationId: string,
   status: 'accepted' | 'rejected' | 'waitlisted' | 'pending',
   notes?: string,
+  departments?: Department[],
 ): Promise<{ ok: boolean; application?: Application; error?: string }> {
-  if (!hasPermission(actor, 'applications.review')) {
+  if (!hasPermission(actor, 'applications.review', departments)) {
     return { ok: false, error: 'You are not permitted to make application decisions.' };
   }
-  if (actor.role === 'department_head' && status !== 'accepted' && status !== 'rejected') {
+  const isHeadOrEb = actor.role === 'department_head' || actor.role === 'executive_board';
+  if (isHeadOrEb && status !== 'accepted' && status !== 'rejected') {
     return { ok: false, error: 'Department Heads can only accept or decline applications.' };
   }
 
@@ -291,7 +299,7 @@ export async function submitHeadOrAdminDecision(
     id: applicationId,
     status,
   };
-  if (actor.role !== 'department_head' && notes !== undefined) {
+  if (!isHeadOrEb && notes !== undefined) {
     body.review_notes = notes;
   }
 
@@ -311,7 +319,7 @@ export async function submitHeadOrAdminDecision(
       decision_by_name: actor.fullName,
       decision_at: new Date().toISOString(),
     };
-    if (actor.role !== 'department_head' && notes !== undefined) {
+    if (!isHeadOrEb && notes !== undefined) {
       patch.review_notes = notes;
     }
     const { data: row, error: tableErr } = await supabase
@@ -406,8 +414,9 @@ export async function fetchPublicCommittees(): Promise<CommitteeRecord[]> {
 
 export async function fetchManageableCommittees(
   actor: AdminUser | null | undefined,
+  departments?: Department[],
 ): Promise<{ committees: CommitteeRecord[]; remoteAvailable: boolean; error?: string }> {
-  if (!isDccActor(actor)) {
+  if (!isDccActor(actor, departments)) {
     return { committees: [], remoteAvailable: false, error: 'DCC or Administrator access required.' };
   }
 
@@ -446,8 +455,9 @@ export async function fetchManageableCommittees(
 export async function upsertLiveCommittee(
   actor: AdminUser,
   committee: CommitteeRecord,
+  departments?: Department[],
 ): Promise<{ ok: boolean; committee?: CommitteeRecord; remoteSynced: boolean; error?: string }> {
-  if (!isDccActor(actor)) {
+  if (!isDccActor(actor, departments)) {
     return { ok: false, remoteSynced: false, error: 'Not authorized to manage committees.' };
   }
 
@@ -519,8 +529,9 @@ export async function upsertLiveCommittee(
 export async function removeLiveCommittee(
   actor: AdminUser,
   committeeId: string,
+  departments?: Department[],
 ): Promise<{ ok: boolean; remoteSynced: boolean; error?: string }> {
-  if (!isDccActor(actor)) {
+  if (!isDccActor(actor, departments)) {
     return { ok: false, remoteSynced: false, error: 'Not authorized to remove committees.' };
   }
 

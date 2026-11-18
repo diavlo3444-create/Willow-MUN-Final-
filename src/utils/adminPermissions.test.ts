@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import type { AdminUser, Application } from '../types/admin';
+import type { AdminUser, Application, Department } from '../types/admin';
 import {
   ADMIN_DEFAULT_PERMISSIONS,
   canAccessApplication,
@@ -13,9 +13,11 @@ import {
   DEPARTMENT_HEAD_DEFAULT_PERMISSIONS,
   getActorGenderScope,
   getNavigationGroups,
+  getPortalHomeRoute,
   hasPermission,
   isDccActor,
   isHrActor,
+  resolveUserPermissions,
   SUPER_ADMIN_PERMISSIONS,
 } from './adminPermissions';
 
@@ -251,4 +253,102 @@ test('Suspended or inactive users lose all portal and permission access', () => 
   assert.equal(isHrActor(suspended), false);
   assert.equal(isDccActor(suspended), false);
 });
+
+test('Executive Board Head uses the unified /head portal, Media/Press isolation, and UUID department lookup', () => {
+  const departments: Department[] = [
+    {
+      id: '11111111-1111-1111-1111-111111111111',
+      slug: 'hr',
+      name: 'Human Resources',
+      cluster: 'Delegate Affairs & Operations',
+      description: '',
+      headUserIds: [],
+      registrationOpen: true,
+      capacity: 15,
+      positions: [],
+      instructions: '',
+      updatedAt: '',
+    },
+    {
+      id: '22222222-2222-2222-2222-222222222222',
+      slug: 'media-press',
+      name: 'Media & Press',
+      cluster: 'Communications & Creative',
+      description: '',
+      headUserIds: [],
+      registrationOpen: true,
+      capacity: 15,
+      positions: [],
+      instructions: '',
+      updatedAt: '',
+    },
+  ];
+
+  const ebHrHead = makeUser({
+    role: 'executive_board',
+    roleDefinitionId: 'executive_board',
+    departmentId: '11111111-1111-1111-1111-111111111111',
+    division: 'female',
+    title: 'Head of HR',
+    ebRank: 'head',
+    permissions: resolveUserPermissions('executive_board', null, 'head', { manage_department: true }, 'Head of HR'),
+  });
+
+  assert.equal(getPortalHomeRoute('executive_board'), '/head');
+  assert.equal(canAccessPortal(ebHrHead, 'department_head'), true);
+  assert.equal(canAccessPortal(ebHrHead, 'admin'), false);
+  assert.equal(isHrActor(ebHrHead, departments), true);
+  assert.equal(canAccessDepartment(ebHrHead, 'hr', departments), true);
+
+  const nav = getNavigationGroups(ebHrHead, 'department_head', departments);
+  assert.deepEqual(
+    nav[0].items.map((i) => i.id),
+    ['applications', 'hr-accepted', 'qr'],
+  );
+
+  // Non-head EB member lacking applications.view cannot view/review apps
+  const ebObserver = makeUser({
+    role: 'executive_board',
+    departmentId: '22222222-2222-2222-2222-222222222222',
+    division: 'male',
+    title: 'Logistics Coordinator',
+    ebRank: 'member',
+    permissions: resolveUserPermissions('executive_board', { 'applications.view': false }, 'member', {}, 'Logistics Coordinator'),
+  });
+  const mediaMaleApp = makeApp('media-press', 'male');
+  assert.equal(canAccessApplication(ebObserver, mediaMaleApp, departments), false);
+  assert.equal(canReviewFinalDecision(ebObserver, mediaMaleApp, departments), false);
+
+  // Media Head vs Press Head isolation
+  const ebMediaHead = makeUser({
+    role: 'executive_board',
+    departmentId: '22222222-2222-2222-2222-222222222222',
+    division: 'female',
+    title: 'Head of Media (Female)',
+    ebRank: 'head',
+    permissions: resolveUserPermissions('executive_board', null, 'head', {}, 'Head of Media (Female)'),
+  });
+  const pressFemaleApp: Application = { ...makeApp('media-press', 'female'), applicationType: 'press', position: 'Press Journalist' };
+  const mediaFemaleApp: Application = { ...makeApp('media-press', 'female'), applicationType: 'media', position: 'Media Crew' };
+  assert.equal(canAccessApplication(ebMediaHead, mediaFemaleApp, departments), true);
+  assert.equal(canAccessApplication(ebMediaHead, pressFemaleApp, departments), false);
+});
+
+test('resolveUserPermissions strips superAdminOnly keys for non-super-admins', () => {
+  const escalated = resolveUserPermissions('admin', {
+    'accounts.manage_admins': true,
+    'accounts.manage_heads': true,
+    'roles.manage': true,
+    'permissions.manage': true,
+    'testing.impersonate_head': true,
+    'committees.manage': true,
+  });
+  assert.equal(escalated['accounts.manage_admins'], false);
+  assert.equal(escalated['accounts.manage_heads'], false);
+  assert.equal(escalated['roles.manage'], false);
+  assert.equal(escalated['permissions.manage'], false);
+  assert.equal(escalated['testing.impersonate_head'], false);
+  assert.equal(escalated['committees.manage'], true);
+});
+
 

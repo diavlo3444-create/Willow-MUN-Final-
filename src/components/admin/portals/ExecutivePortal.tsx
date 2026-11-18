@@ -10,7 +10,7 @@ import {
 } from '../../../utils/adminPermissions';
 import { AdminShell } from '../AdminShell';
 import { PortalAuthView } from '../PortalAuthView';
-import { AccountsView } from '../views/AccountsView';
+import { AccountManagementView } from '../views/AccountManagementView';
 import { HeadAccountsView } from '../views/HeadAccountsView';
 import { ActivityLogsView } from '../views/ActivityLogsView';
 import { ApplicationsView } from '../views/ApplicationsView';
@@ -205,13 +205,17 @@ const SECTION_META: Record<string, { title: string; subtitle: string }> = {
     title: 'Platform Health & Monitoring',
     subtitle: 'Diagnostic probes, error alert triage, and runtime security parameters.',
   },
+  'account-management': {
+    title: 'Account Management',
+    subtitle: 'Create and govern Admin, Department Head, and Executive Board accounts safely.',
+  },
   admins: {
-    title: 'Staff Accounts',
-    subtitle: 'Live staff account directory loaded directly from Supabase.',
+    title: 'Admin Accounts',
+    subtitle: 'Manage administrator accounts, roles, permissions, and active status.',
   },
   heads: {
     title: 'Department Head Directory',
-    subtitle: 'Department Head accounts and department linkages.',
+    subtitle: 'Department Head and Executive Board accounts and department assignments.',
   },
   roles: {
     title: 'Role Management',
@@ -231,7 +235,7 @@ const SECTION_META: Record<string, { title: string; subtitle: string }> = {
   },
   testing: {
     title: 'Department Access Testing Mode',
-    subtitle: 'Preview /head isolated as any selected Department Head account.',
+    subtitle: 'Preview /head isolated as any selected Department Head or EB Head account.',
   },
 };
 
@@ -252,7 +256,12 @@ export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePorta
   const authorizedForPortal = currentUser !== null && canAccessPortal(currentUser, portal);
   const isSuperAdmin = canManageAccountsOrRoles(currentUser);
 
-  const isSuperOnlyRoute = section === 'admins' || section === 'testing' || section === 'eb-accounts' || section === 'eb-signup-link';
+  const isSuperOnlyRoute =
+    section === 'account-management' ||
+    section === 'admins' ||
+    section === 'testing' ||
+    section === 'eb-accounts' ||
+    section === 'eb-signup-link';
   const attemptedForbiddenSuperRoute = authorizedForPortal && !isSuperAdmin && isSuperOnlyRoute;
   const westPortalSections = new Set([
     'dashboard',
@@ -275,6 +284,7 @@ export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePorta
     'faqs',
     'messages',
     'settings',
+    'account-management',
     'admins',
     'eb-accounts',
     'eb-signup-link',
@@ -349,13 +359,22 @@ export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePorta
       onNavigate={onNavigate}
       topActions={
         isSuperAdmin ? (
-          <button
-            type="button"
-            onClick={() => onNavigate(basePath + '/eb-accounts')}
-            className="rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-inset)] px-3 py-1.5 text-xs font-medium text-[color:var(--wm-focal)] transition-colors hover:bg-[color:var(--wm-overlay)]"
-          >
-            EB Signup & Accounts
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => onNavigate(basePath + '/account-management')}
+              className="rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-inset)] px-3 py-1.5 text-xs font-medium text-[color:var(--wm-focal)] transition-colors hover:bg-[color:var(--wm-overlay)]"
+            >
+              Account Management
+            </button>
+            <button
+              type="button"
+              onClick={() => onNavigate(basePath + '/eb-accounts')}
+              className="rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-inset)] px-3 py-1.5 text-xs font-medium text-[color:var(--wm-ink-secondary)] transition-colors hover:bg-[color:var(--wm-overlay)] hover:text-[color:var(--wm-ink)]"
+            >
+              EB Signup & Accounts
+            </button>
+          </div>
         ) : undefined
       }
       globalSearch={searchableSection ? globalSearch : undefined}
@@ -469,10 +488,24 @@ export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePorta
         <ConferenceSettingsView />
       ) : section === 'monitoring' ? (
         <SystemMonitoringView />
+      ) : section === 'account-management' ? (
+        isSuperAdmin ? (
+          <AccountManagementView initialTab="admins" />
+        ) : (
+          renderDenied('Account Management is strictly restricted to Super IT / Super Admin accounts.')
+        )
       ) : section === 'admins' ? (
-        <LiveStaffAccountsView />
+        isSuperAdmin ? (
+          <AccountManagementView initialTab="admins" />
+        ) : (
+          <LiveStaffAccountsView />
+        )
       ) : section === 'heads' ? (
-        <HeadAccountsView />
+        isSuperAdmin ? (
+          <AccountManagementView initialTab="heads" />
+        ) : (
+          <HeadAccountsView />
+        )
       ) : section === 'roles' ? (
         <RolesPermissionsView section="roles" />
       ) : section === 'permission-defs' ? (

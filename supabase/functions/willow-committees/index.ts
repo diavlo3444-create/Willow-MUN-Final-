@@ -10,11 +10,12 @@ const corsHeaders = {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-function isDccOrAdmin(profile: { role: string; department_slug?: string | null; title?: string | null; division?: string | null; eb_permissions?: Record<string, boolean> | null }): boolean {
+function isDccOrAdmin(profile: { role: string; department_slug?: string | null; title?: string | null; division?: string | null; eb_permissions?: Record<string, boolean> | null; permissions?: Record<string, boolean> | null }): boolean {
   if (profile.role === "super_admin" || profile.role === "admin") return true;
   const dept = String(profile.department_slug || "").trim().toLowerCase();
   if (dept === "dcc" || dept === "delegate-affairs" || dept === "delegate_affairs") return true;
   if (profile.eb_permissions?.manage_committees === true) return true;
+  if (profile.permissions?.["committees.manage"] === true) return true;
   const label = `${profile.title || ""} ${profile.division || ""}`.toLowerCase();
   return /\b(dcc|delegate\s+affairs|delegate\s+care)\b/.test(label);
 }
@@ -56,7 +57,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: actor, error: actorError } = await admin
     .from("wm_profiles")
-    .select("user_id,role,department_id,title,division,eb_permissions,is_active")
+    .select("user_id,role,department_id,title,division,eb_permissions,permissions,is_active")
     .eq("user_id", authData.user.id)
     .maybeSingle();
 

@@ -51,11 +51,15 @@ export function MyQrCard({ actorOverride = null, compact = false }: MyQrCardProp
     void load();
   }, [load]);
 
-  const departmentName =
-    (pass?.department_id || actor?.departmentId)
-      ? data.departments.find((d) => d.id === (pass?.department_id || actor?.departmentId))?.name ||
-        (pass?.department_id || actor?.departmentId)
-      : 'Conference Secretariat';
+  const targetDeptRef = pass?.department_id || actor?.departmentId || actor?.departmentSlug;
+  const departmentName = targetDeptRef
+    ? data.departments.find(
+        (d) =>
+          d.id === targetDeptRef ||
+          d.slug === targetDeptRef ||
+          (actor?.departmentSlug && d.slug === actor.departmentSlug),
+      )?.name || targetDeptRef
+    : 'Conference Secretariat';
 
   const holderName = pass?.holder_name || actor?.fullName || 'Registered Member';
   const roleLabel = pass?.role_label || actor?.title || (actor ? getRoleLabel(actor.role) : 'Participant');

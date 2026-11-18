@@ -19,7 +19,12 @@ import type {
 } from '../services/interfaces';
 import { conferenceDataService } from '../services/mockDataService';
 import { supabase } from '../lib/supabase';
-import { DEPARTMENT_HEAD_DEFAULT_PERMISSIONS, ROLE_DEFAULT_PERMISSIONS } from '../utils/adminPermissions';
+import {
+  DEPARTMENT_HEAD_DEFAULT_PERMISSIONS,
+  ROLE_DEFAULT_PERMISSIONS,
+  normalizeDepartmentSlug,
+  resolveUserPermissions,
+} from '../utils/adminPermissions';
 import membersJson from '../data/members.json';
 import type {
   AdminNotification,
@@ -76,7 +81,24 @@ interface AdminStoreContextValue {
   ) => Promise<ServiceResult<AdminUser>>;
   signInAsDemoUser: (userId: string) => ServiceResult<AdminUser>;
   signOut: () => void;
-  enterDepartmentTestMode: (headUserId: string) => boolean;
+  enterDepartmentTestMode: (
+    headOrProfile:
+      | string
+      | {
+          id: string;
+          fullName?: string;
+          email?: string;
+          title?: string;
+          role?: AdminUser['role'];
+          departmentId?: string | null;
+          departmentSlug?: string | null;
+          division?: string | null;
+          ebRank?: string | null;
+          ebPermissions?: Record<string, boolean> | null;
+          permissions?: Partial<Record<PermissionKey, boolean>> | null;
+          avatarUrl?: string | null;
+        },
+  ) => boolean;
   exitDepartmentTestMode: () => void;
   resetDemoData: () => void;
   refreshSnapshot: () => void;
@@ -195,9 +217,18 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
       return null;
     }
   });
-  const [testModeEbProfile] = useState<{
-    fullName: string; email: string; title: string; departmentId: string;
-    ebRank: string; ebPermissions: Record<string, boolean>; avatarUrl?: string | null;
+  const [testModeEbProfile, setTestModeEbProfile] = useState<{
+    id?: string;
+    fullName: string;
+    email: string;
+    title: string;
+    departmentId: string;
+    departmentSlug?: string | null;
+    division?: string | null;
+    ebRank: string;
+    ebPermissions: Record<string, boolean>;
+    permissions?: Partial<Record<PermissionKey, boolean>>;
+    avatarUrl?: string | null;
   } | null>(() => {
     if (typeof window === 'undefined') return null;
     try {
@@ -215,16 +246,28 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
     return found && found.isActive && found.status === 'active' ? found : null;
   }, [currentUserId, data.users]);
 
-  // A test tab presents the selected head as the active actor throughout the UI.
+  // A test tab presents the selected head or EB member as the active actor throughout /head.
   // The underlying Supabase session remains the authenticated Super Admin session.
   const testModeHeadUser = useMemo<AdminUser | null>(() => {
-    if (!authenticatedUser || authenticatedUser.role !== 'super_admin' || !testModeHeadUserId) return null;
-    const provisioned = data.users.find((u) => u.id === testModeHeadUserId && u.role === 'department_head' && u.isActive && u.status === 'active');
-    if (provisioned) return provisioned;
+    if (!authenticatedUser || authenticatedUser.role !== 'super_admin') return null;
+    if (!testModeHeadUserId && !testModeEbProfile) return null;
 
-    // The profile payload lets the testing page preview live directory accounts
-    // even when their auth profile is not part of the local mock snapshot.
-    let profile: { id?: string; fullName?: string; email?: string; title?: string; division?: string | null; departmentId?: string | null } | null = null;
+    type TestProfilePayload = {
+      id?: string;
+      fullName?: string;
+      email?: string;
+      title?: string;
+      role?: AdminUser['role'];
+      division?: string | null;
+      departmentId?: string | null;
+      departmentSlug?: string | null;
+      ebRank?: string | null;
+      ebPermissions?: Record<string, boolean> | null;
+      permissions?: Partial<Record<PermissionKey, boolean>> | null;
+      avatarUrl?: string | null;
+    };
+
+    let profile: TestProfilePayload | null = null;
     try {
       if (typeof window !== 'undefined') {
         const params = new URLSearchParams(window.location.search);
@@ -233,81 +276,122 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
           ? JSON.parse(queryProfile)
           : JSON.parse(window.sessionStorage.getItem(TEST_HEAD_PROFILE_STORAGE_KEY) || 'null');
         if (queryProfile) window.sessionStorage.setItem(TEST_HEAD_PROFILE_STORAGE_KEY, queryProfile);
-      } else {
-        profile = null;
       }
     } catch {
       profile = null;
     }
 
+    if (!profile && testModeEbProfile) {
+      profile = {
+        ...testModeEbProfile,
+        role: 'executive_board',
+      };
+    }
+
+    const effectiveTargetId = testModeHeadUserId || profile?.id || '';
+    const provisioned = effectiveTargetId
+      ? data.users.find(
+          (u) =>
+            u.id === effectiveTargetId &&
+            (u.role === 'department_head' || u.role === 'executive_board') &&
+            u.isActive &&
+            u.status === 'active',
+        )
+      : undefined;
+
+    if (provisioned && !profile) return provisioned;
+
     let member: (typeof membersJson.members)[number] | undefined;
-    if (testModeHeadUserId.startsWith('roster:')) {
-      const rosterId = testModeHeadUserId.slice('roster:'.length);
+    if (effectiveTargetId.startsWith('roster:')) {
+      const rosterId = effectiveTargetId.slice('roster:'.length);
       member = membersJson.members.find((entry) => entry.id === rosterId);
     }
     const departmentByGroup: Record<string, string> = {
-      media: 'media-press', press: 'media-press', marketing: 'marketing', design: 'design',
-      security: 'security', it: 'it', hr: 'hr', 'delegate-affairs': 'dcc', volunteers: 'volunteers',
+      media: 'media-press',
+      press: 'media-press',
+      marketing: 'marketing',
+      design: 'design',
+      security: 'security',
+      it: 'it',
+      hr: 'hr',
+      'delegate-affairs': 'dcc',
+      volunteers: 'volunteers',
     };
     const departmentKey = member ? departmentByGroup[member.group] : null;
-    const requestedDepartment = profile?.departmentId || departmentKey;
-    const departmentId = requestedDepartment
-      ? data.departments.find((item) => item.id === requestedDepartment || item.slug === requestedDepartment)?.id ?? null
-      : null;
-    const template = data.users.find((user) => user.role === 'department_head') ?? data.users[0];
-    if (!template || !departmentId) return null;
+    const requestedDepartment = profile?.departmentId || provisioned?.departmentId || departmentKey;
+    const requestedSlug = profile?.departmentSlug || provisioned?.departmentSlug || departmentKey;
+    const matchedDept = data.departments.find(
+      (item) =>
+        (requestedDepartment && (item.id === requestedDepartment || item.slug === requestedDepartment)) ||
+        (requestedSlug && normalizeDepartmentSlug(item.slug) === normalizeDepartmentSlug(requestedSlug)),
+    );
+    const departmentId = matchedDept?.id ?? requestedDepartment ?? null;
+    const departmentSlug = matchedDept
+      ? normalizeDepartmentSlug(matchedDept.slug)
+      : requestedSlug
+        ? normalizeDepartmentSlug(requestedSlug)
+        : requestedDepartment &&
+            !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(requestedDepartment)
+          ? normalizeDepartmentSlug(requestedDepartment)
+          : null;
+
+    const targetRole: AdminUser['role'] =
+      profile?.role === 'executive_board' || provisioned?.role === 'executive_board'
+        ? 'executive_board'
+        : 'department_head';
+
+    const template =
+      data.users.find((user) => user.role === targetRole) ??
+      data.users.find((user) => user.role === 'department_head') ??
+      data.users[0];
+    if (!template) return null;
     if (member && (!member.role || !/\bhead\b/i.test(member.role))) return null;
+    if (!provisioned && !profile && !departmentId) return null;
+
+    const resolvedTitle =
+      profile?.title ||
+      provisioned?.title ||
+      member?.role ||
+      (targetRole === 'executive_board' ? 'Executive Board' : 'Department Head');
+    const resolvedEbRank = profile?.ebRank ?? provisioned?.ebRank ?? (targetRole === 'executive_board' ? 'member' : undefined);
+    const resolvedEbPerms = profile?.ebPermissions ?? provisioned?.ebPermissions ?? {};
+    const resolvedPermissions = resolveUserPermissions(
+      targetRole,
+      profile?.permissions ?? provisioned?.permissions ?? DEPARTMENT_HEAD_DEFAULT_PERMISSIONS,
+      resolvedEbRank,
+      resolvedEbPerms,
+      resolvedTitle,
+    );
 
     return {
       ...template,
-      id: profile?.id || testModeHeadUserId,
-      fullName: profile?.fullName || member?.name || 'Department Head Preview',
-      email: profile?.email || '',
+      id: profile?.id || provisioned?.id || effectiveTargetId || authenticatedUser.id,
+      fullName: profile?.fullName || provisioned?.fullName || member?.name || 'Department Head Preview',
+      email: profile?.email ?? provisioned?.email ?? '',
       password: undefined,
-      role: 'department_head',
-      roleDefinitionId: 'department_head',
-      title: profile?.title || member?.role || 'Department Head',
+      role: targetRole,
+      roleDefinitionId: targetRole,
+      title: resolvedTitle,
       departmentId,
-      division: profile?.division ?? null,
-      avatarUrl: null,
+      departmentSlug,
+      division: profile?.division ?? provisioned?.division ?? null,
+      avatarUrl: profile?.avatarUrl ?? provisioned?.avatarUrl ?? null,
       isActive: true,
       status: 'active',
       invitationStatus: 'none',
       invitationToken: null,
       lastPasswordResetAt: null,
-      permissions: DEPARTMENT_HEAD_DEFAULT_PERMISSIONS,
-      createdAt: new Date().toISOString(),
+      ebRank: resolvedEbRank,
+      ebPermissions: resolvedEbPerms,
+      permissions: resolvedPermissions,
+      createdAt: provisioned?.createdAt ?? new Date().toISOString(),
       lastActiveAt: new Date().toISOString(),
     };
-  }, [authenticatedUser, data.departments, data.users, testModeHeadUserId]);
+  }, [authenticatedUser, data.departments, data.users, testModeEbProfile, testModeHeadUserId]);
 
-  const testModeExecutiveBoardUser = useMemo<AdminUser | null>(() => {
-    if (!authenticatedUser || authenticatedUser.role !== 'super_admin' || !testModeEbProfile) return null;
-    const template = data.users.find((user) => user.role === 'executive_board') ?? data.users[0];
-    if (!template || !testModeEbProfile.departmentId) return null;
-    return {
-      ...template,
-      // Keep the real Super Admin auth UUID so database reads work in preview.
-      // This is UI impersonation only; Supabase still authenticates the Super Admin.
-      id: authenticatedUser.id,
-      fullName: testModeEbProfile.fullName,
-      email: testModeEbProfile.email,
-      role: 'executive_board',
-      roleDefinitionId: 'executive_board',
-      title: testModeEbProfile.title,
-      departmentId: testModeEbProfile.departmentId,
-      avatarUrl: testModeEbProfile.avatarUrl || null,
-      isActive: true,
-      status: 'active',
-      ebRank: testModeEbProfile.ebRank || 'member',
-      ebPermissions: testModeEbProfile.ebPermissions || {},
-      permissions: template.permissions,
-      createdAt: new Date().toISOString(),
-      lastActiveAt: new Date().toISOString(),
-    };
-  }, [authenticatedUser, data.users, testModeEbProfile]);
+  const testModeExecutiveBoardUser = null;
 
-  const currentUser = testModeHeadUser ?? testModeExecutiveBoardUser ?? authenticatedUser;
+  const currentUser = testModeHeadUser ?? authenticatedUser;
 
   const currentUserRef = useRef<AdminUser | null>(currentUser);
   currentUserRef.current = currentUser;
@@ -364,39 +448,67 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
-  const userFromProfile = useCallback((profile: any, authUser: any): AdminUser => {
-    const role = profile.role as AdminUser['role'];
-    const snapshot = conferenceDataService.getSnapshot();
-    const template = snapshot.users.find((u) => u.role === role) ?? snapshot.users[0];
-    return {
-      ...template,
-      id: authUser.id,
-      fullName: profile.full_name || authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'Willow Staff',
-      email: authUser.email ?? '',
-      password: undefined,
-      role,
-      roleDefinitionId: role,
-      title: profile.title || (role === 'super_admin' ? 'Super Admin' : role === 'admin' ? 'Administrator' : role === 'executive_board' ? 'Executive Board' : 'Department Head'),
-      departmentId: profile.department_id ?? null,
-      division: profile.division ?? null,
-      avatarUrl: profile.avatar_url ?? null,
-      isActive: profile.is_active === true,
-      status: profile.is_active === true ? 'active' : 'suspended',
-      invitationStatus: 'accepted',
-      invitationToken: null,
-      lastPasswordResetAt: null,
-      permissions: ROLE_DEFAULT_PERMISSIONS[role],
-      ebPermissions: profile.eb_permissions ?? {},
-      ebRank: profile.eb_rank ?? 'member',
-      createdAt: authUser.created_at ?? new Date().toISOString(),
-      lastActiveAt: new Date().toISOString(),
-    };
-  }, []);
+  const userFromProfile = useCallback(
+    (profile: any, authUser: any, departments: Department[] = []): AdminUser => {
+      const role = profile.role as AdminUser['role'];
+      const snapshot = conferenceDataService.getSnapshot();
+      const template = snapshot.users.find((u) => u.role === role) ?? snapshot.users[0];
+      const matchedDept = departments.find(
+        (d) => d.id === profile.department_id || d.slug === profile.department_id,
+      );
+      const departmentSlug = matchedDept
+        ? normalizeDepartmentSlug(matchedDept.slug)
+        : profile.department_id &&
+            !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(profile.department_id))
+          ? normalizeDepartmentSlug(profile.department_id)
+          : null;
+
+      return {
+        ...template,
+        id: authUser.id,
+        fullName: profile.full_name || authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'Willow Staff',
+        email: authUser.email ?? '',
+        password: undefined,
+        role,
+        roleDefinitionId: role,
+        title:
+          profile.title ||
+          (role === 'super_admin'
+            ? 'Super Admin'
+            : role === 'admin'
+              ? 'Administrator'
+              : role === 'executive_board'
+                ? 'Executive Board'
+                : 'Department Head'),
+        departmentId: profile.department_id ?? null,
+        departmentSlug,
+        division: profile.division ?? null,
+        avatarUrl: profile.avatar_url ?? null,
+        isActive: profile.is_active === true,
+        status: profile.is_active === true ? 'active' : 'suspended',
+        invitationStatus: 'accepted',
+        invitationToken: null,
+        lastPasswordResetAt: null,
+        permissions: resolveUserPermissions(
+          role,
+          profile.permissions ?? ROLE_DEFAULT_PERMISSIONS[role],
+          profile.eb_rank,
+          profile.eb_permissions,
+          profile.title,
+        ),
+        ebPermissions: profile.eb_permissions ?? {},
+        ebRank: profile.eb_rank ?? 'member',
+        createdAt: authUser.created_at ?? new Date().toISOString(),
+        lastActiveAt: new Date().toISOString(),
+      };
+    },
+    [],
+  );
 
   const loadAuthenticatedUser = useCallback(async (authUser: any) => {
     if (!authUser) { setCurrentUserId(null); setAuthReady(true); return; }
     const { data: profile, error } = await supabase.from('wm_profiles')
-      .select('user_id, full_name, role, department_id, is_active, title, division, avatar_url, eb_permissions, eb_rank')
+      .select('user_id, full_name, role, department_id, is_active, title, division, avatar_url, permissions, eb_permissions, eb_rank')
       .eq('user_id', authUser.id).maybeSingle();
     if (error || !profile || profile.is_active !== true) {
       const completingEbSignup =
@@ -409,15 +521,20 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
       if (!completingEbSignup) await supabase.auth.signOut();
       return;
     }
-    const user = userFromProfile(profile, authUser);
+    let departments: Department[] = [];
     try {
-      const departments = await loadLiveDepartments();
-      setData((prev) => ({ ...prev, users: [...prev.users.filter((u) => u.id !== user.id), user], departments }));
+      departments = await loadLiveDepartments();
     } catch (departmentError) {
       console.error('Could not load Willow departments:', departmentError);
-      setData((prev) => ({ ...prev, users: [...prev.users.filter((u) => u.id !== user.id), user] }));
     }
-    setCurrentUserId(user.id); setAuthReady(true);
+    const user = userFromProfile(profile, authUser, departments);
+    setData((prev) => ({
+      ...prev,
+      users: [...prev.users.filter((u) => u.id !== user.id), user],
+      departments: departments.length ? departments : prev.departments,
+    }));
+    setCurrentUserId(user.id);
+    setAuthReady(true);
   }, [userFromProfile, loadLiveDepartments]);
 
   useEffect(() => {
@@ -436,22 +553,49 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password });
       if (authError || !authData.user) return { ok: false, error: authError?.message ?? 'Sign in failed.' };
       const { data: profile, error: profileError } = await supabase.from('wm_profiles')
-        .select('user_id, full_name, role, department_id, is_active, title, division, avatar_url, eb_permissions, eb_rank')
+        .select('user_id, full_name, role, department_id, is_active, title, division, avatar_url, permissions, eb_permissions, eb_rank')
         .eq('user_id', authData.user.id).maybeSingle();
       if (profileError || !profile || profile.is_active !== true) {
         await supabase.auth.signOut();
         return { ok: false, error: 'Your account is not provisioned or has been disabled. Contact the Super Admin.' };
       }
-      const user = userFromProfile(profile, authData.user);
-      if (expectedPortal && expectedPortal !== 'admin' && user.role !== expectedPortal) {
-        await supabase.auth.signOut(); return { ok: false, error: 'This account does not have access to the selected portal.' };
+      let departments: Department[] = [];
+      try {
+        departments = await loadLiveDepartments();
+      } catch (departmentError) {
+        console.error('Could not load Willow departments:', departmentError);
+      }
+      const user = userFromProfile(profile, authData.user, departments);
+      if (expectedPortal === 'super_admin' && user.role !== 'super_admin') {
+        await supabase.auth.signOut();
+        return { ok: false, error: 'This account does not have access to the Super Admin portal.' };
       }
       if (expectedPortal === 'admin' && user.role !== 'admin' && user.role !== 'super_admin') {
-        await supabase.auth.signOut(); return { ok: false, error: 'This account does not have access to the Admin portal.' };
+        await supabase.auth.signOut();
+        return { ok: false, error: 'This account does not have access to the Admin portal.' };
       }
-      const departments = await loadLiveDepartments();
-      setData((prev) => ({ ...prev, users: [...prev.users.filter((u) => u.id !== user.id), user], departments }));
-      setCurrentUserId(user.id); setTestModeHeadUserId(null); setAuthReady(true);
+      if (expectedPortal === 'department_head' && user.role !== 'department_head' && user.role !== 'executive_board') {
+        await supabase.auth.signOut();
+        return { ok: false, error: 'This account does not have access to the Department Head portal.' };
+      }
+      if (expectedPortal === 'executive_board' && user.role !== 'executive_board') {
+        await supabase.auth.signOut();
+        return { ok: false, error: 'This account does not have access to the Executive Board sign-in.' };
+      }
+      try {
+        window.sessionStorage.removeItem(TEST_HEAD_STORAGE_KEY);
+        window.sessionStorage.removeItem(TEST_HEAD_PROFILE_STORAGE_KEY);
+        window.sessionStorage.removeItem(TEST_EB_PROFILE_STORAGE_KEY);
+      } catch { /* Ignore storage errors */ }
+      setTestModeEbProfile(null);
+      setData((prev) => ({
+        ...prev,
+        users: [...prev.users.filter((u) => u.id !== user.id), user],
+        departments: departments.length ? departments : prev.departments,
+      }));
+      setCurrentUserId(user.id);
+      setTestModeHeadUserId(null);
+      setAuthReady(true);
       pushToast({ tone: 'success', title: `Signed in as ${user.fullName}`, description: user.title });
       return { ok: true, data: user };
     }, [pushToast, userFromProfile, loadLiveDepartments],
@@ -478,34 +622,82 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
   );
 
   const signOut = useCallback(() => {
-    if (testModeHeadUser || testModeExecutiveBoardUser) {
+    if (testModeHeadUser) {
       try {
         window.sessionStorage.removeItem(TEST_HEAD_STORAGE_KEY);
         window.sessionStorage.removeItem(TEST_HEAD_PROFILE_STORAGE_KEY);
         window.sessionStorage.removeItem(TEST_EB_PROFILE_STORAGE_KEY);
       } catch { /* Ignore storage errors */ }
+      setTestModeEbProfile(null);
       window.location.replace('/super-admin');
       return;
     }
     void supabase.auth.signOut();
     setCurrentUserId(null);
     setTestModeHeadUserId(null);
+    setTestModeEbProfile(null);
     pushToast({ tone: 'info', title: 'Signed out of Willow MUN administration' });
-  }, [pushToast, testModeHeadUser, testModeExecutiveBoardUser]);
+  }, [pushToast, testModeHeadUser]);
 
   const enterDepartmentTestMode = useCallback(
-    (headUserId: string) => {
+    (
+      headOrProfile:
+        | string
+        | {
+            id: string;
+            fullName?: string;
+            email?: string;
+            title?: string;
+            role?: AdminUser['role'];
+            departmentId?: string | null;
+            departmentSlug?: string | null;
+            division?: string | null;
+            ebRank?: string | null;
+            ebPermissions?: Record<string, boolean> | null;
+            permissions?: Partial<Record<PermissionKey, boolean>> | null;
+            avatarUrl?: string | null;
+          },
+    ) => {
       if (!currentUser || currentUser.role !== 'super_admin') return false;
-      const target = data.users.find((u) => u.id === headUserId && u.role === 'department_head');
-      const rosterId = headUserId.startsWith('roster:') ? headUserId.slice('roster:'.length) : '';
+
+      if (typeof headOrProfile === 'object') {
+        const serialized = JSON.stringify(headOrProfile);
+        try {
+          window.sessionStorage.setItem(TEST_HEAD_STORAGE_KEY, headOrProfile.id);
+          window.sessionStorage.setItem(TEST_HEAD_PROFILE_STORAGE_KEY, serialized);
+          window.sessionStorage.removeItem(TEST_EB_PROFILE_STORAGE_KEY);
+        } catch {
+          // Ignore storage error
+        }
+        setTestModeEbProfile(null);
+        setTestModeHeadUserId(headOrProfile.id);
+        pushToast({
+          tone: 'info',
+          title: `Testing Mode Active: ${headOrProfile.fullName || 'Department Head'}`,
+          description: `Previewing /head as ${headOrProfile.title || 'Department Head'}. Super Admin session stays active.`,
+        });
+        return true;
+      }
+
+      const target = data.users.find(
+        (u) => u.id === headOrProfile && (u.role === 'department_head' || u.role === 'executive_board'),
+      );
+      const rosterId = headOrProfile.startsWith('roster:') ? headOrProfile.slice('roster:'.length) : '';
       const member = rosterId ? membersJson.members.find((entry) => entry.id === rosterId) : null;
       if (!target && (!member || !member.role || !/\bhead\b/i.test(member.role))) {
         pushToast({ tone: 'error', title: 'Department Head preview could not be found' });
         return false;
       }
+      try {
+        window.sessionStorage.removeItem(TEST_HEAD_PROFILE_STORAGE_KEY);
+        window.sessionStorage.removeItem(TEST_EB_PROFILE_STORAGE_KEY);
+      } catch {
+        // Ignore storage error
+      }
+      setTestModeEbProfile(null);
       const targetName = target?.fullName ?? member?.name ?? 'Department Head';
       const targetTitle = target?.title ?? member?.role ?? 'Department Head';
-      setTestModeHeadUserId(headUserId);
+      setTestModeHeadUserId(headOrProfile);
       pushToast({
         tone: 'info',
         title: `Testing Mode Active: ${targetName}`,
@@ -517,7 +709,15 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
   );
 
   const exitDepartmentTestMode = useCallback(() => {
+    try {
+      window.sessionStorage.removeItem(TEST_HEAD_STORAGE_KEY);
+      window.sessionStorage.removeItem(TEST_HEAD_PROFILE_STORAGE_KEY);
+      window.sessionStorage.removeItem(TEST_EB_PROFILE_STORAGE_KEY);
+    } catch {
+      // Ignore storage error
+    }
     setTestModeHeadUserId(null);
+    setTestModeEbProfile(null);
     pushToast({ tone: 'info', title: 'Exited Department Access Testing Mode' });
   }, [pushToast]);
 
@@ -1177,7 +1377,7 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
   const notifications = useMemo(() => {
     if (!currentUser) return [];
     const scopedUser = testModeHeadUser ?? currentUser;
-    if (scopedUser.role === 'department_head') {
+    if (scopedUser.role === 'department_head' || scopedUser.role === 'executive_board') {
       return data.notifications.filter(
         (n) => n.departmentId === null || n.departmentId === scopedUser.departmentId,
       );

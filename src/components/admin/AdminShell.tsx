@@ -39,7 +39,7 @@ const NAV_ICONS: Record<string, typeof LayoutDashboard> = {
   media: ImageIcon, navigation: ExternalLink, seo: Search, versions: History,
   email: Mail, messages: Inbox, notifications: Activity, registration: ClipboardList,
   reports: BarChart3, logs: Activity, settings: Settings, monitoring: Server,
-  admins: Shield, heads: UserCog, roles: KeyRound, 'permission-defs': Lock,
+  admins: Shield, heads: UserCog, 'account-management': UserCog, roles: KeyRound, 'permission-defs': Lock,
   testing: FlaskConical, 'eb-accounts': Users, 'eb-signup-link': Link2,
 };
 
@@ -58,11 +58,11 @@ export function AdminShell({
   topActions,
   children,
 }: AdminShellProps) {
-  const { currentUser, testModeHeadUser, exitDepartmentTestMode, signOut, openMyQrModal } = useAdminStore();
+  const { data, currentUser, testModeHeadUser, exitDepartmentTestMode, signOut, openMyQrModal } = useAdminStore();
   const [mobileOpen, setMobileOpen] = useState(false);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const actingUser = portal === 'department_head' && testModeHeadUser ? testModeHeadUser : currentUser;
-  const navGroups = getNavigationGroups(actingUser, portal);
+  const navGroups = getNavigationGroups(actingUser, portal, data.departments);
 
   useEffect(() => setMobileOpen(false), [activeNavId]);
   useEffect(() => {

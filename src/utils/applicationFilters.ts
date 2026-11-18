@@ -7,10 +7,10 @@ import type {
   RecommendationDecision,
 } from '../types/admin';
 import {
-  canAccessDepartment,
-  getActorGenderScope,
+  canAccessApplication,
   hasPermission,
   isHrActor,
+  normalizeDepartmentSlug,
 } from './adminPermissions';
 
 export type SortField =
@@ -50,19 +50,13 @@ export interface PaginatedResult<T> {
 export function scopeApplicationsForActor(
   applications: Application[],
   actor: AdminUser | null | undefined,
+  departments?: Department[],
 ): Application[] {
   if (!actor || !actor.isActive || actor.status !== 'active') return [];
-  if (!hasPermission(actor, 'applications.view')) return [];
+  if (!hasPermission(actor, 'applications.view', departments)) return [];
 
-  if (actor.role === 'department_head') {
-    if (!actor.departmentId) return [];
-    const actorGender = getActorGenderScope(actor);
-    if (!actorGender) return [];
-    return applications.filter((app) => {
-      if (!canAccessDepartment(actor, app.departmentId)) return false;
-      const applicantGender = (app as Application & { gender?: string | null }).gender?.toLowerCase();
-      return applicantGender === actorGender;
-    });
+  if (actor.role === 'department_head' || actor.role === 'executive_board') {
+    return applications.filter((app) => canAccessApplication(actor, app, departments));
   }
   return applications;
 }
@@ -71,15 +65,24 @@ export function scopeAcceptedApplicationsForHr(
   applications: Application[],
   actor: AdminUser | null | undefined,
   filters?: { search?: string; departmentId?: string; gender?: 'male' | 'female' | 'all' },
+  departments?: Department[],
 ): Application[] {
-  if (!isHrActor(actor)) return [];
+  if (!isHrActor(actor, departments)) return [];
   const search = (filters?.search ?? '').trim().toLowerCase();
-  const dept = filters?.departmentId && filters.departmentId !== 'all' ? filters.departmentId : null;
+  const rawDept = filters?.departmentId && filters.departmentId !== 'all' ? filters.departmentId : null;
+  const matchedDept = rawDept && departments?.length
+    ? departments.find((d) => d.id === rawDept || normalizeDepartmentSlug(d.slug) === normalizeDepartmentSlug(rawDept))
+    : null;
+  const deptSlug = matchedDept ? normalizeDepartmentSlug(matchedDept.slug) : rawDept ? normalizeDepartmentSlug(rawDept) : null;
   const gender = filters?.gender && filters.gender !== 'all' ? filters.gender : null;
 
   return applications
     .filter((app) => app.status === 'accepted')
-    .filter((app) => (dept ? app.departmentId === dept : true))
+    .filter((app) => {
+      if (!rawDept) return true;
+      if (app.departmentId === rawDept) return true;
+      return normalizeDepartmentSlug(app.departmentId) === deptSlug;
+    })
     .filter((app) => (gender ? (app.gender || '').toLowerCase() === gender : true))
     .filter((app) => {
       if (!search) return true;

@@ -117,7 +117,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: actor, error: actorError } = await admin
     .from("wm_profiles")
-    .select("user_id,full_name,role,department_id,title,division,is_active")
+    .select("user_id,full_name,role,department_id,title,division,eb_rank,eb_permissions,permissions,is_active")
     .eq("user_id", authData.user.id)
     .maybeSingle();
 
@@ -131,8 +131,21 @@ Deno.serve(async (req: Request) => {
   const actorDeptSlug = String(actorDepartment?.slug || "").trim().toLowerCase();
   const actorLabel = `${actor.title || ""} ${actor.division || ""}`.toLowerCase();
   const actorApplicationType = actorLabel.includes("press") ? "press" : actorLabel.includes("media") ? "media" : null;
+  const actorPerms = (actor.permissions && typeof actor.permissions === "object" ? actor.permissions : {}) as Record<string, boolean>;
+  const actorEbPerms = (actor.eb_permissions && typeof actor.eb_permissions === "object" ? actor.eb_permissions : {}) as Record<string, boolean>;
+
   const isAdmin = actor.role === "super_admin" || actor.role === "admin";
-  const isHead = actor.role === "department_head";
+  const isEbHead =
+    actor.role === "executive_board" &&
+    (actor.eb_rank === "head" ||
+      actor.eb_rank === "co_head" ||
+      actorEbPerms.manage_department === true ||
+      /\bhead\b/i.test(String(actor.title || "")) ||
+      actorPerms["applications.view"] === true);
+  const isHead =
+    (actor.role === "department_head" && actorPerms["applications.view"] !== false) ||
+    isEbHead;
+  const canHeadDecide = isHead && actorPerms["applications.review"] !== false;
   const isHr = isHrProfile({ ...actor, department_slug: actorDeptSlug });
 
   if (action === "hr_accepted") {
@@ -211,6 +224,9 @@ Deno.serve(async (req: Request) => {
     const { data: appDepartment } = await admin.from("wm_departments").select("id").eq("slug", appDept).maybeSingle();
 
     if (isHead) {
+      if (!canHeadDecide) {
+        return json({ error: "Your account does not have permission to accept or decline applications." }, 403);
+      }
       const actorDept = actorDeptSlug;
       const actorGender = getActorGender(actor);
       const appGender = String(existing.gender || "").trim().toLowerCase();

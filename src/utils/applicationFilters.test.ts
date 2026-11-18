@@ -207,3 +207,57 @@ test('computeApplicationStats, 14-day timeline, pagination, and CSV export produ
   assert.match(csv, /Application ID,Category,Applicant Name/);
   assert.match(csv, /WM-1,staff,Candidate 1/);
 });
+
+test('scopeApplicationsForActor and scopeAcceptedApplicationsForHr resolve UUID department IDs via departments list', () => {
+  const depts: Department[] = [
+    {
+      id: 'aaaa1111-1111-1111-1111-111111111111',
+      slug: 'hr',
+      name: 'Human Resources',
+      cluster: 'Delegate Affairs & Operations',
+      description: '',
+      headUserIds: [],
+      registrationOpen: true,
+      capacity: 10,
+      positions: [],
+      instructions: '',
+      updatedAt: '',
+    },
+    {
+      id: 'bbbb2222-2222-2222-2222-222222222222',
+      slug: 'media-press',
+      name: 'Media & Press',
+      cluster: 'Communications & Creative',
+      description: '',
+      headUserIds: [],
+      registrationOpen: true,
+      capacity: 10,
+      positions: [],
+      instructions: '',
+      updatedAt: '',
+    },
+  ];
+  const uuidHrEbHead: AdminUser = {
+    ...adminActor,
+    id: 'eb-hr-uuid',
+    role: 'executive_board',
+    departmentId: 'aaaa1111-1111-1111-1111-111111111111',
+    division: 'female',
+    title: 'Division Lead',
+    ebRank: 'head',
+    permissions: { ...DEPARTMENT_HEAD_DEFAULT_PERMISSIONS },
+  };
+  const scoped = scopeApplicationsForActor(sampleApps, uuidHrEbHead, depts);
+  assert.equal(scoped.length, 1);
+  assert.equal(scoped[0].id, '1');
+
+  const hrAcceptedFiltered = scopeAcceptedApplicationsForHr(
+    sampleApps,
+    uuidHrEbHead,
+    { departmentId: 'bbbb2222-2222-2222-2222-222222222222' },
+    depts,
+  );
+  assert.equal(hrAcceptedFiltered.length, 1);
+  assert.equal(hrAcceptedFiltered[0].id, '2');
+});
+

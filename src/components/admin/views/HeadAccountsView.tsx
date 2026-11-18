@@ -292,16 +292,25 @@ export function HeadAccountsView() {
                     </span>
                     {!canManage ? null : (
                       <>
-                        {row.testUserId && (
+                        {(row.testUserId || department) && (
                           <button
                             type="button"
                             onClick={() => {
-                              if (enterDepartmentTestMode(row.testUserId!)) navigateTo('/head');
+                              const ok = enterDepartmentTestMode({
+                                id: row.testUserId || row.id,
+                                role: 'department_head',
+                                fullName: row.fullName,
+                                email: row.email,
+                                title: row.title,
+                                departmentId: department?.id ?? row.departmentId,
+                                departmentSlug: department?.slug ?? null,
+                              });
+                              if (ok) navigateTo('/head');
                             }}
                             className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[color:var(--wm-accent)]/35 bg-[#2d6a4f]/20 px-3 text-[10px] text-[color:var(--wm-focal)] hover:bg-[#2d6a4f]/35"
                           >
                             <ShieldCheck className="h-3 w-3" aria-hidden="true" />
-                            Test account
+                            Sign in as
                           </button>
                         )}
                         {row.source === 'roster' ? (

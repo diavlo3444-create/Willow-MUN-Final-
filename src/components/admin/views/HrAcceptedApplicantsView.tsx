@@ -14,7 +14,7 @@ import {
 import { useAdminStore } from '../../../context/AdminStoreContext';
 import { fetchHrAcceptedApplications } from '../../../services/liveBackendService';
 import type { AdminUser, Application } from '../../../types/admin';
-import { isHrActor } from '../../../utils/adminPermissions';
+import { isHrActor, normalizeDepartmentSlug } from '../../../utils/adminPermissions';
 import { scopeAcceptedApplicationsForHr } from '../../../utils/applicationFilters';
 import { StatusBadge } from '../StatusBadge';
 import { WmSkeleton } from '../WmSkeleton';
@@ -34,19 +34,21 @@ export function HrAcceptedApplicantsView({
   const [genderFilter, setGenderFilter] = useState<'all' | 'female' | 'male'>('all');
   const [selectedApp, setSelectedApp] = useState<Application | null>(null);
 
+  const hrAuthorized = isHrActor(actor, data.departments);
+
   const load = useCallback(async () => {
-    if (!isHrActor(actor)) {
+    if (!hrAuthorized) {
       setLoading(false);
       return;
     }
     setLoading(true);
-    const res = await fetchHrAcceptedApplications(actor);
+    const res = await fetchHrAcceptedApplications(actor, data.departments);
     setLiveAccepted(res.applications);
     if (res.error && res.applications.length === 0) {
       pushToast({ tone: 'error', title: 'Could not load HR accepted roster', description: res.error });
     }
     setLoading(false);
-  }, [actor, pushToast]);
+  }, [actor, data.departments, hrAuthorized, pushToast]);
 
   useEffect(() => {
     void load();
@@ -65,28 +67,38 @@ export function HrAcceptedApplicantsView({
 
   const filtered = useMemo(
     () =>
-      scopeAcceptedApplicationsForHr(combinedAccepted, actor, {
-        search,
-        departmentId: departmentFilter,
-        gender: genderFilter,
-      }),
-    [combinedAccepted, actor, search, departmentFilter, genderFilter],
+      scopeAcceptedApplicationsForHr(
+        combinedAccepted,
+        actor,
+        {
+          search,
+          departmentId: departmentFilter,
+          gender: genderFilter,
+        },
+        data.departments,
+      ),
+    [combinedAccepted, actor, search, departmentFilter, genderFilter, data.departments],
   );
 
-  const deptNameById = useMemo(
-    () => new Map(data.departments.map((d) => [d.id, d.name])),
-    [data.departments],
-  );
+  const deptNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const d of data.departments) {
+      map.set(d.id, d.name);
+      map.set(d.slug, d.name);
+      map.set(normalizeDepartmentSlug(d.slug), d.name);
+    }
+    return map;
+  }, [data.departments]);
 
   const stats = useMemo(() => {
-    const all = scopeAcceptedApplicationsForHr(combinedAccepted, actor);
+    const all = scopeAcceptedApplicationsForHr(combinedAccepted, actor, undefined, data.departments);
     const female = all.filter((a) => (a.gender || '').toLowerCase() === 'female').length;
     const male = all.filter((a) => (a.gender || '').toLowerCase() === 'male').length;
-    const departmentsCount = new Set(all.map((a) => a.departmentId)).size;
+    const departmentsCount = new Set(all.map((a) => normalizeDepartmentSlug(a.departmentId) || a.departmentId)).size;
     return { total: all.length, female, male, departmentsCount };
-  }, [combinedAccepted, actor]);
+  }, [combinedAccepted, actor, data.departments]);
 
-  if (!isHrActor(actor)) {
+  if (!hrAuthorized) {
     return (
       <div className="wm-surface-panel p-8 text-center">
         <p className="text-sm font-semibold text-rose-200">HR Access Required</p>

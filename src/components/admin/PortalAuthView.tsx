@@ -58,15 +58,15 @@ const META: Record<
     ],
   },
   executive_board: {
-    title: 'Executive Board',
+    title: 'Executive Board & Head Portal',
     eyebrow: 'Executive Board access',
-    heading: 'Everything your board needs to coordinate.',
-    description: 'Your assigned Willow MUN workspace for duties, schedules, checkpoints, and your personal QR credential.',
+    heading: 'Your assigned department head workspace.',
+    description: 'Sign in with your Executive Board account to access your assigned department review queue, division controls, and personal QR credential.',
     icon: Building2,
     features: [
-      { title: 'Your responsibilities', copy: 'Keep track of assigned board duties and deadlines.' },
-      { title: 'Personal My QR', copy: 'Access and download your permanent entrance QR.' },
-      { title: 'Team coordination', copy: 'Stay aligned with conference leadership.' },
+      { title: 'Scoped department access', copy: 'View applicants and tools assigned strictly to your department and division.' },
+      { title: 'Unified Head experience', copy: 'Identical layout and permissions to your assigned department head workspace.' },
+      { title: 'Personal My QR', copy: 'Access and download your permanent conference entrance QR.' },
     ],
   },
 };
@@ -102,6 +102,7 @@ export function PortalAuthView({ portal, onNavigate }: PortalAuthViewProps) {
   const hasAccess = (role: string) => {
     if (!portal) return true;
     if (portal === 'admin') return role === 'admin' || role === 'super_admin';
+    if (portal === 'department_head') return role === 'department_head' || role === 'executive_board';
     return role === portal;
   };
   const wrongRole = Boolean(portal && currentUser && !hasAccess(currentUser.role));

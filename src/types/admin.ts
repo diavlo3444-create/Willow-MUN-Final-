@@ -98,6 +98,7 @@ export interface AdminUser {
   roleDefinitionId: string;
   title: string;
   departmentId: string | null;
+  departmentSlug?: string | null;
   division: string | null;
   avatarUrl: string | null;
   isActive: boolean;
@@ -182,6 +183,7 @@ export interface ApplicationHistoryEntry {
 export interface Application {
   id: string;
   applicationCode: string;
+  applicationType?: string | null;
   category: ApplicationCategory;
   applicantName: string;
   gender?: 'male' | 'female' | null;

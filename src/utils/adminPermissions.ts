@@ -1,6 +1,7 @@
 import type {
   AdminUser,
   Application,
+  Department,
   PermissionDefinition,
   PermissionKey,
   PermissionMap,
@@ -421,9 +422,109 @@ export const ROLE_DEFAULT_PERMISSIONS: Record<RoleType, PermissionMap> = {
   executive_board: EXECUTIVE_BOARD_DEFAULT_PERMISSIONS,
 };
 
-const SUPER_ADMIN_ONLY_KEYS = new Set<PermissionKey>(
+export const SUPER_ADMIN_ONLY_KEYS = new Set<PermissionKey>(
   PERMISSION_DEFINITIONS.filter((p) => p.superAdminOnly).map((p) => p.key),
 );
+
+export function normalizeDepartmentSlug(value: string | null | undefined): string {
+  const clean = String(value || '').trim().toLowerCase();
+  if (!clean) return '';
+  if (clean === 'human-resources' || clean === 'human_resources') return 'hr';
+  if (clean === 'delegate-affairs' || clean === 'delegate_affairs') return 'dcc';
+  if (clean === 'media' || clean === 'press') return 'media-press';
+  if (clean === 'volunteer') return 'volunteers';
+  return clean;
+}
+
+export function getActorDepartmentSlug(
+  user: AdminUser | null | undefined,
+  departments?: Department[],
+): string | null {
+  if (!user) return null;
+  if (user.departmentSlug) {
+    return normalizeDepartmentSlug(user.departmentSlug);
+  }
+  if (user.departmentId && departments?.length) {
+    const matched = departments.find(
+      (d) =>
+        d.id === user.departmentId ||
+        normalizeDepartmentSlug(d.slug) === normalizeDepartmentSlug(user.departmentId),
+    );
+    if (matched) return normalizeDepartmentSlug(matched.slug);
+  }
+  if (user.departmentId) {
+    const normalized = normalizeDepartmentSlug(user.departmentId);
+    // Avoid returning raw UUID as slug if not found in departments
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(normalized)) {
+      return normalized;
+    }
+  }
+  const label = `${user.title || ''} ${user.division || ''}`.toLowerCase();
+  if (/\b(hr|human\s+resources)\b/.test(label)) return 'hr';
+  if (/\b(dcc|delegate\s+affairs|delegate\s+care)\b/.test(label)) return 'dcc';
+  if (/\b(media|press)\b/.test(label)) return 'media-press';
+  if (/\bsecurity\b/.test(label)) return 'security';
+  if (/\bvolunteers?\b/.test(label)) return 'volunteers';
+  return null;
+}
+
+export function isEbHeadActor(profile: {
+  role?: RoleType | string | null;
+  ebRank?: string | null;
+  ebPermissions?: Record<string, boolean> | null;
+  title?: string | null;
+  permissions?: Partial<PermissionMap> | null;
+}): boolean {
+  if (!profile) return false;
+  if (profile.role === 'department_head') return true;
+  if (profile.role !== 'executive_board') return false;
+  const rank = String(profile.ebRank || '').toLowerCase();
+  if (rank === 'head' || rank === 'co_head') return true;
+  if (profile.ebPermissions?.manage_department === true) return true;
+  if (/\bhead\b/i.test(String(profile.title || ''))) return true;
+  if (profile.permissions?.['applications.view'] === true) return true;
+  return false;
+}
+
+export function resolveUserPermissions(
+  role: RoleType,
+  dbPermissions?: Partial<Record<string, boolean>> | null,
+  ebRank?: string | null,
+  ebPermissions?: Record<string, boolean> | null,
+  title?: string | null,
+): PermissionMap {
+  if (role === 'super_admin') {
+    return { ...SUPER_ADMIN_PERMISSIONS };
+  }
+
+  let base: PermissionMap;
+  if (role === 'admin') {
+    base = { ...ADMIN_DEFAULT_PERMISSIONS };
+  } else if (role === 'department_head') {
+    base = { ...DEPARTMENT_HEAD_DEFAULT_PERMISSIONS };
+  } else {
+    const ebHead = isEbHeadActor({ role, ebRank, ebPermissions, title, permissions: dbPermissions ?? undefined });
+    base = ebHead ? { ...DEPARTMENT_HEAD_DEFAULT_PERMISSIONS } : { ...EXECUTIVE_BOARD_DEFAULT_PERMISSIONS };
+  }
+
+  if (dbPermissions && typeof dbPermissions === 'object') {
+    for (const key of ALL_PERMISSION_KEYS) {
+      if (SUPER_ADMIN_ONLY_KEYS.has(key)) {
+        base[key] = false;
+        continue;
+      }
+      if (typeof dbPermissions[key] === 'boolean') {
+        base[key] = Boolean(dbPermissions[key]);
+      }
+    }
+  }
+
+  for (const superKey of SUPER_ADMIN_ONLY_KEYS) {
+    base[superKey] = false;
+  }
+
+  return base;
+}
 
 export function getActorGenderScope(user: AdminUser | null | undefined): 'male' | 'female' | null {
   if (!user) return null;
@@ -433,23 +534,39 @@ export function getActorGenderScope(user: AdminUser | null | undefined): 'male' 
   return null;
 }
 
-export function isHrActor(user: AdminUser | null | undefined): boolean {
-  if (!user || !user.isActive || user.status !== 'active') return false;
-  if (user.role === 'super_admin' || user.role === 'admin') return true;
-  const dept = (user.departmentId || '').toLowerCase();
-  const title = `${user.title || ''} ${user.division || ''}`.toLowerCase();
-  return dept === 'hr' || dept === 'human-resources' || /\bhr\b|human resources/.test(title);
+export function getMediaPressSubScope(user: AdminUser | null | undefined): 'media' | 'press' | null {
+  if (!user) return null;
+  const label = `${user.title || ''} ${user.division || ''}`.toLowerCase();
+  if (/\bpress\b/.test(label)) return 'press';
+  if (/\bmedia\b/.test(label)) return 'media';
+  return null;
 }
 
-export function isDccActor(user: AdminUser | null | undefined): boolean {
+export function isHrActor(user: AdminUser | null | undefined, departments?: Department[]): boolean {
+  if (!user || !user.isActive || user.status !== 'active') return false;
+  if (user.role === 'super_admin' || user.role === 'admin') return true;
+  const deptSlug = getActorDepartmentSlug(user, departments);
+  const deptRaw = (user.departmentId || '').toLowerCase();
+  const title = `${user.title || ''} ${user.division || ''}`.toLowerCase();
+  return (
+    deptSlug === 'hr' ||
+    deptRaw === 'hr' ||
+    deptRaw === 'human-resources' ||
+    /\bhr\b|human resources/.test(title)
+  );
+}
+
+export function isDccActor(user: AdminUser | null | undefined, departments?: Department[]): boolean {
   if (!user || !user.isActive || user.status !== 'active') return false;
   if (user.role === 'super_admin' || user.role === 'admin') return true;
   if (user.ebPermissions?.manage_committees || user.permissions?.['committees.manage']) return true;
-  const dept = (user.departmentId || '').toLowerCase();
+  const deptSlug = getActorDepartmentSlug(user, departments);
+  const deptRaw = (user.departmentId || '').toLowerCase();
   const title = `${user.title || ''} ${user.division || ''}`.toLowerCase();
   return (
-    dept === 'dcc' ||
-    dept === 'delegate-affairs' ||
+    deptSlug === 'dcc' ||
+    deptRaw === 'dcc' ||
+    deptRaw === 'delegate-affairs' ||
     /\bdcc\b|delegate affairs|committees?\s*(chair|head|director|lead)/.test(title)
   );
 }
@@ -457,12 +574,14 @@ export function isDccActor(user: AdminUser | null | undefined): boolean {
 /**
  * Enforces that ONLY Super Admins can ever exercise account, role, or testing privileges,
  * regardless of UI state or manually mutated permission objects.
- * Department Heads are strictly isolated to application review (dept + gender), personal My QR,
- * and explicit HR / DCC domain modules when assigned to those departments.
+ * Department Heads and EB members share the same scoped permission model on /head:
+ * application review (dept + gender + Media/Press isolated), personal My QR,
+ * and explicit HR / DCC domain modules when assigned.
  */
 export function hasPermission(
   user: AdminUser | null | undefined,
   permission: PermissionKey,
+  departments?: Department[],
 ): boolean {
   if (!user || !user.isActive || user.status !== 'active') return false;
   if (user.role === 'super_admin') return true;
@@ -472,27 +591,40 @@ export function hasPermission(
     if (
       permission === 'applications.view' ||
       permission === 'applications.view_confidential' ||
-      permission === 'applications.review' ||
-      permission === 'qr.view_pass'
+      permission === 'applications.review'
     ) {
-      return true;
+      return user.permissions?.[permission] !== false;
+    }
+    if (permission === 'qr.view_pass') {
+      return user.permissions?.['qr.view_pass'] !== false;
     }
     if (permission === 'committees.manage') {
-      return isDccActor(user);
+      return isDccActor(user, departments);
     }
     return false;
   }
 
   if (user.role === 'executive_board') {
+    if (
+      permission === 'applications.view' ||
+      permission === 'applications.view_confidential' ||
+      permission === 'applications.review'
+    ) {
+      if (typeof user.permissions?.[permission] === 'boolean') {
+        return Boolean(user.permissions[permission]);
+      }
+      return isEbHeadActor(user);
+    }
     if (permission === 'committees.manage') {
-      return isDccActor(user);
+      return isDccActor(user, departments);
     }
     if (permission === 'qr.view_pass') {
-      return true;
+      return user.permissions?.['qr.view_pass'] !== false;
     }
     if (permission === 'qr.scan') {
       return Boolean(user.permissions?.['qr.scan'] || user.ebPermissions?.scan_qr);
     }
+    return false;
   }
 
   return Boolean(user.permissions[permission]);
@@ -506,7 +638,9 @@ export function canAccessPortal(user: AdminUser | null | undefined, portal: Port
   if (!user || !user.isActive || user.status !== 'active') return false;
   if (user.role === 'super_admin') return true;
   if (portal === 'admin') return user.role === 'admin';
-  if (portal === 'department_head') return user.role === 'department_head';
+  if (portal === 'department_head') {
+    return user.role === 'department_head' || user.role === 'executive_board';
+  }
   if (portal === 'executive_board') return user.role === 'executive_board';
   return false;
 }
@@ -514,11 +648,19 @@ export function canAccessPortal(user: AdminUser | null | undefined, portal: Port
 export function canAccessDepartment(
   user: AdminUser | null | undefined,
   departmentId: string,
+  departments?: Department[],
 ): boolean {
   if (!user || !user.isActive || user.status !== 'active') return false;
   if (user.role === 'super_admin' || user.role === 'admin') return true;
   if (user.role === 'department_head' || user.role === 'executive_board') {
-    return Boolean(user.departmentId && user.departmentId === departmentId);
+    if (!user.departmentId && !user.departmentSlug) return false;
+    if (user.departmentId === departmentId) return true;
+    const actorSlug = getActorDepartmentSlug(user, departments);
+    const matchedTarget = departments?.find(
+      (d) => d.id === departmentId || normalizeDepartmentSlug(d.slug) === normalizeDepartmentSlug(departmentId),
+    );
+    const targetSlug = normalizeDepartmentSlug(matchedTarget?.slug || departmentId);
+    return Boolean(actorSlug && targetSlug && actorSlug === targetSlug);
   }
   return false;
 }
@@ -526,13 +668,26 @@ export function canAccessDepartment(
 export function canAccessApplication(
   user: AdminUser | null | undefined,
   application: Application,
+  departments?: Department[],
 ): boolean {
   if (!user || !user.isActive || user.status !== 'active') return false;
   if (user.role === 'super_admin' || user.role === 'admin') {
-    return hasPermission(user, 'applications.view');
+    return hasPermission(user, 'applications.view', departments);
   }
-  if (user.role === 'department_head') {
-    if (!user.departmentId || user.departmentId !== application.departmentId) return false;
+  if (user.role === 'department_head' || user.role === 'executive_board') {
+    if (!hasPermission(user, 'applications.view', departments)) return false;
+    if (!canAccessDepartment(user, application.departmentId, departments)) return false;
+
+    const actorDeptSlug = getActorDepartmentSlug(user, departments);
+    if (actorDeptSlug === 'media-press') {
+      const subScope = getMediaPressSubScope(user);
+      const appType = String(
+        application.applicationType ||
+          (/\bpress\b/i.test(application.position || '') ? 'press' : application.category === 'media' ? 'media' : ''),
+      ).toLowerCase();
+      if (subScope && appType && subScope !== appType) return false;
+    }
+
     const actorGender = getActorGenderScope(user);
     const applicantGender = application.gender ? application.gender.toLowerCase() : null;
     if (!actorGender || !applicantGender) return false;
@@ -544,40 +699,44 @@ export function canAccessApplication(
 export function canViewHrAcceptedApplication(
   user: AdminUser | null | undefined,
   application: Application,
+  departments?: Department[],
 ): boolean {
   if (!user || !user.isActive || user.status !== 'active') return false;
   if (application.status !== 'accepted') return false;
-  return isHrActor(user);
+  return isHrActor(user, departments);
 }
 
 export function canViewConfidentialApplicantInfo(
   user: AdminUser | null | undefined,
   application: Application,
+  departments?: Department[],
 ): boolean {
-  if (canViewHrAcceptedApplication(user, application)) return true;
-  if (!canAccessApplication(user, application)) return false;
-  return hasPermission(user, 'applications.view_confidential');
+  if (canViewHrAcceptedApplication(user, application, departments)) return true;
+  if (!canAccessApplication(user, application, departments)) return false;
+  return hasPermission(user, 'applications.view_confidential', departments);
 }
 
 export function canReviewFinalDecision(
   user: AdminUser | null | undefined,
   application: Application,
+  departments?: Department[],
 ): boolean {
   if (!user || !user.isActive || user.status !== 'active') return false;
-  if (user.role === 'department_head') {
-    return canAccessApplication(user, application) && hasPermission(user, 'applications.review');
-  }
-  return canAccessApplication(user, application) && hasPermission(user, 'applications.review');
+  return (
+    canAccessApplication(user, application, departments) &&
+    hasPermission(user, 'applications.review', departments)
+  );
 }
 
 export function canSubmitRecommendation(
   user: AdminUser | null | undefined,
   application: Application,
+  departments?: Department[],
 ): boolean {
   if (!user || !user.isActive || user.status !== 'active') return false;
-  if (user.role === 'department_head') return false;
-  if (!canAccessApplication(user, application)) return false;
-  return hasPermission(user, 'applications.recommend');
+  if (user.role === 'department_head' || user.role === 'executive_board') return false;
+  if (!canAccessApplication(user, application, departments)) return false;
+  return hasPermission(user, 'applications.recommend', departments);
 }
 
 export function getRoleLabel(role: RoleType): string {
@@ -600,9 +759,8 @@ export function getPortalHomeRoute(role: RoleType): string {
     case 'admin':
       return '/admin';
     case 'department_head':
-      return '/head';
     case 'executive_board':
-      return '/eb';
+      return '/head';
   }
 }
 
@@ -613,9 +771,8 @@ export function getPortalBasePath(portal: PortalKey): string {
     case 'admin':
       return '/admin';
     case 'department_head':
-      return '/head';
     case 'executive_board':
-      return '/eb';
+      return '/head';
   }
 }
 
@@ -637,24 +794,25 @@ export interface NavGroupConfig {
 export function getNavigationGroups(
   user: AdminUser | null | undefined,
   portal: PortalKey,
+  departments?: Department[],
 ): NavGroupConfig[] {
   if (!user || !canAccessPortal(user, portal)) return [];
 
   const base = getPortalBasePath(portal);
   const isSuper = user.role === 'super_admin';
 
-  if (portal === 'department_head') {
+  if (portal === 'department_head' || portal === 'executive_board') {
     const items: NavItemConfig[] = [
       { id: 'applications', label: 'Applications', path: '/head/applications', requiredPermission: 'applications.view' },
-      ...(isHrActor(user)
+      ...(isHrActor(user, departments)
         ? [{ id: 'hr-accepted', label: 'Accepted Applicants', path: '/head/hr-accepted' } satisfies NavItemConfig]
         : []),
-      ...(isDccActor(user)
+      ...(isDccActor(user, departments)
         ? [{ id: 'committees', label: 'Committees', path: '/head/committees', requiredPermission: 'committees.manage' } satisfies NavItemConfig]
         : []),
       { id: 'qr', label: 'My QR', path: '/head/qr', requiredPermission: 'qr.view_pass' },
     ];
-    const visible = items.filter((item) => !item.requiredPermission || hasPermission(user, item.requiredPermission));
+    const visible = items.filter((item) => !item.requiredPermission || hasPermission(user, item.requiredPermission, departments));
     return visible.length
       ? [{ id: 'head-portal', label: 'Department Review', items: visible }]
       : [];
@@ -667,7 +825,7 @@ export function getNavigationGroups(
       items: [
         { id: 'dashboard', label: 'Overview', path: base },
         { id: 'applications', label: 'Registrations', path: base + '/applications', requiredPermission: 'applications.view' },
-        ...(isHrActor(user)
+        ...(isHrActor(user, departments)
           ? [{ id: 'hr-accepted', label: 'Accepted Applicants', path: base + '/hr-accepted' } satisfies NavItemConfig]
           : []),
         { id: 'executive-board', label: 'Executive Board', path: base + '/executive-board', requiredPermission: 'executive_board.manage' },
@@ -684,6 +842,7 @@ export function getNavigationGroups(
             id: 'access-systems',
             label: 'Access & Systems',
             items: [
+              { id: 'account-management', label: 'Account Management', path: base + '/account-management', requiredPermission: 'accounts.manage_admins', superAdminOnly: true },
               { id: 'admins', label: 'Admin Accounts', path: base + '/admins', requiredPermission: 'accounts.view', superAdminOnly: true },
               { id: 'eb-signup-link', label: 'EB Sign Up Link', path: base + '/eb-signup-link', superAdminOnly: true },
               { id: 'testing', label: 'Department Testing', path: base + '/testing', requiredPermission: 'testing.impersonate_head', superAdminOnly: true },
@@ -720,7 +879,7 @@ export function getNavigationGroups(
     items: group.items.filter((item) => {
       if (item.superAdminOnly && !isSuper) return false;
       if (!item.requiredPermission) return true;
-      return hasPermission(user, item.requiredPermission);
+      return hasPermission(user, item.requiredPermission, departments);
     }),
   })).filter((group) => group.items.length > 0);
 }

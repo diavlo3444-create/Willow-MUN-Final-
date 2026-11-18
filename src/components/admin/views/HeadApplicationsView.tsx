@@ -22,7 +22,9 @@ import type { AdminUser, Application } from '../../../types/admin';
 import {
   canAccessApplication,
   canReviewFinalDecision,
+  getActorDepartmentSlug,
   getActorGenderScope,
+  normalizeDepartmentSlug,
 } from '../../../utils/adminPermissions';
 import { scopeApplicationsForActor } from '../../../utils/applicationFilters';
 import { ConfirmDialog } from '../ConfirmDialog';
@@ -56,21 +58,28 @@ export function HeadApplicationsView({
   const [confirmDeclineApp, setConfirmDeclineApp] = useState<Application | null>(null);
 
   const actorGender = getActorGenderScope(effectiveHead);
+  const actorDeptSlug = getActorDepartmentSlug(effectiveHead, data.departments);
   const deptName =
-    data.departments.find((d) => d.id === effectiveHead.departmentId)?.name ||
+    data.departments.find(
+      (d) =>
+        d.id === effectiveHead.departmentId ||
+        d.slug === effectiveHead.departmentId ||
+        (actorDeptSlug && normalizeDepartmentSlug(d.slug) === actorDeptSlug),
+    )?.name ||
+    effectiveHead.departmentSlug ||
     effectiveHead.departmentId ||
     'Assigned Department';
 
   const load = useCallback(async () => {
     setLoading(true);
-    const res = await fetchScopedApplicationsForActor(effectiveHead);
+    const res = await fetchScopedApplicationsForActor(effectiveHead, data.departments);
     setLiveApps(res.applications);
     setSource(res.source);
     if (res.error && res.applications.length === 0) {
       pushToast({ tone: 'error', title: 'Could not load applications', description: res.error });
     }
     setLoading(false);
-  }, [effectiveHead, pushToast]);
+  }, [effectiveHead, data.departments, pushToast]);
 
   useEffect(() => {
     void load();
@@ -82,10 +91,10 @@ export function HeadApplicationsView({
       source !== 'local'
         ? liveApps
         : data.applications;
-    return scopeApplicationsForActor(base, effectiveHead).sort((a, b) =>
+    return scopeApplicationsForActor(base, effectiveHead, data.departments).sort((a, b) =>
       b.submittedAt.localeCompare(a.submittedAt),
     );
-  }, [source, liveApps, data.applications, effectiveHead]);
+  }, [source, liveApps, data.applications, data.departments, effectiveHead]);
 
   const filteredApps = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -120,13 +129,13 @@ export function HeadApplicationsView({
       recordSecurityViolation(
         'application',
         selectedApplicationId,
-        `Department Head attempted access to application "${selectedApplicationId}" outside ${effectiveHead.departmentId} (${actorGender ?? 'unknown'}) division.`,
+        `Department Head attempted access to application "${selectedApplicationId}" outside ${deptName} (${actorGender ?? 'unknown'}) division.`,
       );
     }
-  }, [loading, selectedApplicationId, selectedApp, recordSecurityViolation, effectiveHead.departmentId, actorGender]);
+  }, [loading, selectedApplicationId, selectedApp, recordSecurityViolation, deptName, actorGender]);
 
   const handleDecision = async (app: Application, decision: 'accepted' | 'rejected') => {
-    if (!canReviewFinalDecision(effectiveHead, app)) {
+    if (!canReviewFinalDecision(effectiveHead, app, data.departments)) {
       pushToast({
         tone: 'error',
         title: 'Access blocked',
@@ -136,7 +145,7 @@ export function HeadApplicationsView({
     }
 
     setBusyId(app.id);
-    const res = await submitHeadOrAdminDecision(effectiveHead, app.id, decision);
+    const res = await submitHeadOrAdminDecision(effectiveHead, app.id, decision, undefined, data.departments);
     setBusyId(null);
 
     if (!res.ok) {
@@ -195,7 +204,7 @@ export function HeadApplicationsView({
     );
   }
 
-  if (selectedApp && canAccessApplication(effectiveHead, selectedApp)) {
+  if (selectedApp && canAccessApplication(effectiveHead, selectedApp, data.departments)) {
     const busy = busyId === selectedApp.id;
     return (
       <motion.div

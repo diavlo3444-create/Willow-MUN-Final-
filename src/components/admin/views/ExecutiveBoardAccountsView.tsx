@@ -21,12 +21,14 @@ type Account = {
   email: string;
   role: string;
   department_id: string | null;
+  division?: string | null;
   is_active: boolean;
   title: string;
   avatar_url?: string | null;
   phone_number?: string;
   eb_rank: string;
   eb_permissions: EbPermissions;
+  permissions?: Record<string, boolean>;
   created_at: string | null;
   signup_status?: 'claimed' | 'awaiting_signup';
   member_key?: string | null;
@@ -45,7 +47,7 @@ const EMPTY_PERMISSIONS: EbPermissions = {
 };
 
 export function ExecutiveBoardAccountsView() {
-  const { pushToast } = useAdminStore();
+  const { pushToast, enterDepartmentTestMode } = useAdminStore();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,6 +58,7 @@ export function ExecutiveBoardAccountsView() {
   const [email, setEmail] = useState('');
   const [title, setTitle] = useState('');
   const [departmentId, setDepartmentId] = useState('');
+  const [division, setDivision] = useState('');
   const [rank, setRank] = useState('member');
   const [password, setPassword] = useState('');
   const [permissions, setPermissions] = useState<EbPermissions>(EMPTY_PERMISSIONS);
@@ -89,6 +92,7 @@ export function ExecutiveBoardAccountsView() {
     setEmail('');
     setTitle('');
     setDepartmentId('');
+    setDivision('');
     setRank('member');
     setPassword('');
     setPermissions(EMPTY_PERMISSIONS);
@@ -129,6 +133,7 @@ export function ExecutiveBoardAccountsView() {
       email: email.trim(),
       title: title.trim() || rank.replace('_', ' '),
       department_id: departmentId,
+      division: division || null,
       role: 'executive_board',
       eb_rank: rank,
       eb_permissions: permissions,
@@ -160,6 +165,7 @@ export function ExecutiveBoardAccountsView() {
     setEmail(account.email);
     setTitle(account.title || '');
     setDepartmentId(account.department_id || '');
+    setDivision(account.division || '');
     setRank(account.eb_rank || 'member');
     setPermissions({ ...EMPTY_PERMISSIONS, ...(account.eb_permissions || {}) });
     setPassword('');
@@ -217,29 +223,26 @@ export function ExecutiveBoardAccountsView() {
       pushToast({
         tone: 'error',
         title: 'Department required',
-        description: 'Assign a department before testing this EB portal.',
+        description: 'Assign a department before testing this Executive Board Head portal.',
       });
       return;
     }
-    try {
-      window.sessionStorage.removeItem('willow_mun_test_head_uid_v3');
-      window.sessionStorage.removeItem('willow_mun_test_head_profile_v1');
-      window.sessionStorage.setItem(
-        'willow_mun_test_eb_profile_v1',
-        JSON.stringify({
-          fullName: account.full_name,
-          email: account.email,
-          title: account.title,
-          departmentId: account.department_id,
-          ebRank: account.eb_rank || 'member',
-          ebPermissions: account.eb_permissions || {},
-          avatarUrl: account.avatar_url || null,
-        }),
-      );
-      window.location.assign('/eb');
-    } catch {
-      navigateTo('/eb');
-    }
+    const dept = departments.find((d) => d.id === account.department_id || d.slug === account.department_id);
+    const ok = enterDepartmentTestMode({
+      id: account.user_id,
+      role: 'executive_board',
+      fullName: account.full_name,
+      email: account.email,
+      title: account.title,
+      departmentId: dept?.id ?? account.department_id,
+      departmentSlug: dept?.slug ?? null,
+      division: account.division ?? null,
+      ebRank: account.eb_rank || 'member',
+      ebPermissions: account.eb_permissions || {},
+      permissions: account.permissions ?? null,
+      avatarUrl: account.avatar_url || null,
+    });
+    if (ok) navigateTo('/head');
   };
 
   const permissionLabels: [keyof EbPermissions, string][] = [
@@ -313,6 +316,18 @@ export function ExecutiveBoardAccountsView() {
               placeholder="e.g. Head of Media"
               className="mt-1 block h-10 w-full rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-canvas)] px-3 text-sm text-[color:var(--wm-ink)]"
             />
+          </label>
+          <label className="text-xs text-[color:var(--wm-ink-secondary)]">
+            Gender division
+            <select
+              value={division}
+              onChange={(e) => setDivision(e.target.value)}
+              className="mt-1 block h-10 w-full rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-canvas)] px-3 text-sm text-[color:var(--wm-ink)]"
+            >
+              <option value="">Not division-restricted</option>
+              <option value="female">Female Division</option>
+              <option value="male">Male Division</option>
+            </select>
           </label>
           <label className="text-xs text-[color:var(--wm-ink-secondary)]">
             Reporting level

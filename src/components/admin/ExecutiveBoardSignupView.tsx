@@ -35,7 +35,7 @@ export function ExecutiveBoardSignupView({ onNavigate }: { onNavigate: (path: st
       return;
     }
     setComplete(true);
-    window.location.assign('/eb');
+    window.location.assign('/head');
   };
 
   return (

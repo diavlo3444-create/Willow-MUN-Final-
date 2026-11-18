@@ -521,8 +521,19 @@ export function RolesPermissionsView({ section }: RolesPermissionsViewProps) {
 export function DepartmentTestingView() {
   const { data, currentUser } = useAdminStore();
   const [serverHeads, setServerHeads] = useState<Array<{
-    user_id: string; full_name: string; email: string; role: string;
-    department_id: string | null; division?: string | null; is_active: boolean; title: string; signup_status?: string;
+    user_id: string;
+    full_name: string;
+    email: string;
+    role: string;
+    department_id: string | null;
+    division?: string | null;
+    is_active: boolean;
+    title: string;
+    eb_rank?: string | null;
+    eb_permissions?: Record<string, boolean> | null;
+    permissions?: Record<string, boolean> | null;
+    avatar_url?: string | null;
+    signup_status?: string;
   }>>([]);
   const [loadingHeads, setLoadingHeads] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -535,7 +546,11 @@ export function DepartmentTestingView() {
       if (error || response?.error) {
         setLoadError(response?.error || error?.message || 'Could not load Department Head accounts.');
       } else {
-        setServerHeads((response?.accounts || []).filter((a: any) => a.role === 'department_head'));
+        setServerHeads(
+          (response?.accounts || []).filter(
+            (a: any) => a.role === 'department_head' || a.role === 'executive_board',
+          ),
+        );
       }
       setLoadingHeads(false);
     }).catch((error) => {
@@ -555,33 +570,65 @@ export function DepartmentTestingView() {
   // Do not intersect these lists: roster entries awaiting signup have no wm_profiles row yet.
   const headRows = useMemo(() => {
     const byEmail = new Map<string, {
-      id: string; testUserId?: string; fullName: string; email: string; title: string;
-      departmentId: string | null; division?: string | null; isActive: boolean; status: 'Active' | 'Awaiting signup' | 'Suspended';
+      id: string;
+      testUserId?: string;
+      role: 'department_head' | 'executive_board';
+      fullName: string;
+      email: string;
+      title: string;
+      departmentId: string | null;
+      division?: string | null;
+      ebRank?: string | null;
+      ebPermissions?: Record<string, boolean> | null;
+      permissions?: Record<string, boolean> | null;
+      avatarUrl?: string | null;
+      isActive: boolean;
+      status: 'Active' | 'Awaiting signup' | 'Suspended';
     }>();
     for (const account of serverHeads) {
       const email = String(account.email || '').toLowerCase();
-      const roster = data.users.find((u) => u.role === 'department_head' &&
-        ((email && u.email.toLowerCase() === email) || u.id === account.user_id));
+      const accountRole = account.role === 'executive_board' ? 'executive_board' : 'department_head';
+      const roster = data.users.find(
+        (u) =>
+          (u.role === 'department_head' || u.role === 'executive_board') &&
+          ((email && u.email.toLowerCase() === email) || u.id === account.user_id),
+      );
       byEmail.set(email || account.user_id, {
         id: account.user_id,
         testUserId: roster?.id,
+        role: accountRole,
         fullName: account.full_name || roster?.fullName || 'Department Head',
         email: account.email || roster?.email || '',
-        title: account.title || roster?.title || 'Department Head',
+        title: account.title || roster?.title || (accountRole === 'executive_board' ? 'Executive Board' : 'Department Head'),
         departmentId: account.department_id || roster?.departmentId || null,
         division: account.division ?? roster?.division ?? null,
+        ebRank: account.eb_rank ?? roster?.ebRank ?? null,
+        ebPermissions: account.eb_permissions ?? roster?.ebPermissions ?? null,
+        permissions: account.permissions ?? null,
+        avatarUrl: account.avatar_url ?? roster?.avatarUrl ?? null,
         isActive: account.is_active,
         status: !account.is_active ? 'Suspended' : account.signup_status === 'awaiting_signup' ? 'Awaiting signup' : 'Active',
       });
     }
-    for (const roster of data.users.filter((u) => u.role === 'department_head')) {
+    for (const roster of data.users.filter((u) => u.role === 'department_head' || u.role === 'executive_board')) {
       const email = roster.email.toLowerCase();
       const key = email || roster.id;
       if (!byEmail.has(key)) {
         byEmail.set(key, {
-          id: roster.id, testUserId: roster.id, fullName: roster.fullName, email: roster.email,
-          title: roster.title || 'Department Head', departmentId: roster.departmentId, division: roster.division,
-          isActive: roster.isActive, status: roster.isActive ? 'Awaiting signup' : 'Suspended',
+          id: roster.id,
+          testUserId: roster.id,
+          role: roster.role === 'executive_board' ? 'executive_board' : 'department_head',
+          fullName: roster.fullName,
+          email: roster.email,
+          title: roster.title || 'Department Head',
+          departmentId: roster.departmentId,
+          division: roster.division,
+          ebRank: roster.ebRank,
+          ebPermissions: roster.ebPermissions,
+          permissions: roster.permissions,
+          avatarUrl: roster.avatarUrl,
+          isActive: roster.isActive,
+          status: roster.isActive ? 'Awaiting signup' : 'Suspended',
         });
       } else {
         const existing = byEmail.get(key)!;
@@ -590,9 +637,6 @@ export function DepartmentTestingView() {
       }
     }
 
-    // The public Secretariat roster is the canonical pre-signup directory.
-    // Production snapshots intentionally start with no mock users, so include
-    // every member whose public role identifies them as a Department Head.
     const departmentByGroup: Record<string, string> = {
       media: 'media-press',
       press: 'media-press',
@@ -618,6 +662,7 @@ export function DepartmentTestingView() {
       }
       byEmail.set(key, {
         id: key,
+        role: 'department_head',
         fullName: member.name,
         email: '',
         title: member.role,
@@ -641,22 +686,28 @@ export function DepartmentTestingView() {
     );
   }
 
-  const openHeadTestTab = (head: { id: string; testUserId?: string; fullName: string; email: string; title: string; departmentId: string | null; division?: string | null }) => {
+  const openHeadTestTab = (head: (typeof headRows)[number]) => {
     const targetId = head.testUserId || head.id;
+    const dept = head.departmentId
+      ? deptById.get(head.departmentId) ?? data.departments.find((d) => d.slug === head.departmentId) ?? null
+      : null;
     const profile = {
       id: targetId,
+      role: head.role,
       fullName: head.fullName,
       email: head.email,
       title: head.title,
-      departmentId: head.departmentId,
+      departmentId: dept?.id ?? head.departmentId,
+      departmentSlug: dept?.slug ?? null,
       division: head.division ?? null,
+      ebRank: head.ebRank ?? null,
+      ebPermissions: head.ebPermissions ?? {},
+      permissions: head.permissions ?? null,
+      avatarUrl: head.avatarUrl ?? null,
     };
     const url = new URL('/head', window.location.origin);
     url.searchParams.set('testHead', targetId);
     url.searchParams.set('testProfile', JSON.stringify(profile));
-    // Keep the existing authenticated Super Admin browser session.
-    // Same-tab navigation avoids a blank preview tab when the browser blocks
-    // pop-ups or the auth session has not hydrated in a newly opened tab.
     window.location.assign(url.toString());
   };
 

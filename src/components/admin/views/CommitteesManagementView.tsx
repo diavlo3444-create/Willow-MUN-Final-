@@ -45,7 +45,7 @@ export function CommitteesManagementView({
 }: {
   actingUserOverride?: AdminUser | null;
 }) {
-  const { currentUser, testModeHeadUser, pushToast, refreshSnapshot } = useAdminStore();
+  const { currentUser, testModeHeadUser, data, pushToast, refreshSnapshot } = useAdminStore();
   const actor = actingUserOverride ?? testModeHeadUser ?? currentUser;
 
   const [committees, setCommittees] = useState<CommitteeRecord[]>([]);
@@ -57,7 +57,7 @@ export function CommitteesManagementView({
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<CommitteeRecord | null>(null);
 
-  const allowed = isDccActor(actor);
+  const allowed = isDccActor(actor, data.departments);
 
   const load = useCallback(async () => {
     if (!allowed) {
@@ -65,11 +65,11 @@ export function CommitteesManagementView({
       return;
     }
     setLoading(true);
-    const res = await fetchManageableCommittees(actor);
+    const res = await fetchManageableCommittees(actor, data.departments);
     setCommittees(res.committees);
     setRemoteSynced(res.remoteAvailable);
     setLoading(false);
-  }, [actor, allowed]);
+  }, [actor, allowed, data.departments]);
 
   useEffect(() => {
     void load();
@@ -126,7 +126,7 @@ export function CommitteesManagementView({
         .filter(Boolean),
     };
 
-    const res = await upsertLiveCommittee(actor, payload);
+    const res = await upsertLiveCommittee(actor, payload, data.departments);
     setSaving(false);
 
     if (!res.ok) {
@@ -148,10 +148,14 @@ export function CommitteesManagementView({
 
   const togglePublish = async (committee: CommitteeRecord) => {
     if (!actor) return;
-    const res = await upsertLiveCommittee(actor, {
-      ...committee,
-      published: !committee.published,
-    });
+    const res = await upsertLiveCommittee(
+      actor,
+      {
+        ...committee,
+        published: !committee.published,
+      },
+      data.departments,
+    );
     if (!res.ok) {
       pushToast({ tone: 'error', title: 'Update failed', description: res.error });
       return;
@@ -167,7 +171,7 @@ export function CommitteesManagementView({
 
   const confirmDelete = async () => {
     if (!actor || !deleteTarget) return;
-    const res = await removeLiveCommittee(actor, deleteTarget.id);
+    const res = await removeLiveCommittee(actor, deleteTarget.id, data.departments);
     setDeleteTarget(null);
     if (!res.ok) {
       pushToast({ tone: 'error', title: 'Delete failed', description: res.error });

@@ -3,8 +3,11 @@ import { ArrowLeft, ShieldAlert } from 'lucide-react';
 import { useAdminStore } from '../../../context/AdminStoreContext';
 import {
   getActorGenderScope,
+  getRoleLabel,
+  hasPermission,
   isDccActor,
   isHrActor,
+  normalizeDepartmentSlug,
 } from '../../../utils/adminPermissions';
 import { AdminShell } from '../AdminShell';
 import { MyQrCard } from '../MyQrModal';
@@ -22,34 +25,54 @@ export function DepartmentHeadPortal({ pathname, onNavigate }: DepartmentHeadPor
   const {
     currentUser,
     testModeHeadUser,
+    exitDepartmentTestMode,
     data,
     recordSecurityViolation,
   } = useAdminStore();
 
   const subPath = pathname.replace(/^\/head\/?/, '');
   const segments = subPath ? subPath.split('/').filter(Boolean) : [];
-  const section = segments[0] || 'applications';
+  const hasExplicitSection = segments.length > 0;
+  const requestedSection = segments[0] || '';
   const paramId = segments[1] || null;
 
-  const isDirectHead =
+  const isDirectHeadOrEb =
     currentUser !== null &&
-    currentUser.role === 'department_head' &&
+    (currentUser.role === 'department_head' || currentUser.role === 'executive_board') &&
     currentUser.isActive &&
     currentUser.status === 'active';
 
-  const effectiveHead = testModeHeadUser ?? (isDirectHead ? currentUser : null);
+  const effectiveHead = testModeHeadUser ?? (isDirectHeadOrEb ? currentUser : null);
 
   const assignedDepartment =
-    effectiveHead && effectiveHead.departmentId
-      ? data.departments.find((d) => d.id === effectiveHead.departmentId) ?? null
+    effectiveHead && (effectiveHead.departmentId || effectiveHead.departmentSlug)
+      ? data.departments.find(
+          (d) =>
+            d.id === effectiveHead.departmentId ||
+            d.slug === effectiveHead.departmentId ||
+            (effectiveHead.departmentSlug &&
+              normalizeDepartmentSlug(d.slug) === normalizeDepartmentSlug(effectiveHead.departmentSlug)),
+        ) ?? null
       : null;
 
-  const isHrHead = isHrActor(effectiveHead);
-  const isDccHead = isDccActor(effectiveHead);
+  const canViewApps = hasPermission(effectiveHead, 'applications.view', data.departments);
+  const isHrHead = isHrActor(effectiveHead, data.departments);
+  const isDccHead = isDccActor(effectiveHead, data.departments);
+  const canViewQr = hasPermission(effectiveHead, 'qr.view_pass', data.departments);
+
+  const defaultSection = canViewApps
+    ? 'applications'
+    : isHrHead
+      ? 'hr-accepted'
+      : isDccHead
+        ? 'committees'
+        : 'qr';
+
+  const section = hasExplicitSection ? requestedSection : defaultSection;
 
   const isAllowedSection =
-    section === 'applications' ||
-    section === 'qr' ||
+    (section === 'applications' && canViewApps) ||
+    (section === 'qr' && canViewQr) ||
     (section === 'hr-accepted' && isHrHead) ||
     (section === 'committees' && isDccHead);
 
@@ -71,7 +94,7 @@ export function DepartmentHeadPortal({ pathname, onNavigate }: DepartmentHeadPor
       recordSecurityViolation(
         isQrOtherUserAttempt ? 'qr_route' : 'department_route',
         paramId || section,
-        `Blocked unauthorized Department Head navigation to ${pathname}.`,
+        `Blocked unauthorized ${effectiveHead.role === 'executive_board' ? 'Executive Board' : 'Department Head'} navigation to ${pathname}.`,
       );
     } else {
       loggedViolationKeyRef.current = null;
@@ -89,29 +112,47 @@ export function DepartmentHeadPortal({ pathname, onNavigate }: DepartmentHeadPor
           <ShieldAlert className="mx-auto h-8 w-8 text-rose-300" aria-hidden="true" />
           <h1 className="mt-3 text-lg font-semibold">No Department Assigned</h1>
           <p className="mt-1.5 text-xs text-[color:var(--wm-ink-secondary)]">
-            Your Department Head account does not have an active department assignment. Contact a Super Admin to complete department linking.
+            This {getRoleLabel(effectiveHead.role)} account does not have an active department assignment. Contact Super IT / Super Admin to link a department.
           </p>
-          <button
-            type="button"
-            onClick={() => onNavigate('/head-login')}
-            className="mt-4 min-h-[38px] rounded-md bg-[color:var(--wm-emerald)] px-4 text-xs font-semibold text-[#eef4ef] hover:bg-[#357a5b] cursor-pointer"
-          >
-            Return to Sign In
-          </button>
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            {testModeHeadUser ? (
+              <button
+                type="button"
+                onClick={() => {
+                  exitDepartmentTestMode();
+                  onNavigate('/super-admin/account-management');
+                }}
+                className="min-h-[38px] rounded-md bg-[color:var(--wm-emerald)] px-4 text-xs font-semibold text-[#eef4ef] hover:bg-[#357a5b] cursor-pointer"
+              >
+                Exit Test Session
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onNavigate('/head-login')}
+                className="min-h-[38px] rounded-md bg-[color:var(--wm-emerald)] px-4 text-xs font-semibold text-[#eef4ef] hover:bg-[#357a5b] cursor-pointer"
+              >
+                Return to Sign In
+              </button>
+            )}
+          </div>
         </div>
       </div>
     );
   }
 
   const actorGender = getActorGenderScope(effectiveHead);
+  const roleDisplay =
+    effectiveHead.role === 'executive_board' ? 'Executive Board · Head' : 'Department Head';
+
   const activeNavId =
     section === 'hr-accepted' && isHrHead
       ? 'hr-accepted'
       : section === 'committees' && isDccHead
         ? 'committees'
-        : section === 'qr'
+        : section === 'qr' && canViewQr
           ? 'qr'
-          : 'applications';
+          : defaultSection;
 
   const pageTitles: Record<string, string> = {
     applications: `${assignedDepartment.name} Applications`,
@@ -120,10 +161,15 @@ export function DepartmentHeadPortal({ pathname, onNavigate }: DepartmentHeadPor
     qr: 'My QR Credential',
   };
 
+  const fallbackHomePath =
+    defaultSection === 'applications'
+      ? '/head/applications'
+      : `/head/${defaultSection}`;
+
   return (
     <AdminShell
       portal="department_head"
-      portalLabel="Department Head"
+      portalLabel={roleDisplay}
       pageTitle={pageTitles[activeNavId] ?? `${assignedDepartment.name} Applications`}
       pageSubtitle={`Isolated scope: ${assignedDepartment.name}${actorGender ? ` (${actorGender} division)` : ''}.`}
       activeNavId={activeNavId}
@@ -141,15 +187,15 @@ export function DepartmentHeadPortal({ pathname, onNavigate }: DepartmentHeadPor
           <p className="mx-auto mt-2 max-w-md text-xs leading-relaxed text-[color:var(--wm-ink-secondary)]">
             {isQrOtherUserAttempt
               ? 'You may only view your own personal QR credential. Inspecting or modifying another account QR via URL is blocked.'
-              : `Department Head accounts are strictly scoped to reviewing and accepting or declining applications for ${assignedDepartment.name} (${actorGender ?? 'assigned'} division). Management and configuration tools are unavailable.`}
+              : `Your ${getRoleLabel(effectiveHead.role)} account is strictly scoped to ${assignedDepartment.name}${actorGender ? ` (${actorGender} division)` : ''}. Unassigned management tools and cross-department sections are unavailable.`}
           </p>
           <button
             type="button"
-            onClick={() => onNavigate('/head/applications')}
+            onClick={() => onNavigate(fallbackHomePath)}
             className="mt-5 inline-flex min-h-[38px] items-center gap-2 rounded-md bg-[color:var(--wm-emerald)] px-4 text-xs font-semibold text-[#eef4ef] hover:bg-[#357a5b] cursor-pointer"
           >
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            <span>Return to {assignedDepartment.name} Applications</span>
+            <span>Return to Assigned Workspace</span>
           </button>
         </div>
       ) : activeNavId === 'hr-accepted' ? (
@@ -160,13 +206,14 @@ export function DepartmentHeadPortal({ pathname, onNavigate }: DepartmentHeadPor
         <div className="space-y-4">
           <div className="wm-surface-panel p-5">
             <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[color:var(--wm-accent)]">
-              Willow MUN · Identity Pass
+              Willow MUN · Identity Pass · {assignedDepartment.name}
             </p>
             <h1 className="wm-serif mt-1.5 text-2xl font-semibold text-[color:var(--wm-ink)]">
               My Personal QR Code
             </h1>
             <p className="mt-1 text-xs text-[color:var(--wm-ink-secondary)]">
-              This unique, permanent QR code is permanently linked to your Department Head account for conference check-in.
+              Permanent access credential bound to {effectiveHead.fullName} ({effectiveHead.title || getRoleLabel(effectiveHead.role)}
+              {actorGender ? ` · ${actorGender} division` : ''}).
             </p>
           </div>
           <MyQrCard actorOverride={effectiveHead} />

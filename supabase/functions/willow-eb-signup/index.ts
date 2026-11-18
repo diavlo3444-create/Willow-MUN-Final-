@@ -30,7 +30,7 @@ Deno.serve(async (req: Request) => {
   const admin = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
 
   const { data: roster, error: rosterError } = await admin.from("wm_eb_signup_allowlist")
-    .select("email,email_aliases,member_key,full_name,title,phone_number,department_id,avatar_url,eb_rank,eb_permissions,claimed_at,claimed_user_id")
+    .select("email,email_aliases,member_key,full_name,title,phone_number,department_id,avatar_url,eb_rank,eb_permissions,permissions,claimed_at,claimed_user_id")
     .order("full_name");
   if (rosterError) return json({ error: "Could not check the Executive Board roster. Try again later." }, 500);
   const matches = (roster || []).filter((entry: any) =>
@@ -82,6 +82,7 @@ Deno.serve(async (req: Request) => {
       phone_number: member.phone_number || null,
       eb_rank: member.eb_rank || "member",
       eb_permissions: member.eb_permissions || {},
+      permissions: member.permissions && typeof member.permissions === "object" ? member.permissions : {},
     }, { onConflict: "user_id" });
     if (upsertError) throw upsertError;
 
