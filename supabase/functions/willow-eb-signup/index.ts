@@ -17,21 +17,17 @@ Deno.serve(async (req: Request) => {
   if (req.headers.get("origin") && req.headers.get("origin") !== allowedOrigin) return json({ error: "This signup page is not authorized." }, 403);
   if (req.method !== "POST") return json({ error: "Method not allowed." }, 405);
 
+  let body: any;
+  try { body = await req.json(); } catch { return json({ error: "Invalid signup request." }, 400); }
+  const email = cleanEmail(body?.email);
+  const password = String(body?.password || "");
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ error: "Enter a valid email address." }, 400);
+  if (password.length < 10 || password.length > 128) return json({ error: "Password must be between 10 and 128 characters." }, 400);
+
   const url = Deno.env.get("SUPABASE_URL");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!url || !serviceKey) return json({ error: "Signup service is not configured." }, 500);
-
-  const authorization = req.headers.get("authorization") || "";
-  const accessToken = authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : "";
-  if (!accessToken) return json({ error: "Verify your email before connecting your EB account." }, 401);
-
   const admin = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
-  const { data: authData, error: authError } = await admin.auth.getUser(accessToken);
-  const verifiedUser = authData?.user;
-  if (authError || !verifiedUser || !verifiedUser.email || !(verifiedUser.email_confirmed_at || verifiedUser.confirmed_at)) {
-    return json({ error: "Verify your email before connecting your EB account." }, 401);
-  }
-  const email = cleanEmail(verifiedUser.email);
 
   const { data: roster, error: rosterError } = await admin.from("wm_eb_signup_allowlist")
     .select("email,email_aliases,member_key,full_name,title,phone_number,department_id,avatar_url,eb_rank,eb_permissions,claimed_at,claimed_user_id")
@@ -45,17 +41,7 @@ Deno.serve(async (req: Request) => {
   }
   const member = matches[0];
   if (member.claimed_at || member.claimed_user_id) {
-    if (member.claimed_user_id === verifiedUser.id) return json({ success: true, alreadyConnected: true });
     return json({ error: "This EB roster entry has already been connected to an account. Contact the Super Admin if you need help." }, 409);
-  }
-
-  const { data: existingProfile, error: profileLookupError } = await admin.from("wm_profiles")
-    .select("user_id,role")
-    .eq("user_id", verifiedUser.id)
-    .maybeSingle();
-  if (profileLookupError) return json({ error: "Could not check your Willow profile. Try again later." }, 500);
-  if (existingProfile && existingProfile.role !== "executive_board") {
-    return json({ error: "This email is already connected to a different Willow portal role. Contact the Super Admin." }, 409);
   }
 
   const cutoff = new Date(Date.now() - 15 * 60 * 1000).toISOString();
@@ -69,9 +55,24 @@ Deno.serve(async (req: Request) => {
   if (claimError) return json({ error: "Could not reserve your EB profile. Try again later." }, 500);
   if (!claimed) return json({ error: "This EB profile is currently being connected. Wait a moment and try again." }, 409);
 
+  let createdUserId: string | null = null;
   try {
+    const { data: created, error: createError } = await admin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { signup_flow: "willow_eb" },
+    });
+    if (createError || !created.user) {
+      if (createError?.message.toLowerCase().includes("already")) {
+        throw new Error("An account already exists for this email. Use EB login or contact the Super Admin to recover access.");
+      }
+      throw createError || new Error("Could not create your account.");
+    }
+    createdUserId = created.user.id;
+
     const { error: upsertError } = await admin.from("wm_profiles").upsert({
-      user_id: verifiedUser.id,
+      user_id: createdUserId,
       full_name: member.full_name,
       role: "executive_board",
       department_id: member.department_id,
@@ -88,7 +89,7 @@ Deno.serve(async (req: Request) => {
     crypto.getRandomValues(qrBytes);
     const qrToken = "WMQR-" + Array.from(qrBytes, (b) => b.toString(16).padStart(2, "0")).join("").toUpperCase();
     const { error: qrError } = await admin.from("wm_qr_passes").upsert({
-      user_id: verifiedUser.id,
+      user_id: createdUserId,
       token_value: qrToken,
       holder_name: member.full_name,
       role_label: member.title || "Executive Board",
@@ -99,20 +100,25 @@ Deno.serve(async (req: Request) => {
     if (qrError) throw qrError;
 
     const { data: finalized, error: finalizeError } = await admin.from("wm_eb_signup_allowlist")
-      .update({ claimed_at: new Date().toISOString(), claimed_user_id: verifiedUser.id, claim_started_at: null, invite_token_hash: null })
+      .update({ claimed_at: new Date().toISOString(), claimed_user_id: createdUserId, claim_started_at: null, invite_token_hash: null })
       .eq("member_key", member.member_key)
       .is("claimed_at", null)
       .select("member_key")
       .maybeSingle();
     if (finalizeError) throw finalizeError;
-    if (!finalized) throw new Error("Your EB profile could not be finalized. Please try again.");
+    if (!finalized) throw new Error("Your EB profile could not be finalized. Contact the Super Admin.");
 
-    return json({ success: true, message: "Your EB account is ready." });
+    return json({ success: true, email, message: "Your EB account is ready." });
   } catch (error) {
+    if (createdUserId) {
+      await admin.from("wm_profiles").delete().eq("user_id", createdUserId);
+      await admin.from("wm_qr_passes").delete().eq("user_id", createdUserId);
+      await admin.auth.admin.deleteUser(createdUserId);
+    }
     await admin.from("wm_eb_signup_allowlist")
       .update({ claim_started_at: null })
       .eq("member_key", member.member_key)
       .is("claimed_at", null);
-    return json({ error: error instanceof Error ? error.message : "We could not connect your EB profile. Please try again." }, 400);
+    return json({ error: error instanceof Error ? error.message : "We could not create your EB account. Please try again." }, 400);
   }
 });
