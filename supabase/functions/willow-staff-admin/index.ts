@@ -225,7 +225,7 @@ Deno.serve(async (req: Request) => {
         .maybeSingle();
       if (error) throw error;
       if (!member) return json({ error: "This EB entry is already claimed or no longer exists." }, 404);
-      const inviteUrl = `https://willow-mun.vercel.app/eb-signup?token=${encodeURIComponent(inviteToken)}&email=${encodeURIComponent(member.email)}`;
+      const inviteUrl = `https://thenrqgqunwjjsbceayn.supabase.co/functions/v1/willow-eb-signup?token=${encodeURIComponent(inviteToken)}&email=${encodeURIComponent(member.email)}`;
       return json({ success: true, url: inviteUrl, full_name: member.full_name, email: member.email });
     }
 
