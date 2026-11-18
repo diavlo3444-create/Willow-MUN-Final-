@@ -371,11 +371,18 @@ function ApplicationCard({
         </div>
       )}
 
+      <div className="rounded-lg border border-[color:var(--wm-hairline)] bg-[color:var(--wm-inset)] p-4">
+        <p className="text-[10px] font-mono uppercase tracking-[0.14em] text-[color:var(--wm-ink-muted)]">Department Head Recommendation</p>
+        <p className="mt-2 font-semibold text-[color:var(--wm-ink)]">{app.headRecommendation === 'recommend_accept' ? 'Recommend acceptance' : app.headRecommendation === 'recommend_reject' ? 'Recommend rejection' : 'No recommendation submitted'}</p>
+        <p className="mt-1 text-[11px] text-[color:var(--wm-ink-muted)]">{app.recommendedByName || 'No recommending Head recorded'}{app.recommendedAt ? ' · ' + new Date(app.recommendedAt).toLocaleString() : ''}</p>
+        {app.headNotes && <p className="mt-3 whitespace-pre-wrap leading-relaxed text-[color:var(--wm-ink-secondary)]">{app.headNotes}</p>}
+      </div>
+
       {/* Attachments, Photography Lightbox, & Restricted Medical Disclosure */}
       <ApplicationAttachmentsViewer application={app} actor={actor} />
 
       <div>
-        <strong>Review notes</strong>
+        <strong>Admin final-decision notes</strong>
         <textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
