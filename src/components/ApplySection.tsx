@@ -1194,11 +1194,11 @@ export function ApplySection() {
                           files={currentDraft.proofFiles}
                           onFilesChange={(updater) => updateFilesField('proofFiles', updater)}
                           title="Proof of previous experience"
-                          description="Upload certificates, letters, event badges, or screenshots verifying your past roles if available."
+                          description="Upload up to 20 supporting files, including certificates, letters, event badges, or screenshots. Experience listed without supporting proof will not be counted during evaluation."
                           accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.webp,.heic,.heif"
-                          acceptedFormatsLabel="PDF, DOC, DOCX, TXT, JPG, PNG, WEBP"
+                          acceptedFormatsLabel="PDF, DOC, DOCX, TXT, JPG, PNG, WEBP, HEIC"
                           category="other"
-                          maxFiles={5}
+                          maxFiles={20}
                           required={false}
                         />
 
