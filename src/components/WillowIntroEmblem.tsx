@@ -37,6 +37,7 @@ export const WillowIntroEmblem = forwardRef<WillowIntroEmblemHandle, WillowIntro
     const replayTimerRef = useRef<number>(0);
     const finishedRef = useRef<boolean>(false);
     const pendingWatermarkSeekRef = useRef<boolean>(false);
+    const shouldAutoStartRef = useRef<boolean>(introPlaying);
 
     const clearTimers = useCallback(() => {
       if (rafIdRef.current !== 0) {
@@ -287,11 +288,25 @@ export const WillowIntroEmblem = forwardRef<WillowIntroEmblemHandle, WillowIntro
       const isAutostart =
         new URLSearchParams(window.location.search).get('autostart') === '1';
 
-      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || isAutostart) {
-        finishedRef.current = false;
-        finishIntro({ seekToEnd: true });
+      if (shouldAutoStartRef.current) {
+        // Mark the first visit immediately so refreshes and portal round-trips never replay it.
+        try {
+          window.localStorage.setItem('willow-intro-seen', '1');
+        } catch {
+          // The intro can still play when browser storage is unavailable.
+        }
+
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || isAutostart) {
+          finishedRef.current = false;
+          finishIntro({ seekToEnd: true });
+        } else {
+          startIntro(false);
+        }
       } else {
-        startIntro(false);
+        // This public-page mount is a return visit: keep the background loop, skip the intro.
+        finishedRef.current = true;
+        video?.pause();
+        document.body.classList.remove('intro-on', 'intro-transitioning');
       }
 
       return () => {
@@ -317,7 +332,7 @@ export const WillowIntroEmblem = forwardRef<WillowIntroEmblemHandle, WillowIntro
         <video
           ref={videoRef}
           src={introVideoSrc}
-          autoPlay
+          autoPlay={shouldAutoStartRef.current}
           muted
           playsInline
           preload="auto"
