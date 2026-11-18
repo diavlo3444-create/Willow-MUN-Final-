@@ -11,10 +11,6 @@ const cors = {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
 const cleanEmail = (value: unknown) => String(value || "").trim().toLowerCase();
-const hashToken = async (token: string) => {
-  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token));
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
-};
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -25,112 +21,97 @@ Deno.serve(async (req: Request) => {
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!url || !serviceKey) return json({ error: "Signup service is not configured." }, 500);
 
-  let body: any;
-  try { body = await req.json(); } catch { return json({ error: "Invalid signup request." }, 400); }
-  const token = String(body?.token || "").trim();
-  const email = cleanEmail(body?.email);
-  const password = String(body?.password || "");
-  if (!token || token.length < 32) return json({ error: "This personal setup link is invalid. Ask the Super Admin for a new one." }, 400);
-  if (!email.includes("@")) return json({ error: "Enter the email address assigned to your EB position." }, 400);
-  if (password.length < 10) return json({ error: "Use a password with at least 10 characters." }, 400);
+  const authorization = req.headers.get("authorization") || "";
+  const accessToken = authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : "";
+  if (!accessToken) return json({ error: "Verify your email before connecting your EB account." }, 401);
 
   const admin = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });
-  const tokenHash = await hashToken(token);
-  const { data: match, error: matchError } = await admin.from("wm_eb_signup_allowlist")
+  const { data: authData, error: authError } = await admin.auth.getUser(accessToken);
+  const verifiedUser = authData?.user;
+  if (authError || !verifiedUser || !verifiedUser.email || !(verifiedUser.email_confirmed_at || verifiedUser.confirmed_at)) {
+    return json({ error: "Verify your email before connecting your EB account." }, 401);
+  }
+  const email = cleanEmail(verifiedUser.email);
+
+  const { data: roster, error: rosterError } = await admin.from("wm_eb_signup_allowlist")
     .select("email,email_aliases,member_key,full_name,title,phone_number,department_id,avatar_url,eb_rank,eb_permissions,claimed_at,claimed_user_id")
-    .eq("invite_token_hash", tokenHash)
+    .order("full_name");
+  if (rosterError) return json({ error: "Could not check the Executive Board roster. Try again later." }, 500);
+  const matches = (roster || []).filter((entry: any) =>
+    [cleanEmail(entry.email), ...(entry.email_aliases || []).map(cleanEmail)].includes(email)
+  );
+  if (matches.length !== 1) {
+    return json({ error: matches.length ? "This email matches more than one EB roster entry. Contact the Super Admin." : "This email is not listed in the Willow Executive Board roster. Use your registered EB email." }, 403);
+  }
+  const member = matches[0];
+  if (member.claimed_at || member.claimed_user_id) {
+    if (member.claimed_user_id === verifiedUser.id) return json({ success: true, alreadyConnected: true });
+    return json({ error: "This EB roster entry has already been connected to an account. Contact the Super Admin if you need help." }, 409);
+  }
+
+  const { data: existingProfile, error: profileLookupError } = await admin.from("wm_profiles")
+    .select("user_id,role")
+    .eq("user_id", verifiedUser.id)
     .maybeSingle();
-  if (matchError) return json({ error: "Could not verify this setup link. Try again later." }, 500);
-  if (!match || match.claimed_at || match.claimed_user_id) return json({ error: "This personal setup link is invalid, expired or already used. Ask the Super Admin to generate a new one." }, 403);
-  const acceptedEmails = [cleanEmail(match.email), ...(match.email_aliases || []).map(cleanEmail)];
-  if (!acceptedEmails.includes(email)) return json({ error: "This link is assigned to a different EB email address." }, 403);
+  if (profileLookupError) return json({ error: "Could not check your Willow profile. Try again later." }, 500);
+  if (existingProfile && existingProfile.role !== "executive_board") {
+    return json({ error: "This email is already connected to a different Willow portal role. Contact the Super Admin." }, 409);
+  }
 
   const cutoff = new Date(Date.now() - 15 * 60 * 1000).toISOString();
-  const { data: invite, error: claimError } = await admin.from("wm_eb_signup_allowlist")
+  const { data: claimed, error: claimError } = await admin.from("wm_eb_signup_allowlist")
     .update({ claim_started_at: new Date().toISOString() })
-    .eq("member_key", match.member_key)
-    .eq("invite_token_hash", tokenHash)
+    .eq("member_key", member.member_key)
     .is("claimed_at", null)
     .or(`claim_started_at.is.null,claim_started_at.lt.${cutoff}`)
-    .select("email,email_aliases,member_key,full_name,title,phone_number,department_id,avatar_url,eb_rank,eb_permissions")
+    .select("member_key")
     .maybeSingle();
-  if (claimError) return json({ error: "Could not reserve this setup link. Try again later." }, 500);
-  if (!invite) return json({ error: "This setup link is already being used or has already been claimed. Ask the Super Admin for a fresh link if needed." }, 409);
+  if (claimError) return json({ error: "Could not reserve your EB profile. Try again later." }, 500);
+  if (!claimed) return json({ error: "This EB profile is currently being connected. Wait a moment and try again." }, 409);
 
-  let createdUserId: string | null = null;
-  let createdAuthUser = false;
   try {
-    const { data: usersData, error: usersError } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
-    if (usersError) throw usersError;
-    const existingAuthUser = (usersData.users || []).find((user: any) => cleanEmail(user.email) === email);
-    let userId: string;
-
-    if (existingAuthUser) {
-      userId = existingAuthUser.id;
-      const { data: existingProfile, error: profileLookupError } = await admin.from("wm_profiles")
-        .select("user_id,role")
-        .eq("user_id", userId)
-        .maybeSingle();
-      if (profileLookupError) throw profileLookupError;
-      if (existingProfile?.role === "executive_board") {
-        throw new Error("An EB account is already connected to this email. Use EB login or ask the Super Admin to reset the setup link.");
-      }
-      throw new Error("A Willow login already exists for this email. Contact the Super Admin so the existing account can be checked safely; this setup link will not change another account's password.");
-    } else {
-      const { data: created, error: createError } = await admin.auth.admin.createUser({
-        email,
-        password,
-        email_confirm: true,
-        user_metadata: { full_name: invite.full_name },
-      });
-      if (createError) throw createError;
-      if (!created.user) throw new Error("The login account could not be created.");
-      userId = created.user.id;
-      createdUserId = userId;
-      createdAuthUser = true;
-    }
-
-    const { error: profileError } = await admin.from("wm_profiles").upsert({
-      user_id: userId,
-      full_name: invite.full_name,
+    const { error: upsertError } = await admin.from("wm_profiles").upsert({
+      user_id: verifiedUser.id,
+      full_name: member.full_name,
       role: "executive_board",
-      department_id: invite.department_id,
+      department_id: member.department_id,
       is_active: true,
-      title: invite.title,
-      avatar_url: invite.avatar_url || null,
-      phone_number: invite.phone_number || null,
-      eb_rank: invite.eb_rank || "member",
-      eb_permissions: invite.eb_permissions || {},
+      title: member.title,
+      avatar_url: member.avatar_url || null,
+      phone_number: member.phone_number || null,
+      eb_rank: member.eb_rank || "member",
+      eb_permissions: member.eb_permissions || {},
     }, { onConflict: "user_id" });
-    if (profileError) throw profileError;
+    if (upsertError) throw upsertError;
 
     const qrBytes = new Uint8Array(16);
     crypto.getRandomValues(qrBytes);
     const qrToken = "WMQR-" + Array.from(qrBytes, (b) => b.toString(16).padStart(2, "0")).join("").toUpperCase();
     const { error: qrError } = await admin.from("wm_qr_passes").upsert({
-      user_id: userId,
+      user_id: verifiedUser.id,
       token_value: qrToken,
-      holder_name: invite.full_name,
-      role_label: invite.title || "Executive Board",
+      holder_name: member.full_name,
+      role_label: member.title || "Executive Board",
       category: "Executive",
-      department_id: invite.department_id,
+      department_id: member.department_id,
       active: true,
     }, { onConflict: "user_id", ignoreDuplicates: true });
     if (qrError) throw qrError;
 
-    const { error: finishError } = await admin.from("wm_eb_signup_allowlist")
-      .update({ claimed_at: new Date().toISOString(), claimed_user_id: userId, claim_started_at: null, invite_token_hash: null })
-      .eq("member_key", invite.member_key)
-      .eq("invite_token_hash", tokenHash)
-      .is("claimed_at", null);
-    if (finishError) throw finishError;
+    const { data: finalized, error: finalizeError } = await admin.from("wm_eb_signup_allowlist")
+      .update({ claimed_at: new Date().toISOString(), claimed_user_id: verifiedUser.id, claim_started_at: null, invite_token_hash: null })
+      .eq("member_key", member.member_key)
+      .is("claimed_at", null)
+      .select("member_key")
+      .maybeSingle();
+    if (finalizeError) throw finalizeError;
+    if (!finalized) throw new Error("Your EB profile could not be finalized. Please try again.");
 
-    return json({ success: true, message: "Your EB account is ready. Sign in with the password you just created." }, 200);
+    return json({ success: true, message: "Your EB account is ready." });
   } catch (error) {
-    if (createdAuthUser && createdUserId) await admin.auth.admin.deleteUser(createdUserId);
     await admin.from("wm_eb_signup_allowlist")
       .update({ claim_started_at: null })
-      .eq("member_key", invite.member_key)
+      .eq("member_key", member.member_key)
       .is("claimed_at", null);
     return json({ error: error instanceof Error ? error.message : "We could not connect your EB profile. Please try again." }, 400);
   }
