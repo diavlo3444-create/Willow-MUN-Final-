@@ -1090,6 +1090,10 @@ section.mun-scroll-section:nth-of-type(odd)::before {
     filter: grayscale(1) sepia(0.34) hue-rotate(28deg) saturate(0.78);
   }
 
+  body.intro-on .willow-intro-backdrop {
+    background: #232814;
+  }
+
   section.mun-scroll-section::before,
   section.mun-scroll-section:nth-of-type(even)::before,
   section.mun-scroll-section:nth-of-type(odd)::before {
