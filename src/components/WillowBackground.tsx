@@ -408,7 +408,8 @@ export function WillowBackground(_props: WillowBackgroundProps) {
           ref={(el) => {
             videoRefs.current[slot] = el;
           }}
-          className="willow-background-video"\n          src={loopVideoSrc}
+          className="willow-background-video"
+          src={loopVideoSrc}
           poster={posterSrc}
           autoPlay={!prefersReducedMotion && slot === 0}
           muted
