@@ -30,7 +30,7 @@ const TABS: { id: Tab; label: string; icon: typeof ClipboardList }[] = [
 export function ExecutiveBoardPortal({ pathname, onNavigate }: { pathname: string; onNavigate: (path: string) => void }) {
   void pathname;
   void onNavigate;
-  const { currentUser, signOut, pushToast } = useAdminStore();
+  const { currentUser, signOut, pushToast, testModeExecutiveBoardUser } = useAdminStore();
   const [records, setRecords] = useState<EbRecord[]>([]);
   const [acknowledgedIds, setAcknowledgedIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -144,6 +144,12 @@ export function ExecutiveBoardPortal({ pathname, onNavigate }: { pathname: strin
 
   return (
     <div className="wm-admin min-h-screen bg-[color:var(--wm-canvas)] text-[color:var(--wm-ink)]">
+      {testModeExecutiveBoardUser && <div className="border-b border-amber-400/30 bg-amber-400/[0.08] px-4 py-3 text-xs text-amber-100">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2">
+          <span><strong>Super Admin preview:</strong> viewing the EB portal as {testModeExecutiveBoardUser.fullName}. This is simulated identity, not a separate EB login; portal actions use the Super Admin session and can affect live EB records.</span>
+          <button onClick={signOut} className="rounded border border-amber-200/30 px-3 py-1.5">Exit preview</button>
+        </div>
+      </div>}
       <header className="border-b border-[color:var(--wm-hairline)] bg-[color:var(--wm-rail)]">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
           <div>
@@ -153,7 +159,7 @@ export function ExecutiveBoardPortal({ pathname, onNavigate }: { pathname: strin
           </div>
           <div className="flex items-center gap-2">
             <button onClick={() => void loadRecords()} className="inline-flex min-h-9 items-center gap-2 rounded border border-[color:var(--wm-hairline-strong)] px-3 text-xs"><RefreshCw size={14}/> Refresh</button>
-            <button onClick={signOut} className="inline-flex min-h-9 items-center gap-2 rounded border border-[color:var(--wm-hairline-strong)] px-3 text-xs"><LogOut size={14}/> Sign out</button>
+            <button onClick={signOut} className="inline-flex min-h-9 items-center gap-2 rounded border border-[color:var(--wm-hairline-strong)] px-3 text-xs"><LogOut size={14}/>{testModeExecutiveBoardUser ? "Exit preview" : "Sign out"}</button>
           </div>
         </div>
       </header>
