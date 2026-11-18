@@ -27,7 +27,7 @@ function makeDummyPhoto(index: number): UploadedApplicationFile {
     sizeLabel: '117 KB',
     storageBucket: 'wm-application-files',
     storagePath: `media/session-1/media_photos/sample-${index}.jpg`,
-    uploadedAt: '2026-11-18T10:00:00.000Z',
+    uploadedAt: '2027-11-18T10:00:00.000Z',
     uploadStatus: 'uploaded',
   };
 }

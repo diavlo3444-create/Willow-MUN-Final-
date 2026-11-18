@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
-import { Pause, Play } from 'lucide-react';
 import { useResponsiveVideoSources } from '../utils/responsiveVideo';
 import {
   computeScrollMetrics,
@@ -8,10 +7,8 @@ import {
 } from '../utils/videoPlayback';
 
 interface WillowBackgroundProps {
-  hasAnnouncementBar: boolean;
-  introPlaying: boolean;
-  paused: boolean;
-  onTogglePause: () => void;
+  hasAnnouncementBar?: boolean;
+  introPlaying?: boolean;
 }
 
 const LOOP_SKIP_START_SEC = 0.7;
@@ -25,12 +22,7 @@ const REDUCED_MOTION_STILL_SEC = 1.5;
  * - Switching happens via React `src` so only the active viewport asset is downloaded
  * - Preserves seamless 0.7s crossfade loop, scroll-driven overlay readability scrim, and pause/reduced-motion controls
  */
-export function WillowBackground({
-  hasAnnouncementBar,
-  introPlaying,
-  paused,
-  onTogglePause,
-}: WillowBackgroundProps) {
+export function WillowBackground(_props: WillowBackgroundProps) {
   const { isMobilePortrait, loopVideoSrc, posterSrc } = useResponsiveVideoSources();
 
   const videoRefs = useRef<[HTMLVideoElement | null, HTMLVideoElement | null]>([
@@ -46,14 +38,13 @@ export function WillowBackground({
   const [activeSlot, setActiveSlot] = useState<0 | 1>(0);
   const [incomingSlot, setIncomingSlot] = useState<0 | 1 | null>(null);
   const [incomingVisible, setIncomingVisible] = useState<boolean>(false);
-  const [scrollScale, setScrollScale] = useState<number>(VIDEO_BASE_SCALE);
+  const scrollScaleRef = useRef<number>(VIDEO_BASE_SCALE);
 
   const [prefersReducedMotion, setPrefersReducedMotion] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
     return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   });
 
-  const isUserPaused = paused;
   const [isTabHidden, setIsTabHidden] = useState<boolean>(() => {
     if (typeof document === 'undefined') return false;
     return document.hidden;
@@ -87,9 +78,9 @@ export function WillowBackground({
     return () => document.removeEventListener('visibilitychange', onVisibilityChange);
   }, []);
 
-  const shouldPlay = !prefersReducedMotion && !isUserPaused && !isTabHidden;
+  const shouldPlay = !prefersReducedMotion && !isTabHidden;
 
-  // Scroll-controlled scrim readability depth & restrained scale (clamped tightly on portrait mobile)
+  // Scroll-controlled scrim readability depth & restrained scale (direct compositor DOM writes in rAF)
   useEffect(() => {
     let rafId = 0;
 
@@ -104,13 +95,16 @@ export function WillowBackground({
         scrimRef.current.style.opacity = String(metrics.scrimOpacity);
       }
 
-      if (prefersReducedMotion) {
-        setScrollScale(VIDEO_BASE_SCALE);
-      } else {
-        // Keep portrait mobile scale subtle (1.0 -> 1.025) so emblem never crops off-screen while scrolling
-        const maxScaleDelta = isMobilePortrait ? 0.025 : 0.06;
-        const clamped = Number((VIDEO_BASE_SCALE + metrics.progress * maxScaleDelta).toFixed(4));
-        setScrollScale(clamped);
+      const maxScaleDelta = isMobilePortrait ? 0.025 : 0.06;
+      const clamped = prefersReducedMotion
+        ? VIDEO_BASE_SCALE
+        : Number((VIDEO_BASE_SCALE + metrics.progress * maxScaleDelta).toFixed(4));
+      scrollScaleRef.current = clamped;
+
+      for (const vid of videoRefs.current) {
+        if (vid) {
+          vid.style.transform = `translate3d(0, 0, 0) scale(${clamped})`;
+        }
       }
     };
 
@@ -360,23 +354,6 @@ export function WillowBackground({
     return () => clearCrossfadeTimer();
   }, [clearCrossfadeTimer]);
 
-  const handleTogglePause = () => {
-    const nextPaused = !isUserPaused;
-    onTogglePause();
-
-    if (nextPaused) {
-      videoRefs.current[0]?.pause();
-      videoRefs.current[1]?.pause();
-    } else if (!isTabHidden && !prefersReducedMotion) {
-      const activeVideo = videoRefs.current[activeSlotRef.current];
-      if (activeVideo) {
-        activeVideo.muted = true;
-        activeVideo.defaultMuted = true;
-        activeVideo.play().catch(() => {});
-      }
-    }
-  };
-
   const getSlotStyle = (slot: 0 | 1): CSSProperties => {
     const isActive = activeSlot === slot;
     const isIncoming = incomingSlot === slot;
@@ -402,7 +379,7 @@ export function WillowBackground({
       height: '100%',
       objectFit: 'cover',
       objectPosition: isMobilePortrait ? '50% 18%' : '50% 45%',
-      transform: `translate3d(0, 0, 0) scale(${scrollScale})`,
+      transform: `translate3d(0, 0, 0) scale(${scrollScaleRef.current})`,
       transformOrigin: isMobilePortrait ? '50% 34%' : '50% 48%',
       zIndex,
       pointerEvents: 'none',
@@ -459,32 +436,6 @@ export function WillowBackground({
           pointerEvents: 'none',
         }}
       />
-
-      {/* Persistent Pause / Play background video button */}
-      {!prefersReducedMotion && (
-        <button
-          type="button"
-          onClick={handleTogglePause}
-          aria-pressed={isUserPaused}
-          aria-label={isUserPaused ? 'Play background video' : 'Pause background video'}
-          title={isUserPaused ? 'Play background video' : 'Pause background video'}
-          tabIndex={introPlaying ? -1 : 0}
-          style={{
-            opacity: introPlaying ? 0 : 1,
-            pointerEvents: introPlaying ? 'none' : 'auto',
-            transition: 'opacity 300ms ease, transform 220ms cubic-bezier(0.16, 1, 0.3, 1)',
-          }}
-          className={`mun-btn-interactive fixed z-40 right-4 sm:right-5 top-[calc(var(--nav-height,60px)+12px)] sm:top-auto ${
-            hasAnnouncementBar ? 'sm:bottom-16' : 'sm:bottom-5'
-          } flex h-10 w-10 items-center justify-center rounded-[2px] border border-[#ede6ca]/30 bg-[#14180a]/90 text-[#ede6ca] hover:border-[#ede6ca]/60 hover:bg-[#1e2410] cursor-pointer`}
-        >
-          {isUserPaused ? (
-            <Play className="h-4 w-4 translate-x-[1px]" aria-hidden="true" />
-          ) : (
-            <Pause className="h-4 w-4" aria-hidden="true" />
-          )}
-        </button>
-      )}
     </>
   );
 }

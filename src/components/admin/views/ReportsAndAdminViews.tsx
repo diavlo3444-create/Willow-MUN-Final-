@@ -78,7 +78,7 @@ export function ReportsStatisticsView() {
       ['Acceptance Rate (%)', `${stats.acceptanceRate}%`],
     ];
     downloadCsvFile(
-      'willow-mun-2026-summary-report.csv',
+      'willow-mun-2027-summary-report.csv',
       rows.map((r) => r.map((v) => `"${v.replace(/"/g, '""')}"`).join(',')).join('\n'),
     );
   };
@@ -107,7 +107,7 @@ export function ReportsStatisticsView() {
       b.registrationOpen ? 'Open' : 'Closed',
     ]);
     downloadCsvFile(
-      'willow-mun-2026-department-breakdown.csv',
+      'willow-mun-2027-department-breakdown.csv',
       [header, ...rows].map((r) => r.map((v) => `"${v.replace(/"/g, '""')}"`).join(',')).join('\n'),
     );
   };
@@ -123,7 +123,7 @@ export function ReportsStatisticsView() {
       ['Open Application Forms', String(data.applicationForms.filter((f) => f.isOpen).length)],
     ];
     downloadCsvFile(
-      'willow-mun-2026-registration-snapshot.csv',
+      'willow-mun-2027-registration-snapshot.csv',
       [header, ...rows].map((r) => r.map((v) => `"${v.replace(/"/g, '""')}"`).join(',')).join('\n'),
     );
   };
@@ -166,7 +166,7 @@ export function ReportsStatisticsView() {
                 type="button"
                 onClick={() =>
                   downloadCsvFile(
-                    'willow-mun-2026-applicants.csv',
+                    'willow-mun-2027-applicants.csv',
                     exportApplicationsToCsv(filteredApps, data.departments),
                   )
                 }
@@ -711,7 +711,7 @@ export function ConferenceSettingsView() {
         <div>
           <p className="font-semibold text-rose-200">Restore Seeded Demo Environment</p>
           <p className="mt-0.5 text-[color:var(--wm-ink-secondary)]">
-            Reset all local changes in browser storage back to the initial Willow MUN 2026 seed
+            Reset all local changes in browser storage back to the initial Willow MUN 2027 seed
             dataset.
           </p>
         </div>
@@ -728,7 +728,7 @@ export function ConferenceSettingsView() {
       <ConfirmDialog
         open={confirmReset}
         title="Restore Initial Conference Dataset?"
-        description="All local application edits, Website CMS drafts, accounts, and logs created in this browser will be reset to the Willow MUN 2026 seed."
+        description="All local application edits, Website CMS drafts, accounts, and logs created in this browser will be reset to the Willow MUN 2027 seed."
         confirmLabel="Restore Seed Data"
         tone="danger"
         onConfirm={() => {

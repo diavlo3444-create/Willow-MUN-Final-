@@ -51,7 +51,7 @@ export function FormBuilderView() {
       departmentId: null,
       description: 'Custom application questions for upcoming Willow MUN intake.',
       isOpen: false,
-      deadline: '2026-12-15T23:59:00Z',
+      deadline: '2027-12-15T23:59:00Z',
       updatedAt: new Date().toISOString(),
       questions: [
         {

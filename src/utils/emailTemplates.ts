@@ -14,7 +14,7 @@ export function buildInterpolationContext(
   application: Application,
   departments: Department[],
   conferenceName = 'Willow MUN',
-  editionYear = '2026',
+  editionYear = '2027',
 ): EmailInterpolationContext {
   const dept = departments.find((d) => d.id === application.departmentId);
   return {
@@ -32,7 +32,7 @@ export function renderEmailTemplateText(
   templateText: string,
   ctxOrApp: EmailInterpolationContext | Application,
   departmentName?: string,
-  conferenceYear = '2026',
+  conferenceYear = '2027',
 ): string {
   const isContext = (v: EmailInterpolationContext | Application): v is EmailInterpolationContext =>
     'applicantName' in v && !('applicationCode' in v && 'documents' in v);

@@ -34,7 +34,7 @@ export const CONFERENCE_DATA = {
   brand: {
     name: 'Willow MUN',
     fullName: 'Willow Model United Nations',
-    year: '2026',
+    year: '2027',
     logoSrc: '/assets/logo-transparent.png',
     introVideoSrc: '/assets/aistudio/willow-intro-grow.mp4',
     mobileIntroVideoSrc: '/willow-intro-mobile.mp4',
@@ -81,7 +81,7 @@ export const CONFERENCE_DATA = {
       'Delegates convene to examine pressing international questions, draft nuanced resolutions, and engage in multilateral diplomacy across diverse committees.',
     stats: [
       { id: 'committees', label: 'Committees', value: 'TBA', isTba: true },
-      { id: 'year', label: 'Conference Year', value: '2026', isTba: false },
+      { id: 'year', label: 'Conference Year', value: '2027', isTba: false },
       { id: 'venue', label: 'Venue', value: 'TBA', isTba: true },
     ],
   },
@@ -170,7 +170,7 @@ export const CONFERENCE_DATA = {
 
   footer: {
     fullName: 'Willow Model United Nations',
-    edition: 'WILLOW MUN · 2026',
-    copyright: '© 2026 Willow MUN',
+    edition: 'WILLOW MUN · 2027',
+    copyright: '© 2027 Willow MUN',
   },
 } as const;

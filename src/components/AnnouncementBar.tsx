@@ -8,7 +8,7 @@ interface AnnouncementBarProps {
   onDismiss: () => void;
 }
 
-const DEFAULT_BANNER_TEXT = 'Committees Announced Soon · Willow MUN 2026 · Details TBA';
+const DEFAULT_BANNER_TEXT = 'Committees Announced Soon · Willow MUN 2027 · Details TBA';
 
 /**
  * Slim dismissible conference notice bar pinned to bottom edge,
@@ -69,7 +69,7 @@ export function AnnouncementBar({ visible, onDismiss }: AnnouncementBarProps) {
           </span>
           {isDefaultText ? (
             <span className="truncate">
-              Committees Announced Soon <span aria-hidden="true">·</span> Willow MUN 2026{' '}
+              Committees Announced Soon <span aria-hidden="true">·</span> Willow MUN 2027{' '}
               <span className="hidden sm:inline">
                 <span aria-hidden="true">·</span> Details <TbaText text="TBA" className="text-sm" />
               </span>

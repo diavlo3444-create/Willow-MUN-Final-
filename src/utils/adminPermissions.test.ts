@@ -40,8 +40,8 @@ function makeUser(overrides: Partial<AdminUser>): AdminUser {
     invitationToken: null,
     lastPasswordResetAt: null,
     permissions: { ...ADMIN_DEFAULT_PERMISSIONS },
-    createdAt: '2026-10-01T00:00:00.000Z',
-    lastActiveAt: '2026-11-17T00:00:00.000Z',
+    createdAt: '2027-10-01T00:00:00.000Z',
+    lastActiveAt: '2027-11-17T00:00:00.000Z',
     ...overrides,
   };
 }
@@ -53,7 +53,7 @@ function makeApp(
 ): Application {
   return {
     id: `app-${departmentId}-${gender ?? 'unknown'}`,
-    applicationCode: 'WM-2026-001',
+    applicationCode: 'WM-2027-001',
     category: 'staff',
     applicantName: 'Applicant One',
     email: 'applicant@example.com',
@@ -68,8 +68,8 @@ function makeApp(
     position: 'Officer',
     secondChoiceDepartmentId: null,
     status,
-    submittedAt: '2026-11-10T10:00:00.000Z',
-    updatedAt: '2026-11-10T10:00:00.000Z',
+    submittedAt: '2027-11-10T10:00:00.000Z',
+    updatedAt: '2027-11-10T10:00:00.000Z',
     headRecommendation: 'none',
     headNotes: '',
     recommendedBy: null,

@@ -32,6 +32,7 @@ import {
 } from '../utils/applicationForm';
 import { ApplicationFileUploader } from './ApplicationFileUploader';
 import { CountryPhoneInput } from './CountryPhoneInput';
+import { RevealItem } from './MotionPrimitives';
 import { RevealSection, SectionHeading } from './RevealSection';
 
 interface TrackConfig {
@@ -607,28 +608,31 @@ export function ApplySection() {
       <div className="mb-8 sm:mb-10 flex flex-col md:flex-row md:items-end md:justify-between gap-4 border-b border-[#ede6ca]/16 pb-6">
         <SectionHeading
           id="apply-heading"
-          indexLabel="05"
+          indexLabel="06"
           label="Join the organizing team"
           prefix="Team"
           italicWord="Applications"
         />
-        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+        <RevealItem staggerIndex={1} className="flex flex-col sm:flex-row sm:items-center gap-4">
           <p className="text-sm text-[#c9c2a6] max-w-[44ch]">
             Select Media, Press, or Volunteers below to complete our guided four-step application dossier.
           </p>
           <button
             type="button"
             onClick={(e) => openModalForTrack(selectedTrack, e.currentTarget)}
-            className="mun-btn-interactive inline-flex min-h-[44px] items-center justify-center gap-2 rounded-[2px] bg-[#ede6ca] px-5 py-2.5 text-sm font-semibold text-[#181c0d] hover:bg-[#dad3b4] cursor-pointer whitespace-nowrap shrink-0"
+            className="mun-btn-interactive group inline-flex min-h-[44px] items-center justify-center gap-2 rounded-[2px] bg-[#ede6ca] px-5 py-2.5 text-sm font-semibold text-[#181c0d] hover:bg-[#dad3b4] cursor-pointer whitespace-nowrap shrink-0"
           >
             <span>Open Application Dossier</span>
-            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            <ArrowRight
+              className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5"
+              aria-hidden="true"
+            />
           </button>
-        </div>
+        </RevealItem>
       </div>
 
       {/* Editorial 3-Track Directory (Media, Press, Volunteers) */}
-      <div className="willow-folio rounded-[3px] grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:gap-px bg-[#ede6ca]/14 border border-[#ede6ca]/16 overflow-hidden">
+      <RevealItem staggerIndex={2} className="willow-folio rounded-[3px] grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:gap-px bg-[#ede6ca]/14 border border-[#ede6ca]/16 overflow-hidden">
         {TRACKS.map((item) => {
           const draft = drafts[item.id];
           const hasDraft = Boolean(
@@ -642,7 +646,7 @@ export function ApplySection() {
           return (
             <article
               key={item.id}
-              className="bg-[#12160a]/95 p-6 sm:p-8 flex flex-col justify-between gap-6 transition-colors duration-150 hover:bg-[#161b0d]"
+              className="group bg-[#12160a]/95 p-6 sm:p-8 flex flex-col justify-between gap-6 transition-colors duration-200 hover:bg-[#171c0e]"
             >
               <div className="space-y-3">
                 <div className="flex items-center justify-between gap-3">
@@ -676,13 +680,13 @@ export function ApplySection() {
                   <span>
                     {hasDraft ? `Resume ${item.title}` : `Apply for ${item.title}`}
                   </span>
-                  <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                  <ArrowRight className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5" aria-hidden="true" />
                 </button>
               </div>
             </article>
           );
         })}
-      </div>
+      </RevealItem>
 
       {/* Animated Guided 4-Step Application Modal */}
       {modalOpen && typeof document !== 'undefined' &&

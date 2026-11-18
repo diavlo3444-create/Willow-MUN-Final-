@@ -4,6 +4,7 @@ import { CONFERENCE_DATA } from '../data/conference';
 import { COMMITTEES_UPDATED_EVENT, fetchPublicCommittees } from '../services/liveBackendService';
 import type { CommitteeRecord } from '../types/admin';
 import { usePublishedWebsite } from '../utils/usePublishedWebsite';
+import { ParallaxFrame, RevealItem } from './MotionPrimitives';
 import { RevealSection, SectionHeading } from './RevealSection';
 import { TbaText } from './TbaText';
 
@@ -159,7 +160,7 @@ export function CommitteesSection() {
             italicWord="Chambers"
           />
         </div>
-        <div className="lg:col-span-5 space-y-3">
+        <RevealItem staggerIndex={1} className="lg:col-span-5 space-y-3">
           <p className="text-sm leading-[1.7] text-[#cfc8aa]">{subIntro}</p>
           {chamberCategories.length > 0 && (
             <div className="flex flex-wrap items-center gap-x-5 gap-y-2 pt-1" role="tablist" aria-label="Filter committees by chamber">
@@ -184,71 +185,75 @@ export function CommitteesSection() {
               })}
             </div>
           )}
-        </div>
+        </RevealItem>
       </div>
 
       {/* DESKTOP EXPLORER (>= 1024px): Master Index + Featured Active Dossier */}
       <div className="hidden lg:grid lg:grid-cols-12 gap-8 items-start">
-        <div
-          role="listbox"
-          aria-label="Conference committees directory"
-          className="lg:col-span-5 divide-y divide-[#ede6ca]/14 border-y border-[#ede6ca]/14"
-        >
-          {filteredItems.map((item, idx) => {
-            const isSelected = activeCommittee?.id === item.id;
-            const indexNum = String(idx + 1).padStart(2, '0');
-            return (
-              <button
-                key={item.id}
-                type="button"
-                role="option"
-                aria-selected={isSelected}
-                onClick={() => setSelectedId(item.id)}
-                className={`group w-full px-4 py-4 text-left transition-colors duration-150 cursor-pointer flex items-center justify-between gap-4 ${
-                  isSelected
-                    ? 'bg-[#ede6ca]/[0.07] text-[#ede6ca]'
-                    : 'text-[#cfc8aa] hover:bg-[#ede6ca]/[0.03] hover:text-[#ede6ca]'
-                }`}
-              >
-                <div className="min-w-0 flex items-baseline gap-3.5">
-                  <span
-                    className={`font-mono text-xs tabular-nums shrink-0 ${
-                      isSelected ? 'text-[#ede6ca]' : 'text-[#a9b47e]/80'
-                    }`}
-                  >
-                    {indexNum}
-                  </span>
-                  <div className="min-w-0">
-                    <p className="font-serif text-xl font-medium leading-snug text-[#ede6ca] truncate">
-                      {item.name}{' '}
-                      {item.isTbaName ? <TbaText text="TBA" className="text-lg" /> : null}
-                    </p>
-                    <p className="mt-0.5 font-mono text-[11px] text-[#cfc8aa]/75 truncate">
-                      {item.chamber}
-                      {item.abbreviation ? ` · ${item.abbreviation}` : ''}
-                    </p>
-                  </div>
-                </div>
-
-                <span
-                  aria-hidden="true"
-                  className={`font-mono text-xs transition-opacity duration-150 shrink-0 ${
-                    isSelected ? 'opacity-100 text-[#a9b47e]' : 'opacity-0 group-hover:opacity-60'
+        <RevealItem staggerIndex={2} className="lg:col-span-5">
+          <div
+            role="listbox"
+            aria-label="Conference committees directory"
+            className="divide-y divide-[#ede6ca]/14 border-y border-[#ede6ca]/14"
+          >
+            {filteredItems.map((item, idx) => {
+              const isSelected = activeCommittee?.id === item.id;
+              const indexNum = String(idx + 1).padStart(2, '0');
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  role="option"
+                  aria-selected={isSelected}
+                  onClick={() => setSelectedId(item.id)}
+                  className={`group w-full px-4 py-4 text-left transition-colors duration-150 cursor-pointer flex items-center justify-between gap-4 ${
+                    isSelected
+                      ? 'bg-[#ede6ca]/[0.07] text-[#ede6ca]'
+                      : 'text-[#cfc8aa] hover:bg-[#ede6ca]/[0.03] hover:text-[#ede6ca]'
                   }`}
                 >
-                  Open
-                </span>
-              </button>
-            );
-          })}
-        </div>
+                  <div className="min-w-0 flex items-baseline gap-3.5">
+                    <span
+                      className={`font-mono text-xs tabular-nums shrink-0 ${
+                        isSelected ? 'text-[#ede6ca]' : 'text-[#a9b47e]/80'
+                      }`}
+                    >
+                      {indexNum}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="font-serif text-xl font-medium leading-snug text-[#ede6ca] truncate">
+                        {item.name}{' '}
+                        {item.isTbaName ? <TbaText text="TBA" className="text-lg" /> : null}
+                      </p>
+                      <p className="mt-0.5 font-mono text-[11px] text-[#cfc8aa]/75 truncate">
+                        {item.chamber}
+                        {item.abbreviation ? ` · ${item.abbreviation}` : ''}
+                      </p>
+                    </div>
+                  </div>
+
+                  <span
+                    aria-hidden="true"
+                    className={`font-mono text-xs transition-opacity duration-150 shrink-0 ${
+                      isSelected ? 'opacity-100 text-[#a9b47e]' : 'opacity-0 group-hover:opacity-60'
+                    }`}
+                  >
+                    Open
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </RevealItem>
 
         {/* Active Chamber Dossier */}
         {activeCommittee && (
-          <article
-            key={activeCommittee.id}
-            className="mun-step-enter lg:col-span-7 border border-[#ede6ca]/20 bg-[#12160a]/88 p-8 rounded-[3px] min-w-0"
-          >
+          <ParallaxFrame offsetPx={10} className="lg:col-span-7 min-w-0">
+            <RevealItem staggerIndex={3}>
+              <article
+                key={activeCommittee.id}
+                className="mun-step-enter border border-[#ede6ca]/20 bg-[#12160a]/88 p-8 rounded-[3px] min-w-0"
+              >
             <div className="flex items-center justify-between gap-4 border-b border-[#ede6ca]/14 pb-4">
               <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 font-mono text-xs text-[#a9b47e]">
                 <span>Dossier {String(activeIndex + 1).padStart(2, '0')}</span>
@@ -377,12 +382,14 @@ export function CommitteesSection() {
                 </a>
               </div>
             </div>
-          </article>
+            </article>
+            </RevealItem>
+          </ParallaxFrame>
         )}
       </div>
 
       {/* MOBILE / TABLET ACCORDION DIRECTORY (< 1024px) */}
-      <div className="lg:hidden divide-y divide-[#ede6ca]/16 border-y border-[#ede6ca]/16">
+      <RevealItem staggerIndex={2} className="lg:hidden divide-y divide-[#ede6ca]/16 border-y border-[#ede6ca]/16">
         {filteredItems.map((item, idx) => {
           const isOpen = mobileExpandedId === item.id;
           const indexNum = String(idx + 1).padStart(2, '0');
@@ -460,7 +467,7 @@ export function CommitteesSection() {
             </div>
           );
         })}
-      </div>
+      </RevealItem>
     </RevealSection>
   );
 }

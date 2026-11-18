@@ -358,7 +358,7 @@ export function WebsiteCmsView({ mode }: { mode: WebsiteSubView }) {
                         published: false,
                         visibleInNav: true,
                         order: d.pages.length + 1,
-                        seoTitle: 'New Page · Willow MUN 2026',
+                        seoTitle: 'New Page · Willow MUN 2027',
                         seoDescription: 'Conference page description.',
                         seoImageUrl: '/willow-poster.jpg',
                         noIndex: false,

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { CONFERENCE_DATA } from '../data/conference';
 import { conferenceDataService } from '../services/mockDataService';
 import { isValidEmail } from '../utils/applicationForm';
+import { RevealItem } from './MotionPrimitives';
 import { RevealSection, SectionHeading } from './RevealSection';
 
 type InquiryType = (typeof CONFERENCE_DATA.suggestions.types)[number];
@@ -87,25 +88,27 @@ export function SuggestionsSection() {
         <div className="lg:col-span-5 space-y-5">
           <SectionHeading
             id="suggestions-heading"
-            indexLabel="06"
+            indexLabel="07"
             label={CONFERENCE_DATA.suggestions.label}
             prefix="Direct"
             italicWord="Correspondence"
           />
-          <p className="max-w-[44ch] text-base leading-[1.7] text-[#c9c2a6]">
-            {CONFERENCE_DATA.suggestions.description}
-          </p>
-          <div className="border-t border-[#ede6ca]/14 pt-4 text-xs text-[#c9c2a6]/85 space-y-1">
-            <p className="font-mono uppercase tracking-[0.14em] text-[#a9b47e]">
-              Secretariat Desk
+          <RevealItem staggerIndex={1} className="space-y-5">
+            <p className="max-w-[44ch] text-base leading-[1.7] text-[#c9c2a6]">
+              {CONFERENCE_DATA.suggestions.description}
             </p>
-            <p>
-              Accessibility notes, advisor questions, and logistics feedback are reviewed directly by conference leadership.
-            </p>
-          </div>
+            <div className="border-t border-[#ede6ca]/14 pt-4 text-xs text-[#c9c2a6]/85 space-y-1">
+              <p className="font-mono uppercase tracking-[0.14em] text-[#a9b47e]">
+                Secretariat Desk
+              </p>
+              <p>
+                Accessibility notes, advisor questions, and logistics feedback are reviewed directly by conference leadership.
+              </p>
+            </div>
+          </RevealItem>
         </div>
 
-        <div className="lg:col-span-7 willow-folio rounded-[3px] p-6 sm:p-8">
+        <RevealItem staggerIndex={2} className="lg:col-span-7 willow-folio rounded-[3px] p-6 sm:p-8">
           <form onSubmit={handleSubmit} noValidate className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
@@ -235,7 +238,7 @@ export function SuggestionsSection() {
               )}
             </div>
           </form>
-        </div>
+        </RevealItem>
       </div>
     </RevealSection>
   );

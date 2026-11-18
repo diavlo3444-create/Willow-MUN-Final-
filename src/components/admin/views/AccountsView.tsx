@@ -61,7 +61,7 @@ export function AccountsView({ mode }: AccountsViewProps) {
     user?: AdminUser;
   } | null>(null);
   const [resetTarget, setResetTarget] = useState<AdminUser | null>(null);
-  const [tempPassword, setTempPassword] = useState('willow-reset-2026');
+  const [tempPassword, setTempPassword] = useState('willow-reset-2027');
   const [confirmDeleteUser, setConfirmDeleteUser] = useState<AdminUser | null>(null);
   const [retryUser, setRetryUser] = useState<AdminUser | null>(null);
   const [retryDeptId, setRetryDeptId] = useState<string>(data.departments[0]?.id ?? 'hr');
@@ -348,7 +348,7 @@ export function AccountsView({ mode }: AccountsViewProps) {
                               type="button"
                               onClick={() => {
                                 setResetTarget(user);
-                                setTempPassword('willow-temp-2026');
+                                setTempPassword('willow-temp-2027');
                               }}
                               aria-label={`Reset password for ${user.fullName}`}
                               className="inline-flex h-8 items-center gap-1 rounded border border-[color:var(--wm-hairline)] px-2.5 text-[11px] text-[color:var(--wm-ink-secondary)] hover:text-[color:var(--wm-ink)] hover:bg-[#ede6ca]/8 cursor-pointer"
@@ -674,7 +674,7 @@ function AccountEditorModal({
 
   const [fullName, setFullName] = useState(existingUser?.fullName ?? '');
   const [email, setEmail] = useState(existingUser?.email ?? '');
-  const [password, setPassword] = useState('willow-staff-2026');
+  const [password, setPassword] = useState('willow-staff-2027');
   const [sendInvitation, setSendInvitation] = useState(false);
   const [role, setRole] = useState<RoleType>(defaultRole);
   const [roleDefinitionId, setRoleDefinitionId] = useState(

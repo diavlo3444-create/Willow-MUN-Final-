@@ -1,6 +1,7 @@
 import type { MouseEvent } from 'react';
-import { Lock, RotateCcw } from 'lucide-react';
+import { ArrowUpRight, Lock, RotateCcw } from 'lucide-react';
 import { CONFERENCE_DATA } from '../data/conference';
+import { WILLOW_INSTAGRAM_HANDLE, WILLOW_INSTAGRAM_URL } from '../utils/instagramFeed';
 import { navigateTo } from '../utils/router';
 import { usePublishedWebsite } from '../utils/usePublishedWebsite';
 import { TbaText } from './TbaText';
@@ -14,6 +15,7 @@ const FOOTER_PROSPECTUS_LINKS = [
   { href: '#committees', label: 'Committees' },
   { href: '#executive-board', label: 'Secretariat & EB' },
   { href: '#updates', label: 'Dispatches & Venue' },
+  { href: '#instagram', label: 'Instagram (@willow.mun)' },
   { href: '#apply', label: 'Team Applications' },
 ];
 
@@ -32,6 +34,11 @@ export function Footer({ onReplayIntro }: FooterProps) {
       target.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   };
+
+  const instagramHandle =
+    published.footer.instagramHandle && published.footer.instagramHandle !== 'TBA'
+      ? published.footer.instagramHandle
+      : WILLOW_INSTAGRAM_HANDLE;
 
   return (
     <footer className="mun-footer-gradient mun-offscreen-section relative z-[1] border-t border-[#ede6ca]/18 px-[clamp(16px,4vw,48px)] pt-14 pb-24 sm:pb-28">
@@ -91,12 +98,18 @@ export function Footer({ onReplayIntro }: FooterProps) {
               <div className="flex items-baseline justify-between gap-4 border-b border-[#ede6ca]/10 pb-2">
                 <dt className="text-xs text-[#c9c2a6]/80">Instagram</dt>
                 <dd className="text-[#ede6ca] truncate">
-                  {published.footer.instagramHandle &&
-                  published.footer.instagramHandle !== 'TBA' ? (
-                    published.footer.instagramHandle
-                  ) : (
-                    <TbaText text="TBA" className="text-base" />
-                  )}
+                  <a
+                    href={WILLOW_INSTAGRAM_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mun-link-underline group inline-flex items-center gap-1 hover:text-[#a9b47e] transition-colors"
+                  >
+                    <span>{instagramHandle}</span>
+                    <ArrowUpRight
+                      className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+                      aria-hidden="true"
+                    />
+                  </a>
                 </dd>
               </div>
               <div className="flex items-baseline justify-between gap-4 border-b border-[#ede6ca]/10 pb-2">

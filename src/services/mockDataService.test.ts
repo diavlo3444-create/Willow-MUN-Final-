@@ -26,8 +26,8 @@ function bootstrapSuperAdmin(): AdminUser {
     invitationToken: null,
     lastPasswordResetAt: null,
     permissions: { ...SUPER_ADMIN_PERMISSIONS },
-    createdAt: '2026-10-01T00:00:00.000Z',
-    lastActiveAt: '2026-11-17T00:00:00.000Z',
+    createdAt: '2027-10-01T00:00:00.000Z',
+    lastActiveAt: '2027-11-17T00:00:00.000Z',
   };
 }
 
@@ -148,7 +148,7 @@ test('Department Head is blocked from workspace, teams, shifts, dept edits, QR m
     description: 'Should fail',
     status: 'open',
     priority: 'medium',
-    deadline: '2026-12-01',
+    deadline: '2027-12-01',
     assignedTo: head.fullName,
     internalNotes: '',
     createdBy: head.fullName,
@@ -161,7 +161,7 @@ test('Department Head is blocked from workspace, teams, shifts, dept edits, QR m
 
   const qrManage = conferenceDataService.saveQrPass(head, {
     id: 'qr-illegal',
-    token: 'WM26-TEST',
+    token: 'WM27-TEST',
     holderName: 'Illegal',
     roleLabel: 'Test',
     departmentId: 'media-press',
@@ -287,19 +287,19 @@ test('Website CMS keeps draft isolated from published until Publish Changes & Ve
 
   conferenceDataService.updateWebsiteDraft(
     sa,
-    (draft) => ({ ...draft, bannerText: 'DRAFT ONLY ANNOUNCEMENT 2026' }),
+    (draft) => ({ ...draft, bannerText: 'DRAFT ONLY ANNOUNCEMENT 2027' }),
     'Update banner in draft',
   );
 
   let current = conferenceDataService.getSnapshot();
-  assert.equal(current.websiteDraft.bannerText, 'DRAFT ONLY ANNOUNCEMENT 2026');
+  assert.equal(current.websiteDraft.bannerText, 'DRAFT ONLY ANNOUNCEMENT 2027');
   assert.equal(current.websitePublished.bannerText, initialBanner);
 
   const pubRes = conferenceDataService.publishWebsiteChanges(sa, 'Publish new banner');
   assert.equal(pubRes.ok, true);
 
   current = conferenceDataService.getSnapshot();
-  assert.equal(current.websitePublished.bannerText, 'DRAFT ONLY ANNOUNCEMENT 2026');
+  assert.equal(current.websitePublished.bannerText, 'DRAFT ONLY ANNOUNCEMENT 2027');
 
   const draftRestore = conferenceDataService.restoreWebsiteVersion(
     sa,

@@ -726,7 +726,7 @@ export function ConferenceCmsView({ section }: { section: CmsSection }) {
               setEditEvent({
                 id: '',
                 title: 'Committee Session II',
-                date: '2026-12-18',
+                date: '2027-12-18',
                 startTime: '15:00',
                 endTime: '17:30',
                 location: 'Chambers 01-06',
@@ -889,7 +889,7 @@ export function ConferenceCmsView({ section }: { section: CmsSection }) {
                 summary: 'Official announcement details.',
                 badgeText: 'NEW',
                 imageUrl: null,
-                publishDate: '2026-11-17',
+                publishDate: '2027-11-17',
                 published: false,
                 featuredInBanner: false,
                 order: data.announcements.length + 1,

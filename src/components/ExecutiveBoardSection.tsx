@@ -19,6 +19,7 @@ import {
   type SvgConnectorPath,
 } from '../utils/familyTreeLayout';
 import { MemberProfileModal } from './MemberProfileModal';
+import { ParallaxFrame, RevealItem } from './MotionPrimitives';
 import { RevealSection, SectionHeading } from './RevealSection';
 
 interface StageGeometry {
@@ -203,27 +204,32 @@ export function ExecutiveBoardSection() {
     };
   }, []);
 
-  // Scroll-in connector draw trigger using IntersectionObserver (no scroll listener)
+  // Bidirectional scroll-in connector draw trigger (responds naturally scrolling down & up)
   useEffect(() => {
     const el = outerWrapperRef.current;
-    if (!el || treeRevealed) return;
+    if (!el) return;
+
+    if (prefersReducedMotion) {
+      setTreeRevealed(true);
+      return;
+    }
 
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
           if (entry.isIntersecting) {
             setTreeRevealed(true);
-            observer.disconnect();
-            break;
+          } else {
+            setTreeRevealed(false);
           }
         }
       },
-      { threshold: 0.06, rootMargin: '0px 0px -32px 0px' },
+      { threshold: [0, 0.04], rootMargin: '24px 0px -28px 0px' },
     );
 
     observer.observe(el);
     return () => observer.disconnect();
-  }, [treeRevealed]);
+  }, [prefersReducedMotion]);
 
   // Measure real DOM rects of rendered boxes & group labels and compute SVG overlay paths
   const measureConnectors = useCallback(() => {
@@ -462,10 +468,12 @@ export function ExecutiveBoardSection() {
           prefix="Secretariat &"
           italicWord="Executive Board"
         />
-        <p className="text-sm text-[#cfc8aa] max-w-[42ch]">
-          Select any Secretariat or Department Head node to open their portfolio dossier and
-          personal statement.
-        </p>
+        <RevealItem staggerIndex={1}>
+          <p className="text-sm text-[#cfc8aa] max-w-[42ch]">
+            Select any Secretariat or Department Head node to open their portfolio dossier and
+            personal statement.
+          </p>
+        </RevealItem>
       </div>
 
       {/* Outer container prevents 1.5x zoom from producing horizontal page scroll */}
@@ -480,17 +488,18 @@ export function ExecutiveBoardSection() {
           style={stageZoomStyle}
           className="ft-stage-zoomable relative w-full"
         >
-          {/* Faint centered willow-tree-only.svg background watermark (~14% opacity) */}
-          <div
-            aria-hidden="true"
+          {/* Faint centered willow-tree-only.svg background watermark with restrained scroll parallax */}
+          <ParallaxFrame
+            offsetPx={18}
             className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center select-none"
+            innerClassName="flex w-full items-center justify-center"
           >
             <img
               src="willow-tree-only.svg"
               alt=""
               className="h-auto w-[min(86%,360px)] min-[900px]:w-[min(62%,540px)] opacity-[0.14]"
             />
-          </div>
+          </ParallaxFrame>
 
           {/* Measured real-rect SVG connector overlay */}
           {geometry.width > 0 && geometry.height > 0 && (

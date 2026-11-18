@@ -32,8 +32,8 @@ const adminActor: AdminUser = {
   invitationToken: null,
   lastPasswordResetAt: null,
   permissions: { ...ADMIN_DEFAULT_PERMISSIONS },
-  createdAt: '2026-10-01T00:00:00Z',
-  lastActiveAt: '2026-11-17T00:00:00Z',
+  createdAt: '2027-10-01T00:00:00Z',
+  lastActiveAt: '2027-11-17T00:00:00Z',
 };
 
 const headHrActor: AdminUser = {
@@ -115,11 +115,11 @@ function makeSampleApp(
 }
 
 const sampleApps: Application[] = [
-  makeSampleApp('1', 'hr', 'staff', 'pending', '2026-11-10T10:00:00Z', 'female'),
-  makeSampleApp('2', 'media-press', 'media', 'accepted', '2026-11-12T10:00:00Z', 'male'),
-  makeSampleApp('3', 'dcc', 'delegate', 'waitlisted', '2026-11-14T10:00:00Z', 'female'),
-  makeSampleApp('4', 'security', 'security', 'withdrawn', '2026-11-16T10:00:00Z', 'male'),
-  makeSampleApp('5', 'hr', 'staff', 'accepted', '2026-11-16T11:00:00Z', 'male'),
+  makeSampleApp('1', 'hr', 'staff', 'pending', '2027-11-10T10:00:00Z', 'female'),
+  makeSampleApp('2', 'media-press', 'media', 'accepted', '2027-11-12T10:00:00Z', 'male'),
+  makeSampleApp('3', 'dcc', 'delegate', 'waitlisted', '2027-11-14T10:00:00Z', 'female'),
+  makeSampleApp('4', 'security', 'security', 'withdrawn', '2027-11-16T10:00:00Z', 'male'),
+  makeSampleApp('5', 'hr', 'staff', 'accepted', '2027-11-16T11:00:00Z', 'male'),
 ];
 
 test('scopeApplicationsForActor isolates Department Head strictly by department AND gender', () => {
@@ -160,8 +160,8 @@ test('filterAndSortApplications supports category, status, date range, and recom
   assert.equal(staffGroup.length, 4);
 
   const rangeFiltered = filterAndSortApplications(sampleApps, adminActor, {
-    dateFrom: '2026-11-13',
-    dateTo: '2026-11-17',
+    dateFrom: '2027-11-13',
+    dateTo: '2027-11-17',
   });
   assert.equal(rangeFiltered.length, 3);
 
@@ -182,7 +182,7 @@ test('computeApplicationStats, 14-day timeline, pagination, and CSV export produ
 
   const timeline = computeDailyApplicationTrend(sampleApps, 14);
   assert.equal(timeline.length, 14);
-  assert.equal(timeline[timeline.length - 1].dateKey, '2026-11-16');
+  assert.equal(timeline[timeline.length - 1].dateKey, '2027-11-16');
 
   const paged = paginateItems(sampleApps, 2, 2);
   assert.equal(paged.items.length, 2);

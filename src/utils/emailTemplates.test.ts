@@ -18,12 +18,12 @@ const dept: Department = {
   capacity: 15,
   positions: ['HR Coordinator'],
   instructions: '',
-  updatedAt: '2026-11-01T00:00:00Z',
+  updatedAt: '2027-11-01T00:00:00Z',
 };
 
 const app: Application = {
   id: 'app-1',
-  applicationCode: 'WM-2026-001',
+  applicationCode: 'WM-2027-001',
   category: 'staff',
   applicantName: 'Layla Mansour',
   email: 'layla@example.com',
@@ -37,8 +37,8 @@ const app: Application = {
   position: 'HR Coordinator',
   secondChoiceDepartmentId: null,
   status: 'accepted',
-  submittedAt: '2026-11-10T09:00:00Z',
-  updatedAt: '2026-11-10T09:00:00Z',
+  submittedAt: '2027-11-10T09:00:00Z',
+  updatedAt: '2027-11-10T09:00:00Z',
   headRecommendation: 'recommend_accept',
   headNotes: '',
   recommendedBy: null,
@@ -67,7 +67,7 @@ test('renderEmailTemplateText interpolates all applicant and conference variable
   );
   assert.equal(
     output,
-    'Dear Layla Mansour, your application WM-2026-001 for HR Coordinator in Human Resources at Willow MUN 2026 is accepted.',
+    'Dear Layla Mansour, your application WM-2027-001 for HR Coordinator in Human Resources at Willow MUN 2027 is accepted.',
   );
 });
 

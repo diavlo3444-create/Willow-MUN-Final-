@@ -50,7 +50,7 @@ export function ActivityLogsView({ lockedDepartmentId = null }: ActivityLogsView
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'willow-mun-2026-audit-logs.csv';
+    link.download = 'willow-mun-2027-audit-logs.csv';
     link.click();
     URL.revokeObjectURL(url);
   };

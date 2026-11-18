@@ -66,7 +66,7 @@ export function WorkspaceModulesView({
       description: '',
       status: 'open',
       priority: 'medium',
-      deadline: '2026-12-01',
+      deadline: '2027-12-01',
       assignedTo: currentUser?.fullName ?? 'Lead Organizer',
       internalNotes: '',
       createdBy: currentUser?.fullName ?? '',

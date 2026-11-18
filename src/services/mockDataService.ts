@@ -62,7 +62,7 @@ import type {
 } from './interfaces';
 import { createInitialSnapshot } from './mockDatabase';
 
-const STORAGE_KEY = 'willow_mun_platform_snapshot_v4';
+const STORAGE_KEY = 'willow_mun_platform_snapshot_v5';
 
 function makeId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
@@ -485,7 +485,7 @@ class MockConferenceAdminService implements IConferenceAdminRepository {
     const firstToken = app.applicantName.replace(/[^a-zA-Z]/g, '').slice(0, 5).toUpperCase() || 'DELEG';
     const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
     const timestamp = nowIso();
-    app.signupLinkToken = `SIGNUP-WM26-${firstToken}-${rand}`;
+    app.signupLinkToken = `SIGNUP-WM27-${firstToken}-${rand}`;
     app.signupLinkStatus = 'active';
     app.signupLinkGeneratedAt = timestamp;
     app.updatedAt = timestamp;
@@ -806,7 +806,7 @@ class MockConferenceAdminService implements IConferenceAdminRepository {
       id: userId,
       fullName: input.fullName.trim(),
       email,
-      password: input.password || 'willow-2026',
+      password: input.password || 'willow-2027',
       role: input.role,
       roleDefinitionId: input.roleDefinitionId || `role-${input.role.replace('_', '-')}`,
       title: input.title.trim() || input.role,

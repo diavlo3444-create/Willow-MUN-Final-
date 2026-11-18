@@ -1,5 +1,6 @@
 import { CONFERENCE_DATA } from '../data/conference';
 import { usePublishedWebsite } from '../utils/usePublishedWebsite';
+import { ParallaxFrame, RevealItem } from './MotionPrimitives';
 import { RevealSection, SectionHeading } from './RevealSection';
 import { TbaText } from './TbaText';
 
@@ -63,19 +64,24 @@ export function AboutSection() {
             />
           </div>
 
-          <figure className="lg:col-span-7 border-y border-[#ede6ca]/18 py-5 sm:py-6">
-            <blockquote className="font-serif text-xl sm:text-2xl lg:text-[27px] italic leading-[1.38] text-[#ede6ca] [text-wrap:balance]">
-              &ldquo;{CONFERENCE_DATA.about.themeQuote}&rdquo;
-            </blockquote>
-            <figcaption className="mt-2.5 font-mono text-[11px] uppercase tracking-[0.14em] text-[#a9b47e]">
-              Inaugural Theme · Flexibility Rooted in Principle
-            </figcaption>
-          </figure>
+          <RevealItem staggerIndex={1} className="lg:col-span-7">
+            <figure className="border-y border-[#ede6ca]/18 py-5 sm:py-6">
+              <blockquote className="font-serif text-xl sm:text-2xl lg:text-[27px] italic leading-[1.38] text-[#ede6ca] [text-wrap:balance]">
+                &ldquo;{CONFERENCE_DATA.about.themeQuote}&rdquo;
+              </blockquote>
+              <figcaption className="mt-2.5 font-mono text-[11px] uppercase tracking-[0.14em] text-[#a9b47e]">
+                Inaugural Theme · Flexibility Rooted in Principle
+              </figcaption>
+            </figure>
+          </RevealItem>
         </div>
 
         {/* Lower Asymmetric Spread: Long-form Charter + Unboxed Ruled Fact Directory */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-start">
-          <div className="lg:col-span-7 space-y-5 max-w-[64ch] text-base sm:text-[17px] leading-[1.8] text-[#dcd5ba]">
+          <RevealItem
+            staggerIndex={2}
+            className="lg:col-span-7 space-y-5 max-w-[64ch] text-base sm:text-[17px] leading-[1.8] text-[#dcd5ba]"
+          >
             <p className="first-letter:float-left first-letter:mr-3.5 first-letter:mt-1 first-letter:font-serif first-letter:text-5xl first-letter:font-medium first-letter:leading-[0.85] first-letter:text-[#ede6ca]">
               {paragraph}
             </p>
@@ -85,33 +91,37 @@ export function AboutSection() {
               committee background guides, and rules of procedure remain{' '}
               <TbaText text="TBA" className="text-xl" /> ahead of delegate registration.
             </p>
-          </div>
+          </RevealItem>
 
-          <aside
-            aria-label="Conference charter specifications"
-            className="lg:col-span-5 border-t border-[#ede6ca]/24 pt-2"
-          >
-            <p className="py-3 font-mono text-[11px] uppercase tracking-[0.16em] text-[#a9b47e]">
-              {CONFERENCE_DATA.globalStage.label} · Session Prospectus
-            </p>
+          <ParallaxFrame offsetPx={12} className="lg:col-span-5">
+            <RevealItem staggerIndex={3}>
+              <aside
+                aria-label="Conference charter specifications"
+                className="border-t border-[#ede6ca]/24 pt-2"
+              >
+                <p className="py-3 font-mono text-[11px] uppercase tracking-[0.16em] text-[#a9b47e]">
+                  {CONFERENCE_DATA.globalStage.label} · Session Prospectus
+                </p>
 
-            <dl className="divide-y divide-[#ede6ca]/14 border-y border-[#ede6ca]/14">
-              {charterSpecs.map((entry) => (
-                <div
-                  key={entry.key}
-                  className="py-4 flex items-baseline justify-between gap-4"
-                >
-                  <div className="min-w-0">
-                    <dt className="text-sm font-medium text-[#ede6ca]">{entry.term}</dt>
-                    <dd className="mt-0.5 text-xs text-[#cfc8aa]/75">{entry.note}</dd>
-                  </div>
-                  <dd className="font-serif text-xl sm:text-2xl font-medium text-[#ede6ca] tabular-nums text-right shrink-0">
-                    {entry.isTba ? <TbaText text={entry.value} /> : entry.value}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          </aside>
+                <dl className="divide-y divide-[#ede6ca]/14 border-y border-[#ede6ca]/14">
+                  {charterSpecs.map((entry) => (
+                    <div
+                      key={entry.key}
+                      className="py-4 flex items-baseline justify-between gap-4 transition-colors duration-200 hover:bg-[#ede6ca]/[0.02]"
+                    >
+                      <div className="min-w-0">
+                        <dt className="text-sm font-medium text-[#ede6ca]">{entry.term}</dt>
+                        <dd className="mt-0.5 text-xs text-[#cfc8aa]/75">{entry.note}</dd>
+                      </div>
+                      <dd className="font-serif text-xl sm:text-2xl font-medium text-[#ede6ca] tabular-nums text-right shrink-0">
+                        {entry.isTba ? <TbaText text={entry.value} /> : entry.value}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </aside>
+            </RevealItem>
+          </ParallaxFrame>
         </div>
       </div>
     </RevealSection>
