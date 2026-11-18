@@ -22,12 +22,13 @@ import {
 import { useAdminStore } from '../../../context/AdminStoreContext';
 import {
   backfillStaffQrPasses,
-  commitQrPassCheckin,
+  commitQrPassAttendance,
   correctQrCheckinRecord,
   fetchAdminQrDashboard,
   issueConferenceQrPass,
+  resetAllQrAttendance,
   setQrPassActiveState,
-  verifyQrPassToken,
+  verifyQrPassAttendance,
   type AdminQrRegistryMetrics,
   type LiveQrCorrectionLog,
   type LiveQrPassExtended,
@@ -89,6 +90,7 @@ export function QrAttendanceView({
   const [pendingToken, setPendingToken] = useState('');
   const [gateLocation, setGateLocation] = useState('Main Entrance');
   const [confirmBeforeCheckin, setConfirmBeforeCheckin] = useState(true);
+  const [attendanceAction, setAttendanceAction] = useState<'checkin' | 'checkout'>('checkin');
   const [validation, setValidation] = useState<LiveQrValidationResponse | null>(null);
   const [scanError, setScanError] = useState('');
 
@@ -151,8 +153,8 @@ export function QrAttendanceView({
       setPendingToken(cleanToken);
 
       const res = confirmBeforeCheckin
-        ? await verifyQrPassToken(cleanToken, gateLocation)
-        : await commitQrPassCheckin(cleanToken, gateLocation);
+        ? await verifyQrPassAttendance(cleanToken, gateLocation, attendanceAction)
+        : await commitQrPassAttendance(cleanToken, gateLocation, attendanceAction);
 
       setBusy(false);
 
@@ -193,14 +195,14 @@ export function QrAttendanceView({
 
       await load();
     },
-    [canScan, confirmBeforeCheckin, gateLocation, load, pushToast],
+    [attendanceAction, canScan, confirmBeforeCheckin, gateLocation, load, pushToast],
   );
 
   const handleConfirmPendingCheckin = async () => {
     if (!pendingToken) return;
     setBusy(true);
     setScanError('');
-    const res = await commitQrPassCheckin(pendingToken, gateLocation);
+    const res = await commitQrPassAttendance(pendingToken, gateLocation, attendanceAction, validation?.status === 'checkout_warning');
     setBusy(false);
 
     if (!res.ok || !res.validation) {
@@ -213,7 +215,7 @@ export function QrAttendanceView({
     if (v.status === 'valid' && v.committed) {
       pushToast({
         tone: 'success',
-        title: 'Check-in recorded',
+        title: attendanceAction === 'checkout' ? 'Check-out recorded' : 'Check-in recorded',
         description: `${v.holder_name || 'Attendee'} · ${gateLocation}`,
       });
     } else if (v.status === 'already_checked_in') {
@@ -244,6 +246,21 @@ export function QrAttendanceView({
     setNewHolder('');
     setNewEmail('');
     pushToast({ tone: 'success', title: 'Conference pass issued', description: res.pass.holder_name });
+    await load();
+  };
+
+  const handleResetAllAttendance = async () => {
+    if (actor?.role !== 'super_admin') return;
+    const confirmed = window.confirm('Reset all conference attendance? This clears every pass check-in/check-out status and removes successful attendance events from scan history. Invalid/denied scan records and the reset audit record are retained. This cannot be undone.');
+    if (!confirmed) return;
+    setBusy(true);
+    const res = await resetAllQrAttendance();
+    setBusy(false);
+    if (!res.ok || !res.result) {
+      pushToast({ tone: 'error', title: 'Attendance reset failed', description: res.error });
+      return;
+    }
+    pushToast({ tone: 'success', title: 'All attendance reset', description: `${res.result.passes_reset} passes reset · ${res.result.checkins_cleared} check-ins and ${res.result.checkouts_cleared} check-outs cleared` });
     await load();
   };
 
@@ -393,7 +410,7 @@ export function QrAttendanceView({
   const filteredScans = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return scans.filter((s) => {
-      const isValid = s.result === 'valid_checkin';
+      const isValid = s.result === 'valid_checkin' || s.result === 'valid_checkout';
       const isDuplicate = s.result === 'already_checked_in' || s.result === 'duplicate_recent';
       if (scanResultFilter === 'valid' && !isValid) return false;
       if (scanResultFilter === 'duplicate' && !isDuplicate) return false;
@@ -406,12 +423,12 @@ export function QrAttendanceView({
   }, [scans, scanResultFilter, searchQuery]);
 
   const failedAndDuplicateCount = useMemo(
-    () => scans.filter((s) => s.result !== 'valid_checkin').length,
+    () => scans.filter((s) => s.result !== 'valid_checkin' && s.result !== 'valid_checkout').length,
     [scans],
   );
 
   const awaitingConfirmation = Boolean(
-    validation && validation.status === 'valid' && !validation.committed,
+    validation && ((validation.status === 'valid' && !validation.committed) || validation.status === 'checkout_warning'),
   );
 
   return (
@@ -614,6 +631,10 @@ export function QrAttendanceView({
 
           <div className="grid gap-5 p-4 lg:grid-cols-2">
             <div className="space-y-4">
+              <div className="mb-3 inline-flex rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-inset)] p-1" aria-label="Attendance action">
+                <button type="button" onClick={() => { setAttendanceAction('checkin'); setValidation(null); }} className={`rounded px-3.5 py-2 text-xs font-semibold transition ${attendanceAction === 'checkin' ? 'bg-emerald-600 text-white shadow' : 'text-[color:var(--wm-ink-secondary)] hover:text-[color:var(--wm-ink)]'}`}>Check In</button>
+                <button type="button" onClick={() => { setAttendanceAction('checkout'); setValidation(null); }} className={`rounded px-3.5 py-2 text-xs font-semibold transition ${attendanceAction === 'checkout' ? 'bg-amber-600 text-white shadow' : 'text-[color:var(--wm-ink-secondary)] hover:text-[color:var(--wm-ink)]'}`}>Check Out</button>
+              </div>
               <QrCameraScanner
                 size="panel"
                 busy={busy}
@@ -623,7 +644,7 @@ export function QrAttendanceView({
 
               <label className="flex cursor-pointer items-center justify-between gap-3 rounded-md border border-[color:var(--wm-hairline)] bg-[color:var(--wm-inset)] px-3 py-2 text-xs">
                 <span className="text-[color:var(--wm-ink-secondary)]">
-                  Require explicit confirmation before completing check-in
+                  Review pass details before completing {attendanceAction === 'checkout' ? 'check-out' : 'check-in'}
                 </span>
                 <input
                   type="checkbox"
@@ -650,7 +671,7 @@ export function QrAttendanceView({
                   disabled={busy || !scanInput.trim()}
                   className="h-10 rounded-md bg-[color:var(--wm-emerald)] px-4 text-xs font-semibold text-[#eef4ef] hover:bg-[#357a5b] disabled:opacity-50"
                 >
-                  {busy ? 'Checking…' : confirmBeforeCheckin ? 'Verify Pass' : 'Verify & Check In'}
+                  {busy ? 'Checking…' : confirmBeforeCheckin ? 'Verify Pass' : attendanceAction === 'checkout' ? 'Verify & Check Out' : 'Verify & Check In'}
                 </button>
               </form>
 
@@ -666,6 +687,7 @@ export function QrAttendanceView({
                 validation={validation}
                 busy={busy}
                 variant="admin"
+                attendanceAction={attendanceAction}
                 onConfirmCheckin={() => void handleConfirmPendingCheckin()}
                 onResetResult={() => {
                   setValidation(null);
@@ -707,6 +729,11 @@ export function QrAttendanceView({
               <RefreshCw className="h-3 w-3" aria-hidden="true" />
               Backfill Missing Staff Passes
             </button>
+            {actor?.role === 'super_admin' && (
+              <button type="button" disabled={busy} onClick={() => void handleResetAllAttendance()} className="inline-flex h-8 items-center gap-2 rounded-md border border-rose-400/40 bg-rose-950/25 px-3 text-[11px] font-semibold text-rose-200 hover:bg-rose-950/45 disabled:opacity-50">
+                <RefreshCw className="h-3 w-3" aria-hidden="true" /> Reset All Attendance
+              </button>
+            )}
           </div>
 
           {/* Search & Filter Toolbar */}
