@@ -56,6 +56,7 @@ import type {
 } from '../types/admin';
 
 const TEST_HEAD_STORAGE_KEY = 'willow_mun_test_head_uid_v3';
+const TEST_HEAD_PROFILE_STORAGE_KEY = 'willow_mun_test_head_profile_v1';
 
 interface AdminStoreContextValue {
   data: ConferenceDataSnapshot;
@@ -198,44 +199,46 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
     const provisioned = data.users.find((u) => u.id === testModeHeadUserId && u.role === 'department_head' && u.isActive && u.status === 'active');
     if (provisioned) return provisioned;
 
-    // Allow Super Admins to preview a preloaded Secretariat head before signup.
-    // This is a frontend-only preview identity; it does not authenticate as that person in Supabase.
-    const rosterId = testModeHeadUserId.startsWith('roster:')
-      ? testModeHeadUserId.slice('roster:'.length)
-      : '';
-    const member = membersJson.members.find((entry) => entry.id === rosterId);
-    if (!member || !member.role || !/\\bhead\\b/i.test(member.role)) return null;
+    // The profile payload lets the testing page preview live directory accounts
+    // even when their auth profile is not part of the local mock snapshot.
+    let profile: { id?: string; fullName?: string; email?: string; title?: string; departmentId?: string | null } | null = null;
+    try {
+      profile = typeof window !== 'undefined'
+        ? JSON.parse(window.sessionStorage.getItem(TEST_HEAD_PROFILE_STORAGE_KEY) || 'null')
+        : null;
+    } catch {
+      profile = null;
+    }
 
+    let member: (typeof membersJson.members)[number] | undefined;
+    if (testModeHeadUserId.startsWith('roster:')) {
+      const rosterId = testModeHeadUserId.slice('roster:'.length);
+      member = membersJson.members.find((entry) => entry.id === rosterId);
+    }
     const departmentByGroup: Record<string, string> = {
-      media: 'media-press',
-      press: 'media-press',
-      marketing: 'marketing',
-      design: 'design',
-      security: 'security',
-      it: 'it',
-      hr: 'hr',
-      'delegate-affairs': 'dcc',
-      volunteers: 'volunteers',
+      media: 'media-press', press: 'media-press', marketing: 'marketing', design: 'design',
+      security: 'security', it: 'it', hr: 'hr', 'delegate-affairs': 'dcc', volunteers: 'volunteers',
     };
-    const departmentKey = departmentByGroup[member.group];
-    const department = data.departments.find((item) =>
-      item.id === departmentKey || item.slug === departmentKey
-    );
+    const departmentKey = member ? departmentByGroup[member.group] : null;
+    const departmentId = profile?.departmentId || (departmentKey
+      ? data.departments.find((item) => item.id === departmentKey || item.slug === departmentKey)?.id
+      : null);
     const template = data.users.find((user) => user.role === 'department_head') ?? data.users[0];
-    if (!template || !department) return null;
+    if (!template || !departmentId) return null;
+    if (member && (!member.role || !/\bhead\b/i.test(member.role))) return null;
 
     return {
       ...template,
-      id: testModeHeadUserId,
-      fullName: member.name,
-      email: '',
+      id: profile?.id || testModeHeadUserId,
+      fullName: profile?.fullName || member?.name || 'Department Head Preview',
+      email: profile?.email || '',
       password: undefined,
       role: 'department_head',
       roleDefinitionId: 'department_head',
-      title: member.role,
-      departmentId: department.id,
+      title: profile?.title || member?.role || 'Department Head',
+      departmentId,
       division: null,
-      avatarUrl: member.photo ?? null,
+      avatarUrl: null,
       isActive: true,
       status: 'active',
       invitationStatus: 'none',
