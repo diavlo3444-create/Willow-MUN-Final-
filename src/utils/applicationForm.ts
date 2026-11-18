@@ -32,7 +32,7 @@ export interface RoleQuestionDefinition {
 }
 
 export const ATTENDANCE_QUESTION_LABEL =
-  'Will you be able to attend both days of the conference, including the extra rehearsal day? If not, explain why.';
+  'Will you be able to attend all three days of WILLOW MUN, including the two conference days and the additional rehearsal day? If not, explain why.';
 
 export const MEDIA_QUESTIONS: readonly RoleQuestionDefinition[] = [
   {
@@ -245,7 +245,7 @@ export function mapTrackToDepartmentSlug(track: ApplicationTrack): string {
       return 'volunteers';
     case 'media':
     case 'press':
-      return 'media-press';
+      return track === 'media' ? 'media' : 'press';
     case 'security':
       return 'security';
   }
