@@ -87,7 +87,7 @@ export const CONFERENCE_DATA = {
   },
 
   committees: {
-    label: 'Conference Chambers',
+    label: 'Conference Committees',
     items: [
       { id: 'chamber-01', chamber: 'Chamber 01', name: 'Committee', details: 'Agenda and chairs' },
       { id: 'chamber-02', chamber: 'Chamber 02', name: 'Committee', details: 'Agenda and chairs' },
