@@ -7,8 +7,8 @@ import {
 } from 'react';
 import { CONFERENCE_DATA } from '../data/conference';
 
-const INTRO_TRANSITION_TIME_S = 7.2;
-const INTRO_TREE_BLEND_START_S = 5.4;
+const INTRO_TRANSITION_TIME_S = 7.9;
+const INTRO_TREE_BLEND_START_S = 7.7;
 const INTRO_FALLBACK_TIMEOUT_MS = 12000;
 const INTRO_WATERMARK_FALLBACK_DURATION_S = 8.4;
 const REPLAY_FADE_OUT_MS = 560;
@@ -23,9 +23,9 @@ interface WillowIntroEmblemProps {
 }
 
 /**
- * Full-bleed intro <video> (44.mp4) with mix-blend-mode: screen:
+ * Full-bleed intro <video> (willow-intro-grow.mp4) with mix-blend-mode: screen:
  * - Plays at full opacity (scale 1, z-index 50) over the olive backdrop
- * - At 7.2s (or on Skip), smoothly dissolves into the background watermark
+ * - At 7.9s (or on Skip), smoothly dissolves into the background watermark
  *   (opacity: 0.24, transform: scale(0.96), z-index: 1) while revealing the hero UI
  * - Supports Replay intro by fading out text, bringing the video back to scale 1 / opacity 1,
  *   playing from the beginning, and dissolving back into the background
