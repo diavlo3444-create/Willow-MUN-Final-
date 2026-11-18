@@ -692,7 +692,13 @@ Deno.serve(async (req: Request) => {
       .eq("slug", appDept)
       .maybeSingle();
 
-    if (!isAdmin) {,      return json({ error: "Only Administrators can make final application decisions. Department Heads submit recommendations." }, 403);,    },    if (!["pending", "accepted", "rejected", "waitlisted"].includes(nextStatus)) {,      return json({ error: "Invalid status value." }, 400);,    },    const patch: Record<string, unknown> = {
+    if (!isAdmin) {
+      return json({ error: "Only Administrators can make final application decisions. Department Heads submit recommendations." }, 403);
+    }
+    if (!["pending", "accepted", "rejected", "waitlisted"].includes(nextStatus)) {
+      return json({ error: "Invalid status value." }, 400);
+    }
+    const patch: Record<string, unknown> = {
       status: nextStatus,
       department_id: appDept,
       decision_by: authData.user.id,
