@@ -4,7 +4,7 @@ import {
   Activity, Award, BarChart3, BookOpen, Building2, Calendar, ClipboardCheck,
   ClipboardList, Clock, ExternalLink, FileCode, FileText, FlaskConical,
   FolderKanban, Globe, HelpCircle, History, Image as ImageIcon, Inbox,
-  KeyRound, LayoutDashboard, Lock, LogOut, Mail, MapPin, Megaphone, Menu,
+  KeyRound, LayoutDashboard, Lock, LogOut, Mail, MapPin, Megaphone, Menu, Link2,
   QrCode, ScanLine, Search, Server, Settings, Shield, Tag, UserCheck,
   UserCog, Users, X, ChevronRight, Layers,
 } from 'lucide-react';
@@ -40,7 +40,7 @@ const NAV_ICONS: Record<string, typeof LayoutDashboard> = {
   email: Mail, messages: Inbox, notifications: Activity, registration: ClipboardList,
   reports: BarChart3, logs: Activity, settings: Settings, monitoring: Server,
   admins: Shield, heads: UserCog, roles: KeyRound, 'permission-defs': Lock,
-  testing: FlaskConical, 'eb-accounts': Users,
+  testing: FlaskConical, 'eb-accounts': Users, 'eb-signup-link': Link2,
 };
 
 function initials(name?: string | null, email?: string | null) {
