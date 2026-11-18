@@ -443,7 +443,7 @@ export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePorta
       ) : section === 'eb-accounts' ? (
         <ExecutiveBoardAccountsView />
       ) : section === 'testing' ? (
-        <DepartmentTestingView onEnterTestingMode={() => onNavigate('/head')} />
+        <DepartmentTestingView />
       ) : (
         <OverviewDashboardView
           basePath={basePath}
