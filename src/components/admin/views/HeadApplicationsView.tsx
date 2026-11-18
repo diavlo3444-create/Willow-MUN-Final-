@@ -43,7 +43,6 @@ export function HeadApplicationsView({
     data,
     pushToast,
     recordSecurityViolation,
-    updateApplicationStatus: updateLocalStatus,
   } = useAdminStore();
 
   const [liveApps, setLiveApps] = useState<Application[]>([]);
@@ -389,7 +388,6 @@ export function HeadApplicationsView({
         <div className="space-y-2.5">
           <AnimatePresence initial={false}>
             {filteredApps.map((app) => {
-              const busy = busyId === app.id;
               return (
                 <motion.article
                   key={app.id}
