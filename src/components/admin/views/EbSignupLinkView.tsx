@@ -43,7 +43,7 @@ export function EbSignupLinkView() {
       </section>
       <div className="grid gap-4 md:grid-cols-2">
         <section className="wm-surface-panel p-5"><div className="flex items-center gap-2 text-[color:var(--wm-focal)]"><Users className="h-4 w-4" /><h3 className="text-sm font-semibold">What EB members do</h3></div><p className="mt-3 text-xs leading-5 text-[color:var(--wm-ink-secondary)]">Open the shared link, enter their registered EB email, and create a password. Their roster profile is connected automatically.</p></section>
-        <section className="wm-surface-panel p-5"><div className="flex items-center gap-2 text-[color:var(--wm-focal)]"><ShieldCheck className="h-4 w-4" /><h3 className="text-sm font-semibold">Roster-based access</h3></div><p className="mt-3 text-xs leading-5 text-[color:var(--wm-ink-secondary)]">Name, role, department, rank, permissions and photo come from the Super Admin&apos;s roster. Each roster entry can only be claimed once, and email ownership must be verified.</p></section>
+        <section className="wm-surface-panel p-5"><div className="flex items-center gap-2 text-[color:var(--wm-focal)]"><ShieldCheck className="h-4 w-4" /><h3 className="text-sm font-semibold">Roster-based access</h3></div><p className="mt-3 text-xs leading-5 text-[color:var(--wm-ink-secondary)]">Name, role, department, rank, permissions and photo come from the Super Admin&apos;s roster. Each roster entry can only be claimed once, and no email verification is required.</p></section>
       </div>
     </div>
   );
