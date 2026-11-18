@@ -20,7 +20,6 @@ import { LiveStaffAccountsView } from '../views/LiveStaffAccountsView';
 import { LiveApplicationsView } from '../views/LiveApplicationsView';
 import {
   EmailManagementView,
-  MessagesInquiriesView,
   NotificationsCenterView,
 } from '../views/CommunicationViews';
 import { ConferenceCmsView } from '../views/ConferenceCmsView';
@@ -177,10 +176,6 @@ const SECTION_META: Record<string, { title: string; subtitle: string }> = {
     title: 'Email Center',
     subtitle: 'Compose and dispatch templated individual or bulk applicant communications.',
   },
-  messages: {
-    title: 'Messages & Public Inquiries',
-    subtitle: 'Triage submissions from the public Suggestions & Accessibility form.',
-  },
   notifications: {
     title: 'Notifications Center',
     subtitle: 'System notices, alerts, and incoming inquiries.',
@@ -282,7 +277,6 @@ export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePorta
     'announcements',
     'documents',
     'faqs',
-    'messages',
     'settings',
     'account-management',
     'admins',
@@ -472,8 +466,6 @@ export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePorta
         <WebsiteCmsView mode={section} />
       ) : section === 'email' ? (
         <EmailManagementView preselectedApplicationIds={preselectedEmailIds} />
-      ) : section === 'messages' ? (
-        <MessagesInquiriesView />
       ) : section === 'notifications' ? (
         <NotificationsCenterView />
       ) : section === 'registration' ? (
