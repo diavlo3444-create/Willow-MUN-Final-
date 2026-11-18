@@ -15,6 +15,7 @@ interface QrValidationResultCardProps {
   busy?: boolean;
   variant?: 'security' | 'admin';
   onConfirmCheckin?: () => void;
+  attendanceAction?: 'checkin' | 'checkout';
   onResetResult?: () => void;
   onOpenCorrection?: (passId: string) => void;
 }
@@ -24,6 +25,7 @@ export function QrValidationResultCard({
   busy = false,
   variant = 'security',
   onConfirmCheckin,
+  attendanceAction = 'checkin',
   onResetResult,
   onOpenCorrection,
 }: QrValidationResultCardProps) {
@@ -41,32 +43,41 @@ export function QrValidationResultCard({
     );
   }
 
-  const isValidConfirmed = validation.status === 'valid' && validation.committed;
-  const isValidAwaitingConfirm = validation.status === 'valid' && !validation.committed;
+  const isCheckedOut = validation.status === 'checked_out';
+  const isCheckoutWarning = validation.status === 'checkout_warning';
+  const isNotCheckedIn = validation.status === 'not_checked_in';
+  const isValidConfirmed = (validation.status === 'valid' && validation.committed) || isCheckedOut;
+  const isValidAwaitingConfirm = (validation.status === 'valid' && !validation.committed) || isCheckoutWarning;
   const isAlready = validation.status === 'already_checked_in';
   const isRevoked = validation.status === 'revoked';
   const isNotEligible = validation.status === 'not_eligible';
 
   const frameClass =
-    isValidConfirmed || isValidAwaitingConfirm
+    isValidConfirmed || (isValidAwaitingConfirm && !isCheckoutWarning)
       ? 'border-emerald-400/50 bg-emerald-950/35'
-      : isAlready
+      : isAlready || isCheckoutWarning || isNotCheckedIn
         ? 'border-amber-400/55 bg-amber-950/35'
         : 'border-rose-400/55 bg-rose-950/40';
 
   const badgeClass =
-    isValidConfirmed || isValidAwaitingConfirm
+    isValidConfirmed || (isValidAwaitingConfirm && !isCheckoutWarning)
       ? 'border-emerald-400/40 bg-emerald-500/15 text-emerald-200'
-      : isAlready
+      : isAlready || isCheckoutWarning || isNotCheckedIn
         ? 'border-amber-400/45 bg-amber-500/15 text-amber-200'
         : 'border-rose-400/45 bg-rose-500/15 text-rose-200';
 
-  const headline = isValidConfirmed
-    ? 'VALID · CHECKED IN'
-    : isValidAwaitingConfirm
-      ? 'VALID PASS · CONFIRM ENTRY'
-      : isAlready
-        ? 'ALREADY CHECKED IN'
+  const headline = isCheckedOut
+    ? 'CHECK-OUT RECORDED'
+    : isCheckoutWarning
+      ? 'REPEAT CHECK-OUT WARNING'
+      : isNotCheckedIn
+        ? 'NOT CURRENTLY CHECKED IN'
+        : isValidConfirmed
+          ? attendanceAction === 'checkout' ? 'CHECK-OUT RECORDED' : 'VALID · CHECKED IN'
+          : isValidAwaitingConfirm
+            ? attendanceAction === 'checkout' ? 'CONFIRM CHECK-OUT' : 'VALID PASS · CONFIRM ENTRY'
+            : isAlready
+              ? 'ALREADY CHECKED IN'
         : isRevoked
           ? 'REVOKED PASS'
           : isNotEligible
@@ -75,11 +86,17 @@ export function QrValidationResultCard({
 
   const subHeadline =
     validation.message ||
-    (isValidConfirmed
-      ? 'Entry recorded in conference attendance.'
-      : isValidAwaitingConfirm
-        ? 'Verified against conference records. Confirm to complete check-in.'
-        : isAlready
+    (isCheckedOut
+      ? 'Delegate has been checked out. Their pass remains valid for future entry.'
+      : isCheckoutWarning
+        ? validation.message
+        : isNotCheckedIn
+          ? validation.message
+          : isValidConfirmed
+            ? 'Attendance action recorded successfully.'
+            : isValidAwaitingConfirm
+              ? attendanceAction === 'checkout' ? 'Verified. Confirm to complete check-out.' : 'Verified against conference records. Confirm to complete check-in.'
+              : isAlready
           ? 'This pass has already been used. Do not create another check-in.'
           : isRevoked
             ? 'This credential has been deactivated by an administrator.'
@@ -181,12 +198,14 @@ export function QrValidationResultCard({
 
           <div className="rounded-md border border-white/10 bg-black/25 px-3.5 py-2.5">
             <p className="text-[10px] font-mono uppercase tracking-[0.14em] text-[color:var(--wm-ink-muted)]">
-              {isAlready ? 'Previous Check-In Time' : isValidConfirmed ? 'Checked In At' : 'Checkpoint'}
+              {isCheckedOut ? 'Checked Out At' : isAlready ? 'Previous Check-In Time' : isValidConfirmed ? 'Checked In At' : 'Checkpoint'}
             </p>
             <p className="mt-0.5 text-xs font-medium text-[color:var(--wm-ink)]">
-              {isAlready || isValidConfirmed
-                ? `${formatDate(validation.checked_in_at)} · ${validation.checked_in_gate || validation.gate_location}`
-                : validation.gate_location}
+              {isCheckedOut
+                ? `${formatDate(validation.checked_out_at)} · ${validation.checked_out_gate || validation.gate_location}`
+                : isAlready || (isValidConfirmed && attendanceAction === 'checkin')
+                  ? `${formatDate(validation.checked_in_at)} · ${validation.checked_in_gate || validation.gate_location}`
+                  : validation.gate_location}
             </p>
           </div>
 
@@ -213,7 +232,7 @@ export function QrValidationResultCard({
             className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-md bg-emerald-600 px-5 text-sm font-semibold text-white transition-colors hover:bg-emerald-500 disabled:opacity-60"
           >
             <UserCheck className="h-4 w-4" aria-hidden="true" />
-            {busy ? 'Recording Check-In…' : 'Confirm Entry & Check In'}
+            {busy ? (attendanceAction === 'checkout' ? 'Recording Check-Out…' : 'Recording Check-In…') : isCheckoutWarning ? 'Yes, Check Out Again' : attendanceAction === 'checkout' ? 'Confirm Check-Out' : 'Confirm Entry & Check In'}
           </button>
         </div>
       )}
