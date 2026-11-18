@@ -8,6 +8,9 @@ import { ParallaxFrame, RevealItem } from './MotionPrimitives';
 import { RevealSection, SectionHeading } from './RevealSection';
 import { TbaText } from './TbaText';
 
+const displayCommitteeGroup = (value: string) =>
+  value.replace(/\\bchambers?\\b/gi, 'Committee');
+
 interface DisplayCommittee {
   id: string;
   chamber: string;
@@ -24,10 +27,10 @@ interface DisplayCommittee {
 }
 
 /**
- * Section 02: Interactive Conference Chambers Explorer
+ * Section 02: Interactive Conference Committees Explorer
  * - Live-synced with Supabase `wm_committees` / DCC Committee Management
  * - Desktop: Interactive index list + Active Dossier inspection panel
- * - Mobile: Clean inline accordion rows so exploring chambers takes zero vertical hunting
+ * - Mobile: Clean inline accordion rows for quick mobile browsing
  */
 export function CommitteesSection() {
   const { published } = usePublishedWebsite();
@@ -60,7 +63,7 @@ export function CommitteesSection() {
   const label = committeesSec?.label || CONFERENCE_DATA.committees.label;
   const subIntro =
     committeesSec?.bodyText ||
-    'Diplomatic chambers spanning specialized multilateral debate formats, curated and maintained by Delegate & Committee Affairs.';
+    'Committees spanning specialized multilateral debate formats, curated and maintained by Delegate & Committee Affairs.';
 
   const items: DisplayCommittee[] = useMemo(() => {
     if (liveCommittees.length > 0) {
@@ -68,7 +71,7 @@ export function CommitteesSection() {
         const cleanDesc = (c.description || '').trim();
         return {
           id: c.id,
-          chamber: c.chamber || 'Chamber',
+          chamber: c.chamber || 'Committee',
           abbreviation: c.abbreviation || '',
           difficulty: c.difficulty || '',
           name: c.name,
@@ -157,13 +160,13 @@ export function CommitteesSection() {
             indexLabel="02"
             label={label}
             prefix="Conference"
-            italicWord="Chambers"
+            italicWord="Committees"
           />
         </div>
         <RevealItem staggerIndex={1} className="lg:col-span-5 space-y-3">
           <p className="text-sm leading-[1.7] text-[#cfc8aa]">{subIntro}</p>
           {chamberCategories.length > 0 && (
-            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 pt-1" role="tablist" aria-label="Filter committees by chamber">
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 pt-1" role="tablist" aria-label="Filter committees">
               {chamberCategories.map((cat) => {
                 const isSelected = chamberFilter === cat;
                 return (
@@ -226,7 +229,7 @@ export function CommitteesSection() {
                         {item.isTbaName ? <TbaText text="TBA" className="text-lg" /> : null}
                       </p>
                       <p className="mt-0.5 font-mono text-[11px] text-[#cfc8aa]/75 truncate">
-                        {item.chamber}
+                        {displayCommitteeGroup(item.chamber)}
                         {item.abbreviation ? ` · ${item.abbreviation}` : ''}
                       </p>
                     </div>
@@ -260,7 +263,7 @@ export function CommitteesSection() {
                 <span aria-hidden="true" className="text-[#ede6ca]/30">
                   ·
                 </span>
-                <span>{activeCommittee.chamber}</span>
+                <span>{displayCommitteeGroup(activeCommittee.chamber)}</span>
                 {activeCommittee.abbreviation && (
                   <>
                     <span aria-hidden="true" className="text-[#ede6ca]/30">
@@ -284,7 +287,7 @@ export function CommitteesSection() {
                   <button
                     type="button"
                     onClick={() => stepCommittee(-1)}
-                    aria-label="Previous chamber"
+                    aria-label="Previous committee"
                     className="mun-btn-interactive flex h-9 w-9 items-center justify-center rounded-[2px] border border-[#ede6ca]/24 text-[#ede6ca] hover:border-[#ede6ca]/60 cursor-pointer"
                   >
                     <ChevronLeft className="h-4 w-4" aria-hidden="true" />
@@ -292,7 +295,7 @@ export function CommitteesSection() {
                   <button
                     type="button"
                     onClick={() => stepCommittee(1)}
-                    aria-label="Next chamber"
+                    aria-label="Next committee"
                     className="mun-btn-interactive flex h-9 w-9 items-center justify-center rounded-[2px] border border-[#ede6ca]/24 text-[#ede6ca] hover:border-[#ede6ca]/60 cursor-pointer"
                   >
                     <ChevronRight className="h-4 w-4" aria-hidden="true" />
