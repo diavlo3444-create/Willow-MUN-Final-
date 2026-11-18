@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import { useMemo, useState } from 'react';
 import { Building2, Edit2, UserPlus, X } from 'lucide-react';
 import { useAdminStore } from '../../../context/AdminStoreContext';
 import type { Department } from '../../../types/admin';
@@ -19,23 +19,13 @@ export function DepartmentsView({
   const {
     data,
     currentUser,
-    createDepartment,
     updateDepartment,
     assignDepartmentHead,
   } = useAdminStore();
 
   const effectiveActor = actingUserOverride ?? currentUser;
   const [editing, setEditing] = useState<Department | null>(null);
-  const [creating, setCreating] = useState(false);
-  const [newDept, setNewDept] = useState({
-    slug: '',
-    name: '',
-    cluster: 'Delegate Affairs & Operations' as Department['cluster'],
-    description: '',
-    capacity: 15,
-    positionsCsv: 'Coordinator, Officer',
-    instructions: '',
-  });
+
 
   const canManageDepts = hasPermission(effectiveActor, 'departments.manage');
   const canToggleReg = hasPermission(effectiveActor, 'departments.toggle_registration');
@@ -57,34 +47,7 @@ export function DepartmentsView({
     [data.users],
   );
 
-  const handleCreate = (e: FormEvent) => {
-    e.preventDefault();
-    const ok = createDepartment({
-      slug: newDept.slug || newDept.name,
-      name: newDept.name,
-      cluster: newDept.cluster,
-      description: newDept.description,
-      capacity: newDept.capacity,
-      positions: newDept.positionsCsv
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean),
-      registrationOpen: true,
-      instructions: newDept.instructions,
-    });
-    if (ok) {
-      setCreating(false);
-      setNewDept({
-        slug: '',
-        name: '',
-        cluster: 'Delegate Affairs & Operations',
-        description: '',
-        capacity: 15,
-        positionsCsv: 'Coordinator, Officer',
-        instructions: '',
-      });
-    }
-  };
+
 
   return (
     <div className="space-y-4">
@@ -96,14 +59,7 @@ export function DepartmentsView({
               Configure organizing departments, capacities, intake toggles, and Department Head linkages.
             </span>
           </div>
-          <button
-            type="button"
-            onClick={() => setCreating(true)}
-            className="inline-flex h-9 items-center gap-1.5 rounded bg-[color:var(--wm-focal)] px-3.5 text-xs font-semibold text-[#12170c] hover:bg-[#dad3b4] cursor-pointer"
-          >
-            <Plus className="h-4 w-4" aria-hidden="true" />
-            <span>Create Department</span>
-          </button>
+
         </div>
       )}
 
@@ -363,95 +319,7 @@ export function DepartmentsView({
         </div>
       )}
 
-      {/* Create Department Modal */}
-      {creating && (
-        <div
-          className="fixed inset-0 z-[115] flex items-center justify-center bg-black/75 p-4"
-          role="dialog"
-          aria-modal="true"
-        >
-          <form
-            onSubmit={handleCreate}
-            className="w-full max-w-lg rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-overlay)] p-6 space-y-3 text-xs shadow-2xl"
-          >
-            <div className="flex items-center justify-between border-b border-[color:var(--wm-hairline)] pb-3">
-              <h2 className="text-base font-semibold text-[color:var(--wm-ink)] inline-flex items-center gap-2">
-                <UserPlus className="h-4 w-4 text-[color:var(--wm-accent)]" aria-hidden="true" />
-                <span>Create Conference Department</span>
-              </h2>
-              <button
-                type="button"
-                onClick={() => setCreating(false)}
-                aria-label="Close create dialog"
-                className="inline-flex h-8 w-8 items-center justify-center rounded text-[color:var(--wm-ink-muted)] hover:text-[color:var(--wm-ink)] cursor-pointer"
-              >
-                <X className="h-4 w-4" aria-hidden="true" />
-              </button>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-[color:var(--wm-ink-secondary)]">Department Name</label>
-                <input
-                  required
-                  type="text"
-                  value={newDept.name}
-                  onChange={(e) => setNewDept({ ...newDept, name: e.target.value })}
-                  className="mt-1 h-9 w-full rounded border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-canvas)] px-3 text-[color:var(--wm-ink)]"
-                />
-              </div>
-              <div>
-                <label className="text-[color:var(--wm-ink-secondary)]">Slug ID</label>
-                <input
-                  required
-                  type="text"
-                  value={newDept.slug}
-                  onChange={(e) => setNewDept({ ...newDept, slug: e.target.value })}
-                  placeholder="e.g. hospitality"
-                  className="mt-1 h-9 w-full rounded border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-canvas)] px-3 text-[color:var(--wm-ink)]"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="text-[color:var(--wm-ink-secondary)]">Cluster</label>
-              <select
-                value={newDept.cluster}
-                onChange={(e) =>
-                  setNewDept({ ...newDept, cluster: e.target.value as Department['cluster'] })
-                }
-                className="mt-1 h-9 w-full rounded border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-canvas)] px-3 text-[color:var(--wm-ink)]"
-              >
-                <option value="Delegate Affairs & Operations">Delegate Affairs & Operations</option>
-                <option value="Communications & Creative">Communications & Creative</option>
-                <option value="Logistics & Administration">Logistics & Administration</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-[color:var(--wm-ink-secondary)]">Description</label>
-              <textarea
-                rows={2}
-                value={newDept.description}
-                onChange={(e) => setNewDept({ ...newDept, description: e.target.value })}
-                className="mt-1 w-full rounded border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-canvas)] p-2.5 text-[color:var(--wm-ink)]"
-              />
-            </div>
-            <div className="flex justify-end gap-2 pt-3 border-t border-[color:var(--wm-hairline)]">
-              <button
-                type="button"
-                onClick={() => setCreating(false)}
-                className="h-9 rounded border border-[color:var(--wm-hairline-strong)] px-4 text-[color:var(--wm-ink)] cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="h-9 rounded bg-[color:var(--wm-focal)] px-4 font-semibold text-[#12170c] cursor-pointer"
-              >
-                Create Department
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+
     </div>
   );
 }
