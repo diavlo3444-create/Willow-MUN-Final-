@@ -1,11 +1,14 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { ArrowLeft, Lock, UserPlus } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAdminStore } from '../../context/AdminStoreContext';
 
 export function ExecutiveBoardSignupView({ onNavigate }: { onNavigate: (path: string) => void }) {
   const { signInWithCredentials } = useAdminStore();
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    return new URLSearchParams(window.location.search).get('email')?.trim().toLowerCase() || '';
+  });
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
