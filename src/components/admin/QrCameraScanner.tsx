@@ -10,6 +10,48 @@ import {
   VideoOff,
 } from 'lucide-react';
 
+
+function getCameraPermissionHelp(): string[] {
+  if (typeof navigator === 'undefined') return [];
+  const ua = navigator.userAgent;
+  if (/iPhone|iPad|iPod/i.test(ua)) {
+    return [
+      'Open the Settings app on your iPhone or iPad.',
+      'Find Safari → Camera and choose Ask or Allow. If you use another browser, change its Camera permission instead.',
+      'Return to this page, reload it, and tap Retry Camera.',
+    ];
+  }
+  if (/Android/i.test(ua)) {
+    return [
+      'Open Chrome and return to this website.',
+      'Tap the site controls icon beside the address → Permissions → Camera → Allow.',
+      'If needed, open Chrome Settings → Site settings → Camera and remove Willow MUN from the blocked list.',
+      'Return here and tap Retry Camera.',
+    ];
+  }
+  if (/Safari/i.test(ua) && !/Chrome|Chromium|Edg/i.test(ua)) {
+    return [
+      'In Safari, open Safari → Settings → Websites → Camera.',
+      'Find this Willow MUN website and change its permission to Allow.',
+      'Return to the scanner and tap Retry Camera.',
+    ];
+  }
+  if (/Firefox/i.test(ua)) {
+    return [
+      'Click the permissions or lock icon beside the website address.',
+      'Open the camera permission and change it to Allow.',
+      'If the permission is not shown, open Firefox Settings → Privacy & Security → Permissions → Camera.',
+      'Return here and tap Retry Camera.',
+    ];
+  }
+  return [
+    'Click the site controls icon beside the website address.',
+    'Open Site settings → Camera and change the setting to Allow.',
+    'You can also open browser Settings → Privacy and security → Site settings → Camera, then remove this site from the blocked list.',
+    'Return here and tap Retry Camera.',
+  ];
+}
+
 export type CameraScannerState =
   | 'idle'
   | 'requesting'
@@ -35,6 +77,8 @@ export function QrCameraScanner({
 }: QrCameraScannerProps) {
   const [cameraState, setCameraState] = useState<CameraScannerState>('idle');
   const [statusError, setStatusError] = useState<string>('');
+  const [permissionHelp, setPermissionHelp] = useState<string[]>([]);
+  const [permissionState, setPermissionState] = useState<PermissionState | 'unknown'>('unknown');
   const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
@@ -94,6 +138,25 @@ export function QrCameraScanner({
         return;
       }
 
+      // Check the browser's permission state when supported. This does not request access;
+      // getUserMedia below remains the actual user-initiated permission request.
+      try {
+        const permission = await navigator.permissions?.query({ name: 'camera' as PermissionName });
+        if (permission) {
+          setPermissionState(permission.state);
+          if (permission.state === 'denied') {
+            setPermissionHelp(getCameraPermissionHelp());
+            setCameraState('permission_denied');
+            setStatusError(
+              'Camera access is blocked for this website. Change the browser site permission to Allow, then return and retry. The browser will not show another permission popup while this site remains blocked.',
+            );
+            return;
+          }
+        }
+      } catch {
+        // Some browsers do not expose camera permission status. Continue with getUserMedia.
+      }
+
       setCameraState('requesting');
       const targetDevice = overrideDeviceId !== undefined ? overrideDeviceId : selectedDeviceId;
       const targetFacing = overrideFacing ?? facingMode;
@@ -141,8 +204,10 @@ export function QrCameraScanner({
           msg.includes('denied')
         ) {
           setCameraState('permission_denied');
+          setPermissionHelp(getCameraPermissionHelp());
+          setPermissionState('denied');
           setStatusError(
-            'Camera permission was blocked. Allow camera access in your browser site settings, then click Retry Camera.',
+            'Camera access was blocked by the browser. Change this website’s camera permission to Allow, then return and retry. A website cannot override a blocked browser permission.',
           );
         } else if (
           name === 'NotFoundError' ||
@@ -417,12 +482,25 @@ export function QrCameraScanner({
                 <p className="mt-1.5 max-w-sm text-[11px] leading-relaxed text-[color:var(--wm-ink-secondary)]">
                   {statusError}
                 </p>
+                <div className="mt-4 w-full max-w-sm rounded-lg border border-amber-400/20 bg-amber-500/[0.06] p-3 text-left">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-100">
+                    Allow camera access in your browser
+                  </p>
+                  <ol className="mt-2 list-decimal space-y-1.5 pl-4 text-[11px] leading-relaxed text-[color:var(--wm-ink-secondary)]">
+                    {(permissionHelp.length ? permissionHelp : getCameraPermissionHelp()).map((step) => (
+                      <li key={step}>{step}</li>
+                    ))}
+                  </ol>
+                  <p className="mt-2 text-[10px] text-[color:var(--wm-ink-muted)]">
+                    Permission status: {permissionState === 'unknown' ? 'not available in this browser' : permissionState}
+                  </p>
+                </div>
                 <button
                   type="button"
                   onClick={() => void startCamera()}
-                  className="mt-4 inline-flex h-8 items-center gap-1.5 rounded-md border border-amber-400/40 bg-amber-500/15 px-3 text-[11px] font-medium text-amber-100 hover:bg-amber-500/25"
+                  className="mt-3 inline-flex h-9 items-center gap-1.5 rounded-md border border-amber-400/40 bg-amber-500/15 px-3.5 text-[11px] font-medium text-amber-100 hover:bg-amber-500/25"
                 >
-                  <RefreshCw className="h-3 w-3" aria-hidden="true" /> Retry Camera Permission
+                  <RefreshCw className="h-3 w-3" aria-hidden="true" /> Check Permission & Retry
                 </button>
               </>
             ) : cameraState === 'no_camera' || cameraState === 'error' ? (
