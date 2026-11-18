@@ -50,7 +50,24 @@ export function scopeApplicationsForActor(
 
   if (actor.role === 'department_head') {
     if (!actor.departmentId) return [];
-    return applications.filter((app) => canAccessDepartment(actor, app.departmentId));
+    const actorLabel = `${actor.title || ''} ${actor.division || ''}`.toLowerCase();
+    const actorGender = /female|women|woman|girl/.test(actorLabel)
+      ? 'female'
+      : /male|men|man|boy/.test(actorLabel)
+        ? 'male'
+        : null;
+    return applications.filter((app) => {
+      if (!canAccessDepartment(actor, app.departmentId)) return false;
+      if (!actorGender) return true;
+      const genderAnswer = app.answers.find((answer) => /gender|sex/i.test(`${answer.label} ${answer.section}`))?.answer?.trim().toLowerCase() ?? '';
+      const applicantGender = /female|woman|girl/.test(genderAnswer)
+        ? 'female'
+        : /male|man|boy/.test(genderAnswer)
+          ? 'male'
+          : null;
+      // If an applicant's gender is recorded, show it only to the matching head.
+      return !applicantGender || applicantGender === actorGender;
+    });
   }
 
   return applications;
