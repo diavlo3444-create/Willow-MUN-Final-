@@ -181,6 +181,12 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
   const [testModeHeadUserId, setTestModeHeadUserId] = useState<string | null>(() => {
     if (typeof window === 'undefined') return null;
     try {
+      const params = new URLSearchParams(window.location.search);
+      const queryHeadId = params.get('testHead');
+      if (queryHeadId) {
+        window.sessionStorage.setItem(TEST_HEAD_STORAGE_KEY, queryHeadId);
+        return queryHeadId;
+      }
       return window.sessionStorage.getItem(TEST_HEAD_STORAGE_KEY);
     } catch {
       return null;
@@ -216,9 +222,16 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
     // even when their auth profile is not part of the local mock snapshot.
     let profile: { id?: string; fullName?: string; email?: string; title?: string; departmentId?: string | null } | null = null;
     try {
-      profile = typeof window !== 'undefined'
-        ? JSON.parse(window.sessionStorage.getItem(TEST_HEAD_PROFILE_STORAGE_KEY) || 'null')
-        : null;
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search);
+        const queryProfile = params.get('testProfile');
+        profile = queryProfile
+          ? JSON.parse(queryProfile)
+          : JSON.parse(window.sessionStorage.getItem(TEST_HEAD_PROFILE_STORAGE_KEY) || 'null');
+        if (queryProfile) window.sessionStorage.setItem(TEST_HEAD_PROFILE_STORAGE_KEY, queryProfile);
+      } else {
+        profile = null;
+      }
     } catch {
       profile = null;
     }
@@ -233,9 +246,10 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
       security: 'security', it: 'it', hr: 'hr', 'delegate-affairs': 'dcc', volunteers: 'volunteers',
     };
     const departmentKey = member ? departmentByGroup[member.group] : null;
-    const departmentId = profile?.departmentId || (departmentKey
-      ? data.departments.find((item) => item.id === departmentKey || item.slug === departmentKey)?.id
-      : null);
+    const requestedDepartment = profile?.departmentId || departmentKey;
+    const departmentId = requestedDepartment
+      ? data.departments.find((item) => item.id === requestedDepartment || item.slug === requestedDepartment)?.id ?? null
+      : null;
     const template = data.users.find((user) => user.role === 'department_head') ?? data.users[0];
     if (!template || !departmentId) return null;
     if (member && (!member.role || !/\bhead\b/i.test(member.role))) return null;
