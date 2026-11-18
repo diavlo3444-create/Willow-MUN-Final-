@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, Copy, ExternalLink, Link2, ShieldCheck, Users } from 'lucide-react';
+import { Copy, ExternalLink, Link2, ShieldCheck, Users } from 'lucide-react';
 
 const SHARED_EB_SIGNUP_PATH = '/eb-signup';
 
