@@ -95,6 +95,35 @@ export function ExecutiveBoardAccountsView() {
     }
   };
 
+  const openTestPortal = (account: Account) => {
+    if (!account.department_id) {
+      pushToast({ tone: 'error', title: 'Department required', description: 'Assign a department before testing this EB portal.' });
+      return;
+    }
+    const tab = window.open('about:blank', '_blank');
+    if (!tab) {
+      window.alert('The test tab was blocked. Allow pop-ups for willow-mun.vercel.app and try again.');
+      return;
+    }
+    try {
+      tab.sessionStorage.removeItem('willow_mun_test_head_uid_v3');
+      tab.sessionStorage.removeItem('willow_mun_test_head_profile_v1');
+      tab.sessionStorage.setItem('willow_mun_test_eb_profile_v1', JSON.stringify({
+        fullName: account.full_name,
+        email: account.email,
+        title: account.title,
+        departmentId: account.department_id,
+        ebRank: account.eb_rank || 'member',
+        ebPermissions: account.eb_permissions || {},
+        avatarUrl: account.avatar_url || null,
+      }));
+      tab.location.replace('/eb');
+    } catch {
+      tab.close();
+      window.alert('Could not start the EB preview. Please allow same-site storage and try again.');
+    }
+  };
+
   const permissionLabels: [keyof EbPermissions,string][] = [
     ['manage_department','Department-wide control'],
     ['manage_tasks','Assign and manage team tasks'],
@@ -121,7 +150,7 @@ export function ExecutiveBoardAccountsView() {
     <section className="wm-surface-panel overflow-hidden">
       <div className="flex items-center justify-between border-b border-[color:var(--wm-hairline)] px-5 py-4"><div><h2 className="text-sm font-semibold">Executive Board Directory</h2><p className="mt-1 text-xs text-[color:var(--wm-ink-muted)]">{accounts.length} EB members · {claimedCount} claimed · {pendingCount} awaiting signup</p></div><button onClick={()=>void load()} className="text-xs underline">Refresh</button></div>
       {error && <p role="alert" className="p-4 text-xs text-rose-200">{error}</p>}
-      {loading ? <p className="p-8 text-center text-sm text-[color:var(--wm-ink-muted)]">Loading accounts…</p> : !accounts.length ? <p className="p-8 text-center text-sm text-[color:var(--wm-ink-muted)]">No Executive Board accounts have been created yet.</p> : <div className="divide-y divide-[color:var(--wm-hairline)]">{accounts.map(account=><article key={account.user_id} className="flex flex-wrap items-center justify-between gap-3 p-4"><div className="flex min-w-0 items-center gap-3"><div className="h-11 w-11 shrink-0 overflow-hidden rounded-full border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-inset)]">{account.avatar_url ? <img src={account.avatar_url} alt={account.full_name} className="h-full w-full object-cover"/> : <span className="grid h-full w-full place-items-center text-xs font-semibold text-[color:var(--wm-ink-muted)]">{account.full_name.split(/\s+/).map(part=>part[0]).slice(0,2).join('').toUpperCase()}</span>}</div><div className="min-w-0"><p className="text-sm font-semibold">{account.full_name}</p><p className="text-xs text-[color:var(--wm-ink-secondary)]">{account.email} · {departments.find(d=>d.id===account.department_id)?.name || 'Department not assigned'}</p><p className="mt-1 text-[11px] text-[color:var(--wm-ink-muted)]">{account.title} · {account.eb_rank} · {account.signup_status === 'awaiting_signup' ? 'Signup not completed' : account.is_active ? 'Active account' : 'Suspended'}{account.phone_number ? ` · ${account.phone_number}` : ''}</p></div></div><div className="flex flex-wrap items-center gap-2">{account.signup_status === 'awaiting_signup' ? <><span className="rounded border border-amber-400/25 bg-amber-400/[0.06] px-3 py-2 text-[11px] text-amber-200">Awaiting signup</span><button onClick={()=>void copySetupLink(account)} className="rounded border border-[color:var(--wm-hairline-strong)] px-3 py-2 text-xs">Copy setup link</button></> : <><button onClick={()=>edit(account)} className="rounded border border-[color:var(--wm-hairline-strong)] px-3 py-2 text-xs">Edit access</button><button onClick={()=>void toggleActive(account)} className="rounded border border-[color:var(--wm-hairline-strong)] px-3 py-2 text-xs">{account.is_active?'Suspend':'Reactivate'}</button><button onClick={()=>void remove(account)} className="rounded border border-rose-400/30 px-3 py-2 text-xs text-rose-200">Delete</button></>}</div></article>)}</div>}
+      {loading ? <p className="p-8 text-center text-sm text-[color:var(--wm-ink-muted)]">Loading accounts…</p> : !accounts.length ? <p className="p-8 text-center text-sm text-[color:var(--wm-ink-muted)]">No Executive Board accounts have been created yet.</p> : <div className="divide-y divide-[color:var(--wm-hairline)]">{accounts.map(account=><article key={account.user_id} className="flex flex-wrap items-center justify-between gap-3 p-4"><div className="flex min-w-0 items-center gap-3"><div className="h-11 w-11 shrink-0 overflow-hidden rounded-full border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-inset)]">{account.avatar_url ? <img src={account.avatar_url} alt={account.full_name} className="h-full w-full object-cover"/> : <span className="grid h-full w-full place-items-center text-xs font-semibold text-[color:var(--wm-ink-muted)]">{account.full_name.split(/\s+/).map(part=>part[0]).slice(0,2).join('').toUpperCase()}</span>}</div><div className="min-w-0"><p className="text-sm font-semibold">{account.full_name}</p><p className="text-xs text-[color:var(--wm-ink-secondary)]">{account.email} · {departments.find(d=>d.id===account.department_id)?.name || 'Department not assigned'}</p><p className="mt-1 text-[11px] text-[color:var(--wm-ink-muted)]">{account.title} · {account.eb_rank} · {account.signup_status === 'awaiting_signup' ? 'Signup not completed' : account.is_active ? 'Active account' : 'Suspended'}{account.phone_number ? ` · ${account.phone_number}` : ''}</p></div></div><div className="flex flex-wrap items-center gap-2">{account.signup_status === 'awaiting_signup' ? <><span className="rounded border border-amber-400/25 bg-amber-400/[0.06] px-3 py-2 text-[11px] text-amber-200">Awaiting signup</span><button onClick={()=>void copySetupLink(account)} className="rounded border border-[color:var(--wm-hairline-strong)] px-3 py-2 text-xs">Copy setup link</button></> : <><button onClick={()=>edit(account)} className="rounded border border-[color:var(--wm-hairline-strong)] px-3 py-2 text-xs">Edit access</button><button onClick={()=>void toggleActive(account)} className="rounded border border-[color:var(--wm-hairline-strong)] px-3 py-2 text-xs">{account.is_active?'Suspend':'Reactivate'}</button><button onClick={()=>void remove(account)} className="rounded border border-rose-400/30 px-3 py-2 text-xs text-rose-200">Delete</button></>}<button onClick={()=>openTestPortal(account)} disabled={!account.department_id} className="rounded border border-[color:var(--wm-accent)]/40 px-3 py-2 text-xs text-[color:var(--wm-accent)] disabled:opacity-40">Test portal</button></div></article>)}</div>}
     </section>
   </div>;
 }
