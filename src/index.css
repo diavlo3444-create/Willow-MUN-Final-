@@ -562,6 +562,32 @@ body.intro-on .willow-intro-video {
   z-index: 50;
 }
 
+/* Mobile intro must cover the complete visible phone viewport, not just the video’s
+   intrinsic content area. Use dynamic viewport units for browser chrome changes. */
+@media (max-width: 767px) {
+  body.intro-on .willow-intro-backdrop,
+  body.intro-on .willow-intro-video,
+  body.intro-on .willow-intro-controls {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100vw !important;
+    max-width: none !important;
+    height: 100vh !important;
+    height: 100svh !important;
+    height: 100dvh !important;
+  }
+
+  body.intro-on .willow-intro-video {
+    min-height: 100vh;
+    min-height: 100svh;
+    min-height: 100dvh;
+    max-height: none;
+    object-fit: cover !important;
+    object-position: 50% 50% !important;
+  }
+}
+
+
 
 /* Final intro handoff: dissolve the intro tree over the real background tree. */
 body.intro-transitioning .willow-intro-backdrop {
