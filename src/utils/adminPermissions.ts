@@ -685,6 +685,7 @@ export function getNavigationGroups(
             label: 'Access & Systems',
             items: [
               { id: 'admins', label: 'Admin Accounts', path: base + '/admins', requiredPermission: 'accounts.view', superAdminOnly: true },
+              { id: 'eb-signup-link', label: 'EB Sign Up Link', path: base + '/eb-signup-link', superAdminOnly: true },
               { id: 'testing', label: 'Department Testing', path: base + '/testing', requiredPermission: 'testing.impersonate_head', superAdminOnly: true },
             ],
           } satisfies NavGroupConfig,
