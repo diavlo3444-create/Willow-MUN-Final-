@@ -874,18 +874,30 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
     (departmentId: string, patch: Partial<Department>) => {
       if (!currentUser) return false;
       const actingActor = testModeHeadUser ?? currentUser;
-      const result = conferenceDataService.updateDepartment(actingActor, departmentId, patch);
-      const handled = handleResult(result, 'Department updated');
-
-      // Registration toggles must update the shared Supabase record, not only this browser's local snapshot.
-      if (
-        handled &&
+      const registrationOnly =
         Object.keys(patch).length === 1 &&
-        typeof patch.registrationOpen === 'boolean'
-      ) {
+        typeof patch.registrationOpen === 'boolean';
+
+      if (registrationOnly) {
+        if (!hasPermission(actingActor, 'departments.toggle_registration', data.departments)) {
+          pushToast({ tone: 'error', title: 'Action blocked', description: 'You do not have permission to change registration.' });
+          return false;
+        }
+        const target = data.departments.find((department) => department.id === departmentId);
+        if (!target) {
+          pushToast({ tone: 'error', title: 'Department not found', description: 'Refresh the page and try again.' });
+          return false;
+        }
+        const nextOpen = patch.registrationOpen as boolean;
+        setData((previous) => ({
+          ...previous,
+          departments: previous.departments.map((department) =>
+            department.id === departmentId ? { ...department, registrationOpen: nextOpen } : department,
+          ),
+        }));
         void supabase
           .from('wm_departments')
-          .update({ registration_open: patch.registrationOpen })
+          .update({ registration_open: nextOpen, updated_at: new Date().toISOString() })
           .eq('id', departmentId)
           .select('id')
           .maybeSingle()
@@ -894,27 +906,29 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
               pushToast({
                 tone: 'error',
                 title: 'Registration change was not saved',
-                description: error?.message || 'The server did not confirm the registration update.',
+                description: error?.message || 'The database did not confirm this department update.',
               });
-              void loadLiveDepartments().then((departments) => {
-                setData((previous) => ({ ...previous, departments }));
-              });
+              void loadLiveDepartments().then((departments) => setData((previous) => ({ ...previous, departments })));
               return;
             }
             void loadLiveDepartments().then((departments) => {
               setData((previous) => ({ ...previous, departments }));
-            }).catch((error) => {
+              pushToast({ tone: 'success', title: nextOpen ? 'Registration opened' : 'Registration closed', description: target.name });
+            }).catch((refreshError) => {
               pushToast({
-                tone: 'error',
-                title: 'Could not refresh registration status',
-                description: error instanceof Error ? error.message : 'Refresh failed.',
+                tone: 'warning',
+                title: 'Registration saved',
+                description: refreshError instanceof Error ? refreshError.message : 'Could not refresh the department list.',
               });
             });
           });
+        return true;
       }
-      return handled;
+
+      const result = conferenceDataService.updateDepartment(actingActor, departmentId, patch);
+      return handleResult(result, 'Department updated');
     },
-    [currentUser, testModeHeadUser, handleResult, pushToast, loadLiveDepartments],
+    [currentUser, testModeHeadUser, data.departments, handleResult, pushToast, loadLiveDepartments],
   );
 
   const assignDepartmentHead = useCallback(
