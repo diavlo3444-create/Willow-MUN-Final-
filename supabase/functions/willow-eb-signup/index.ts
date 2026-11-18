@@ -72,14 +72,10 @@ Deno.serve(async (req: Request) => {
         .eq("user_id", userId)
         .maybeSingle();
       if (profileLookupError) throw profileLookupError;
-      if (existingProfile && existingProfile.role !== "executive_board") {
-        throw new Error("This email is already connected to a different Willow portal role. Contact the Super Admin.");
-      }
       if (existingProfile?.role === "executive_board") {
-        throw new Error("An EB account is already connected to this email. Use EB login or ask the Super Admin to reset your setup link.");
+        throw new Error("An EB account is already connected to this email. Use EB login or ask the Super Admin to reset the setup link.");
       }
-      const { error: passwordError } = await admin.auth.admin.updateUserById(userId, { password, email_confirm: true });
-      if (passwordError) throw passwordError;
+      throw new Error("A Willow login already exists for this email. Contact the Super Admin so the existing account can be checked safely; this setup link will not change another account's password.");
     } else {
       const { data: created, error: createError } = await admin.auth.admin.createUser({
         email,
