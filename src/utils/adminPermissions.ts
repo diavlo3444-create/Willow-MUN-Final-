@@ -863,9 +863,6 @@ export function getNavigationGroups(
         ...(isHrActor(user, departments)
           ? [{ id: 'hr-accepted', label: 'Accepted Applicants', path: base + '/hr-accepted' } satisfies NavItemConfig]
           : []),
-        { id: 'executive-board', label: 'Executive Board', path: base + '/executive-board', requiredPermission: 'executive_board.manage' },
-        { id: 'heads', label: 'Heads', path: base + '/heads', requiredPermission: 'accounts.view' },
-        { id: 'departments', label: 'Departments', path: base + '/departments', requiredPermission: 'departments.view_all' },
         { id: 'reports', label: 'Reports', path: base + '/reports', requiredPermission: 'reports.view' },
         { id: 'attendance', label: 'Checked-In People', path: base + '/attendance', requiredPermission: 'qr.manage' },
         { id: 'qr', label: 'Security & QR', path: base + '/qr', requiredPermission: 'qr.view_pass' },
@@ -889,7 +886,6 @@ export function getNavigationGroups(
       id: 'communications',
       label: 'Communications',
       items: [
-        { id: 'messages', label: 'Inquiries', path: base + '/messages', requiredPermission: 'inquiries.manage' },
         { id: 'settings', label: 'Settings', path: base + '/settings', requiredPermission: 'system.settings' },
       ],
     },
@@ -897,9 +893,7 @@ export function getNavigationGroups(
       id: 'website-content',
       label: 'Website CMS & Content',
       items: [
-        { id: 'website-editor', label: 'Live Visual Editor', path: base + '/website-editor', requiredPermission: 'website.view' },
         { id: 'committees', label: 'Committees', path: base + '/committees', requiredPermission: 'committees.manage' },
-        { id: 'secretariat', label: 'Secretariat', path: base + '/secretariat', requiredPermission: 'secretariat.view' },
         { id: 'sponsors', label: 'Sponsors', path: base + '/sponsors', requiredPermission: 'sponsors.manage' },
         { id: 'schedule', label: 'Schedule', path: base + '/schedule', requiredPermission: 'schedule.manage' },
         { id: 'announcements', label: 'Announcements', path: base + '/announcements', requiredPermission: 'website.edit' },
