@@ -712,23 +712,13 @@ Deno.serve(async (req: Request) => {
   if (action === "reset_all_attendance") {
     if (!isSuperAdmin) return json({ error: "Only the Super Admin can reset all attendance records." }, 403);
     const actorName = actor.full_name || authData.user.email || "Super Admin";
-    const { data: attendanceRows, error: scanReadError } = await admin.from("wm_qr_scans").select("id,result").in("result", ["valid_checkin", "valid_checkout"]);
-    if (scanReadError) return json({ error: scanReadError.message }, 400);
-    const checkinsCleared = (attendanceRows || []).filter((row: any) => row.result === "valid_checkin").length;
-    const checkoutsCleared = (attendanceRows || []).filter((row: any) => row.result === "valid_checkout").length;
-    const { data: resetPasses, error: resetError } = await admin.from("wm_qr_passes").update({
-      checked_in_at: null, checked_in_gate: null, checked_in_by: null, checked_in_by_name: null,
-      checked_out_at: null, checked_out_gate: null, checked_out_by: null, checked_out_by_name: null,
-    }).not("id", "is", null).select("id");
-    if (resetError) return json({ error: resetError.message }, 400);
-    const { error: clearError } = await admin.from("wm_qr_scans").delete().in("result", ["valid_checkin", "valid_checkout"]);
-    if (clearError) return json({ error: clearError.message }, 400);
-    const { error: auditError } = await admin.from("wm_qr_attendance_resets").insert({
-      reset_by: authData.user.id, reset_by_name: actorName, reset_by_role: actor.role,
-      passes_reset: (resetPasses || []).length, checkins_cleared: checkinsCleared, checkouts_cleared: checkoutsCleared,
+    const { data: resetResult, error: resetError } = await admin.rpc("wm_reset_all_qr_attendance", {
+      p_reset_by: authData.user.id,
+      p_reset_by_name: actorName,
+      p_reset_by_role: actor.role,
     });
-    if (auditError) return json({ error: "Attendance reset, but audit write failed: " + auditError.message }, 500);
-    return json({ success: true, passes_reset: (resetPasses || []).length, checkins_cleared: checkinsCleared, checkouts_cleared: checkoutsCleared });
+    if (resetError) return json({ error: resetError.message || "Attendance reset failed." }, 400);
+    return json(resetResult || { success: true });
   }
 
   // Strictly block Security, Department Heads, and non-Admin roles from administrative registry & corrections
