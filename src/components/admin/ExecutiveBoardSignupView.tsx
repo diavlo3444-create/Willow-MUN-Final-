@@ -5,6 +5,10 @@ import { useAdminStore } from '../../context/AdminStoreContext';
 
 export function ExecutiveBoardSignupView({ onNavigate }: { onNavigate: (path: string) => void }) {
   const { signInWithCredentials } = useAdminStore();
+  const [inviteToken] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    return new URLSearchParams(window.location.search).get('token') || '';
+  });
   const [email, setEmail] = useState(() => {
     if (typeof window === 'undefined') return '';
     return new URLSearchParams(window.location.search).get('email')?.trim().toLowerCase() || '';
@@ -18,11 +22,12 @@ export function ExecutiveBoardSignupView({ onNavigate }: { onNavigate: (path: st
     event.preventDefault();
     setError('');
     const normalizedEmail = email.trim().toLowerCase();
+    if (!inviteToken) { setError('Open the personal setup link sent by the Super Admin.'); return; }
     if (password.length < 10) { setError('Use a password with at least 10 characters.'); return; }
     if (password !== confirmPassword) { setError('The passwords do not match.'); return; }
     setBusy(true);
     const { data: signupData, error: signupError } = await supabase.functions.invoke('willow-eb-signup', {
-      body: { email: normalizedEmail, password },
+      body: { email: normalizedEmail, password, token: inviteToken },
     });
     if (signupError) {
       setBusy(false);
