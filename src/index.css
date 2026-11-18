@@ -973,7 +973,8 @@ section.mun-scroll-section.is-visible::before {
 }
 section.mun-scroll-section:nth-of-type(even)::before,
 section.mun-scroll-section:nth-of-type(odd)::before {
-  background: #393f24;
+  /* Let the fixed homepage video remain visible through each editorial section. */
+  background: rgba(57, 63, 36, 0.56);
   border-top: 1px solid rgba(237,230,202,.10);
   border-bottom: 1px solid rgba(237,230,202,.08);
 }
@@ -1081,7 +1082,8 @@ section.mun-scroll-section:nth-of-type(odd)::before {
   section.mun-scroll-section::before,
   section.mun-scroll-section:nth-of-type(even)::before,
   section.mun-scroll-section:nth-of-type(odd)::before {
-    background: #393f24;
+    /* Keep the background video visible on mobile as well. */
+    background: rgba(57, 63, 36, 0.56);
     border-top-color: rgba(237, 230, 202, 0.10);
     border-bottom-color: rgba(237, 230, 202, 0.08);
   }
