@@ -121,10 +121,8 @@ export function SecurityScannerPortal({
           description: `${v.holder_name || 'Attendee'} ${attendanceAction === 'checkout' ? 'checked out' : 'checked in'} at ${gateLocation}.`,
         });
       } else if (v.status === 'checkout_warning' || v.status === 'not_checked_in') {
-        pushToast({ tone: 'warning', title: 'Check-Out Needs Attention', description: v.message });
-      } else if (v.status === 'checkout_warning') {
-      pushToast({ tone: 'warning', title: 'Repeat Check-Out Warning', description: v.message });
-    } else if (v.status === 'already_checked_in' || v.status === 'not_checked_in') {
+        pushToast({ tone: 'warning', title: v.status === 'checkout_warning' ? 'Repeat Check-Out Warning' : 'Not Checked In', description: v.message });
+      } else if (v.status === 'already_checked_in') {
         pushToast({
           tone: 'warning',
           title: 'Already Checked In',
@@ -169,12 +167,8 @@ export function SecurityScannerPortal({
         title: attendanceAction === 'checkout' ? 'Check-Out Recorded' : 'Check-In Recorded',
         description: `${v.holder_name || 'Attendee'} · ${gateLocation}`,
       });
-    } else if (v.status === 'already_checked_in') {
-      pushToast({
-        tone: 'warning',
-        title: 'Already Checked In',
-        description: v.message,
-      });
+    } else if (v.status === 'already_checked_in' || v.status === 'not_checked_in') {
+      pushToast({ tone: 'warning', title: 'Attendance Status Warning', description: v.message });
     } else {
       pushToast({
         tone: 'error',
