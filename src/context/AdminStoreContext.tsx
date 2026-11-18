@@ -473,7 +473,7 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
       const target = data.users.find((u) => u.id === headUserId && u.role === 'department_head');
       const rosterId = headUserId.startsWith('roster:') ? headUserId.slice('roster:'.length) : '';
       const member = rosterId ? membersJson.members.find((entry) => entry.id === rosterId) : null;
-      if (!target && (!member || !member.role || !/\\bhead\\b/i.test(member.role))) {
+      if (!target && (!member || !member.role || !/\bhead\b/i.test(member.role))) {
         pushToast({ tone: 'error', title: 'Department Head preview could not be found' });
         return false;
       }
@@ -1163,6 +1163,7 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
     currentUser,
     authReady,
     testModeHeadUser,
+    testModeExecutiveBoardUser,
     toasts,
     notifications,
     pushToast,
