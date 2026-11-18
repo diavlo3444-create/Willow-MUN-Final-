@@ -213,7 +213,7 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
 
   // A test tab presents the selected head as the active actor throughout the UI.
   // The underlying Supabase session remains the authenticated Super Admin session.
-  const testModeHeadUser = useMemo(() => {
+  const testModeHeadUser = useMemo<AdminUser | null>(() => {
     if (!authenticatedUser || authenticatedUser.role !== 'super_admin' || !testModeHeadUserId) return null;
     const provisioned = data.users.find((u) => u.id === testModeHeadUserId && u.role === 'department_head' && u.isActive && u.status === 'active');
     if (provisioned) return provisioned;
@@ -277,7 +277,7 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
     };
   }, [authenticatedUser, data.departments, data.users, testModeHeadUserId]);
 
-  const testModeExecutiveBoardUser = useMemo(() => {
+  const testModeExecutiveBoardUser = useMemo<AdminUser | null>(() => {
     if (!authenticatedUser || authenticatedUser.role !== 'super_admin' || !testModeEbProfile) return null;
     const template = data.users.find((user) => user.role === 'executive_board') ?? data.users[0];
     if (!template || !testModeEbProfile.departmentId) return null;

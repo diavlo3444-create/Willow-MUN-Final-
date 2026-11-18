@@ -348,25 +348,11 @@ export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePorta
         hasPermission(currentUser, 'applications.view') ? (
           <ApplicationsView
             key={`${section}-${appFilterDept}-${appFilterStatus}`}
-            viewMode={
-              section === 'delegates'
-                ? 'delegate'
-                : section === 'staff-apps'
-                  ? 'staff_group'
-                  : section === 'recommendations'
-                    ? 'recommendations'
-                    : 'all'
-            }
-            initialDepartmentFilter={section === 'applications' ? appFilterDept : 'all'}
-            initialStatusFilter={
-              section === 'recommendations'
-                ? 'pending'
-                : section === 'applications'
-                  ? appFilterStatus
-                  : 'all'
-            }
+            viewMode={section === 'delegates' ? 'delegate' : 'recommendations'}
+            initialDepartmentFilter="all"
+            initialStatusFilter={section === 'recommendations' ? 'pending' : 'all'}
             externalSearch={globalSearch}
-            selectedApplicationIdFromRoute={section === 'applications' ? paramId : null}
+            selectedApplicationIdFromRoute={null}
             onSelectApplicationId={(appId) =>
               onNavigate(appId ? `${basePath}/applications/${appId}` : `${basePath}/${section}`)
             }

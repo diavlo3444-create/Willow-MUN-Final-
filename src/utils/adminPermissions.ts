@@ -582,14 +582,18 @@ export function getNavigationGroups(
         { id: 'qr', label: 'Security Website', path: base + '/qr', requiredPermission: 'qr.view_pass' },
       ],
     },
-    ...(isSuper ? [{
-      id: 'access-systems',
-      label: 'Access & Systems',
-      items: [
-        { id: 'admins', label: 'Admin Accounts', path: base + '/admins', requiredPermission: 'accounts.view', superAdminOnly: true },
-        { id: 'testing', label: 'IT Super Admin', path: base + '/testing', requiredPermission: 'testing.impersonate_head', superAdminOnly: true },
-      ],
-    }] : []),
+    ...(isSuper
+      ? [
+          {
+            id: 'access-systems',
+            label: 'Access & Systems',
+            items: [
+              { id: 'admins', label: 'Admin Accounts', path: base + '/admins', requiredPermission: 'accounts.view', superAdminOnly: true },
+              { id: 'testing', label: 'IT Super Admin', path: base + '/testing', requiredPermission: 'testing.impersonate_head', superAdminOnly: true },
+            ],
+          } satisfies NavGroupConfig,
+        ]
+      : []),
     {
       id: 'communications',
       label: 'Communications',
