@@ -737,6 +737,9 @@ export async function fetchPersonalQrPass(
 export type QrValidationStatus =
   | 'valid'
   | 'already_checked_in'
+  | 'checked_out'
+  | 'checkout_warning'
+  | 'not_checked_in'
   | 'invalid'
   | 'revoked'
   | 'not_eligible';
@@ -744,6 +747,10 @@ export type QrValidationStatus =
 export interface LiveQrPassExtended extends LiveQrPass {
   checked_in_by?: string | null;
   checked_in_by_name?: string | null;
+  checked_out_at?: string | null;
+  checked_out_gate?: string | null;
+  checked_out_by?: string | null;
+  checked_out_by_name?: string | null;
   revoked_at?: string | null;
   revoke_reason?: string | null;
   application_code?: string | null;
@@ -791,6 +798,9 @@ export interface LiveQrValidationResponse {
   checked_in_at: string | null;
   checked_in_gate: string | null;
   checked_in_by_name?: string | null;
+  checked_out_at?: string | null;
+  checked_out_gate?: string | null;
+  prior_checkout_count?: number;
   gate_location: string;
   scanned_at: string;
   committed: boolean;
@@ -856,6 +866,9 @@ export function normalizeValidationResponse(
     checked_in_at: raw.checked_in_at ?? null,
     checked_in_gate: raw.checked_in_gate ?? null,
     checked_in_by_name: raw.checked_in_by_name ?? null,
+    checked_out_at: raw.checked_out_at ?? null,
+    checked_out_gate: raw.checked_out_gate ?? null,
+    prior_checkout_count: Number(raw.prior_checkout_count ?? 0),
     gate_location: String(raw.gate_location || fallbackGate),
     scanned_at: String(raw.scanned_at || new Date().toISOString()),
     committed: typeof raw.committed === 'boolean' ? raw.committed : committed,
@@ -892,6 +905,37 @@ export async function commitQrPassCheckin(
     ok: true,
     validation: normalizeValidationResponse(data as Record<string, any>, gateLocation, true),
   };
+}
+
+export async function verifyQrPassAttendance(
+  token: string,
+  gateLocation: string,
+  attendanceAction: 'checkin' | 'checkout',
+): Promise<{ ok: boolean; validation?: LiveQrValidationResponse; error?: string }> {
+  const { data, error } = await supabase.functions.invoke('willow-qr', {
+    body: { action: 'verify', token: token.trim(), gate_location: gateLocation, attendance_action: attendanceAction },
+  });
+  if (error || data?.error) return { ok: false, error: data?.error || error?.message || 'Verification failed.' };
+  return { ok: true, validation: normalizeValidationResponse(data as Record<string, any>, gateLocation, false) };
+}
+
+export async function commitQrPassAttendance(
+  token: string,
+  gateLocation: string,
+  attendanceAction: 'checkin' | 'checkout',
+  confirmRepeatCheckout = false,
+): Promise<{ ok: boolean; validation?: LiveQrValidationResponse; error?: string }> {
+  const { data, error } = await supabase.functions.invoke('willow-qr', {
+    body: { action: 'checkin', token: token.trim(), gate_location: gateLocation, attendance_action: attendanceAction, confirm_repeat: confirmRepeatCheckout },
+  });
+  if (error || data?.error) return { ok: false, error: data?.error || error?.message || 'Attendance update failed.' };
+  return { ok: true, validation: normalizeValidationResponse(data as Record<string, any>, gateLocation, true) };
+}
+
+export async function resetAllQrAttendance(): Promise<{ ok: boolean; result?: { passes_reset: number; checkins_cleared: number; checkouts_cleared: number }; error?: string }> {
+  const { data, error } = await supabase.functions.invoke('willow-qr', { body: { action: 'reset_all_attendance' } });
+  if (error || data?.error) return { ok: false, error: data?.error || error?.message || 'Attendance reset failed.' };
+  return { ok: true, result: data };
 }
 
 export async function fetchMySecurityScans(): Promise<{
