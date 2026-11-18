@@ -1377,7 +1377,7 @@ export function ApplySection() {
                             className="grid grid-cols-1 sm:grid-cols-2 gap-2.5"
                           >
                             {([
-                              ['yes', 'Yes, I can attend both days & rehearsal'],
+                              ['yes', 'Yes, I can attend all 3 days (including rehearsal)'],
                               ['no', 'No, I may miss part of it'],
                             ] as const).map(([val, label]) => {
                               const selected = currentDraft.attendsAllDays === val;
