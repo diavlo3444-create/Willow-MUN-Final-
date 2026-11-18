@@ -62,6 +62,12 @@ export interface LiveApplicationRow {
   medical_details?: string | null;
   medical_restricted?: boolean | null;
   status: ApplicationStatus;
+  head_recommendation?: "none" | "recommend_accept" | "recommend_reject" | null;
+  head_notes?: string | null;
+  recommended_by?: string | null;
+  recommended_by_name?: string | null;
+  recommended_at?: string | null;
+  admin_decision_notes?: string | null;
   review_notes: string | null;
   decision_by?: string | null;
   decision_by_name?: string | null;
@@ -230,13 +236,14 @@ export function mapLiveRowToApplication(
     status: row.status,
     submittedAt: row.created_at,
     updatedAt: row.updated_at || row.decision_at || row.created_at,
-    headRecommendation: 'none',
-    headNotes: row.review_notes || '',
-    recommendedBy: null,
-    recommendedAt: null,
+    headRecommendation: row.head_recommendation || 'none',
+    headNotes: row.head_notes || '',
+    recommendedBy: row.recommended_by || null,
+    recommendedByName: row.recommended_by_name || null,
+    recommendedAt: row.recommended_at || null,
     finalDecisionBy: row.decision_by_name || null,
     finalDecisionAt: row.decision_at || null,
-    adminDecisionNotes: row.review_notes || '',
+    adminDecisionNotes: row.admin_decision_notes ?? row.review_notes ?? '',
     reviewedBy: row.decision_by_name || null,
     reviewedAt: row.decision_at || null,
     signupLinkToken: null,
@@ -425,76 +432,16 @@ export async function fetchHrAcceptedApplications(
   };
 }
 
-export async function submitHeadOrAdminDecision(
-  actor: AdminUser,
-  applicationId: string,
-  status: 'accepted' | 'rejected' | 'waitlisted' | 'pending',
-  notes?: string,
-  departments?: Department[],
+export async function submitHeadRecommendation(
+  actor: AdminUser, applicationId: string,
+  recommendation: 'recommend_accept' | 'recommend_reject',
+  notes?: string, departments?: Department[],
 ): Promise<{ ok: boolean; application?: Application; error?: string }> {
-  if (!hasPermission(actor, 'applications.review', departments)) {
-    return { ok: false, error: 'You are not permitted to make application decisions.' };
-  }
-  const isHeadOrEb = actor.role === 'department_head' || actor.role === 'executive_board';
-  if (isHeadOrEb && status !== 'accepted' && status !== 'rejected') {
-    return { ok: false, error: 'Department Heads can only accept or decline applications.' };
-  }
-
-  const body: Record<string, unknown> = {
-    action: 'update',
-    id: applicationId,
-    status,
-  };
-  if (!isHeadOrEb && notes !== undefined) {
-    body.review_notes = notes;
-  }
-
-  const { data, error } = await supabase.functions.invoke('willow-applications', { body });
-  if (!error && data && !data.error && data.application) {
-    return {
-      ok: true,
-      application: mapLiveRowToApplication(data.application as LiveApplicationRow, actor, departments),
-    };
-  }
-
-  // Direct table RLS fallback
-  try {
-    const patch: Record<string, unknown> = {
-      status,
-      decision_by: actor.id,
-      decision_by_name: actor.fullName,
-      decision_at: new Date().toISOString(),
-    };
-    if (!isHeadOrEb && notes !== undefined) {
-      patch.review_notes = notes;
-    }
-    const { data: row, error: tableErr } = await supabase
-      .from('wm_applications')
-      .update(patch)
-      .eq('id', applicationId)
-      .select()
-      .single();
-    if (!tableErr && row) {
-      return {
-        ok: true,
-        application: mapLiveRowToApplication(row as LiveApplicationRow, actor, departments),
-      };
-    }
-  } catch {
-    // Continue to local fallback if application lives in local snapshot
-  }
-
-  const localRes = conferenceDataService.updateApplicationStatus(actor, applicationId, status, notes);
-  if (localRes.ok && localRes.data) {
-    return { ok: true, application: localRes.data };
-  }
-
-  return {
-    ok: false,
-    error: data?.error || error?.message || localRes.error || 'Could not update application status.',
-  };
+  if ((actor.role !== 'department_head' && actor.role !== 'executive_board') || !hasPermission(actor, 'applications.recommend', departments)) return { ok: false, error: 'You are not permitted to submit department recommendations.' };
+  const { data, error } = await supabase.functions.invoke('willow-applications', { body: { action: 'recommend', id: applicationId, recommendation, head_notes: notes || '' } });
+  if (error || data?.error || !data?.application) return { ok: false, error: data?.error || error?.message || 'Could not save recommendation.' };
+  return { ok: true, application: mapLiveRowToApplication(data.application as LiveApplicationRow, actor, departments) };
 }
-
 // =========================================================
 // COMMITTEES (Supabase wm_committees + Local CMS Sync)
 // =========================================================
