@@ -117,6 +117,9 @@ describe('countryCodes and applicationForm helpers', () => {
     assert.equal(MEDIA_QUESTIONS.length, 4);
     assert.equal(PRESS_QUESTIONS.length, 4);
     assert.equal(VOLUNTEER_QUESTIONS.length, 4);
+    for (const questions of [MEDIA_QUESTIONS, PRESS_QUESTIONS, VOLUNTEER_QUESTIONS]) {
+      assert.equal(questions[0].minLength, 20, 'The first motivation answer must satisfy the backend minimum.');
+    }
 
     for (const track of ['media', 'press', 'volunteer'] as const) {
       const draft = createEmptyDraft();
