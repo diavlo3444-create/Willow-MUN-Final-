@@ -14,7 +14,7 @@ const json = (body: unknown, status = 200) =>
   });
 
 const STORAGE_BUCKET = "wm-application-files";
-const MAX_UPLOAD_BYTES = 15 * 1024 * 1024; // 15 MB
+const MAX_UPLOAD_BYTES = 100 * 1024 * 1024; // 100 MB
 
 const ALLOWED_IMAGE_MIME_TYPES = new Set([
   "image/jpeg",
@@ -232,7 +232,7 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Unsupported upload field category." }, 400);
     }
     if (!Number.isFinite(sizeBytes) || sizeBytes <= 0 || sizeBytes > MAX_UPLOAD_BYTES) {
-      return json({ error: "Each file must be under 15 MB." }, 400);
+      return json({ error: "Each file must be 100 MB or smaller." }, 400);
     }
 
     const ext = fileName.includes(".") ? fileName.split(".").pop()!.toLowerCase() : "";
