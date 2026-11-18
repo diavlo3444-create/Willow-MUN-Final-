@@ -907,3 +907,56 @@ body.intro-on * {
   }
 }
 
+
+
+/* Willow public homepage: cinematic botanical editorial art direction */
+html { scroll-padding-top: var(--nav-height, 72px); }
+
+.mun-hero { isolation: isolate; }
+.mun-hero-content > * {
+  opacity: 0;
+  transform: translate3d(0, 22px, 0);
+  transition: opacity 900ms cubic-bezier(0.16, 1, 0.3, 1), transform 1000ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.mun-hero-content.mun-hero-ready > * { opacity: 1; transform: translate3d(0, 0, 0); }
+.mun-hero-content.mun-hero-ready > *:nth-child(1) { transition-delay: 80ms; }
+.mun-hero-content.mun-hero-ready > *:nth-child(2) { transition-delay: 180ms; }
+.mun-hero-content.mun-hero-ready > *:nth-child(3) { transition-delay: 320ms; }
+
+.mun-hero-detail { min-width: 0; border-left: 1px solid rgba(237,230,202,.22); padding-left: 14px; }
+.mun-chapter-index { box-shadow: 0 12px 36px rgba(5,8,2,.12); }
+.mun-chapter-link { position: relative; }
+.mun-chapter-link::after {
+  position: absolute; right: 16px; bottom: 0; left: 16px; height: 1px; content: "";
+  background: rgba(201,217,138,.8); transform: scaleX(0); transform-origin: left center;
+  transition: transform 260ms cubic-bezier(.16,1,.3,1);
+}
+.mun-chapter-link:hover::after, .mun-chapter-link:focus-visible::after { transform: scaleX(1); }
+
+section.mun-scroll-section { position: relative; isolation: isolate; overflow: clip; }
+section.mun-scroll-section::before {
+  position: absolute; z-index: -1; inset: 0; content: ""; pointer-events: none; opacity: 0;
+  background: linear-gradient(110deg, rgba(12,16,6,.88) 0%, rgba(17,22,9,.76) 52%, rgba(12,16,6,.88) 100%);
+  border-top: 1px solid rgba(237,230,202,.11); border-bottom: 1px solid rgba(237,230,202,.08);
+}
+section.mun-scroll-section:nth-of-type(even)::before { opacity: 1; }
+section.mun-scroll-section:nth-of-type(odd)::before {
+  background: linear-gradient(110deg, rgba(10,14,5,.32), rgba(10,14,5,.12) 50%, rgba(10,14,5,.36));
+}
+.mun-section-inner {
+  opacity: 0; transform: translate3d(0,34px,0);
+  transition: opacity 760ms cubic-bezier(.16,1,.3,1), transform 900ms cubic-bezier(.16,1,.3,1);
+}
+.mun-scroll-section.is-visible .mun-section-inner { opacity: 1; transform: translate3d(0,0,0); }
+.mun-section-kicker { line-height: 1.4; }
+.mun-display-heading { text-shadow: 0 2px 24px rgba(7,10,3,.22); }
+
+@media (max-width: 639px) {
+  .mun-hero { min-height: 100svh; padding-top: calc(var(--nav-height,60px) + 18vh); }
+  .mun-hero-detail { padding-left: 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .mun-hero-content > *, .mun-section-inner { opacity: 1 !important; transform: none !important; transition: none !important; }
+  .mun-chapter-link::after { transition: none; }
+}
