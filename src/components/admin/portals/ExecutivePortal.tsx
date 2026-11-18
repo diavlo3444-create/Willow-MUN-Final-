@@ -516,8 +516,6 @@ export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePorta
         <DepartmentTestingView />
       ) : (
         <OverviewDashboardView
-          basePath={basePath}
-          onNavigate={onNavigate}
           onFilterApplications={navigateFilteredApps}
           onSelectApplication={(appId) => onNavigate(`${basePath}/applications/${appId}`)}
         />
