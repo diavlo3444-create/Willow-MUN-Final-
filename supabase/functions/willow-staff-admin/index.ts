@@ -209,34 +209,6 @@ Deno.serve(async (req: Request) => {
         throw upsertErr;
       }
 
-      const qrBytes = new Uint8Array(16);
-      crypto.getRandomValues(qrBytes);
-      const qrToken = "WMQR-" + Array.from(qrBytes, (b) => b.toString(16).padStart(2, "0")).join("").toUpperCase();
-      const qrCategory =
-        fields.role === "admin"
-          ? "Executive"
-          : fields.role === "department_head"
-            ? "Department Head"
-            : fields.department_id === "security"
-              ? "Security"
-              : "Executive Board";
-
-      await admin
-        .from("wm_qr_passes")
-        .upsert(
-          {
-            user_id: createdUser.id,
-            token_value: qrToken,
-            holder_name: fields.full_name,
-            holder_email: email,
-            role_label: fields.title || fields.role.replace(/_/g, " "),
-            category: qrCategory,
-            department_id: fields.department_id,
-            active: fields.is_active !== false,
-          },
-          { onConflict: "user_id", ignoreDuplicates: true },
-        );
-
       return json({ account: { user_id: createdUser.id, email, ...fields }, action_link: actionLink }, 201);
     }
 
