@@ -168,19 +168,23 @@ export function QrAttendanceView({
       setValidation(v);
       setScanInput('');
 
-      if (v.status === 'valid' && v.committed) {
+      if ((v.status === 'valid' || v.status === 'checked_out') && v.committed) {
         pushToast({
           tone: 'success',
-          title: 'Check-in recorded',
+          title: attendanceAction === 'checkout' ? 'Check-out recorded' : 'Check-in recorded',
           description: `${v.holder_name || 'Attendee'} · ${gateLocation}`,
         });
-      } else if (v.status === 'already_checked_in') {
+      } else if (v.status === 'checkout_warning' || v.status === 'not_checked_in') {
+        pushToast({ tone: 'warning', title: 'Check-out needs attention', description: v.message });
+      } else if (v.status === 'checkout_warning') {
+      pushToast({ tone: 'warning', title: 'Repeat check-out warning', description: v.message });
+    } else if (v.status === 'already_checked_in' || v.status === 'not_checked_in') {
         pushToast({
           tone: 'warning',
           title: 'Already checked in',
           description: v.holder_name || 'Pass has already been used.',
         });
-      } else if (v.status !== 'valid') {
+      } else if (v.status !== 'valid' && v.status !== 'checkout_warning') {
         pushToast({
           tone: 'error',
           title:
@@ -212,7 +216,7 @@ export function QrAttendanceView({
 
     const v = res.validation;
     setValidation(v);
-    if (v.status === 'valid' && v.committed) {
+    if ((v.status === 'valid' || v.status === 'checked_out') && v.committed) {
       pushToast({
         tone: 'success',
         title: attendanceAction === 'checkout' ? 'Check-out recorded' : 'Check-in recorded',
