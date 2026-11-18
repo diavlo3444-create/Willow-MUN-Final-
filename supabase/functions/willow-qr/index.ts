@@ -255,7 +255,7 @@ Deno.serve(async (req: Request) => {
         prior_checkout_count: rawPayload.prior_checkout_count ?? 0,
         gate_location: rawPayload.gate_location ?? gateLocation,
         scanned_at: rawPayload.scanned_at ?? new Date().toISOString(),
-        committed: shouldCommit,
+        committed: typeof rawPayload.committed === "boolean" ? rawPayload.committed : shouldCommit,
       };
       if (!isAdmin) {
         // Security receives strictly the minimum fields needed for entrance verification.
