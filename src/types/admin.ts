@@ -184,6 +184,7 @@ export interface Application {
   applicationCode: string;
   category: ApplicationCategory;
   applicantName: string;
+  gender?: 'male' | 'female' | null;
   email: string;
   phone: string;
   schoolOrUniversity: string;
