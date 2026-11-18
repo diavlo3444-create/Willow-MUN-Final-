@@ -67,10 +67,18 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
   SELECT CASE
-    WHEN lower(coalesce(gender, '')) IN ('female', 'woman', 'women') THEN 'female'
-    WHEN lower(coalesce(gender, '')) IN ('male', 'man', 'men') THEN 'male'
-    WHEN lower(coalesce(title, '') || ' ' || coalesce(division, '')) ~ '\m(female|women|woman|girls?)\M' THEN 'female'
-    WHEN lower(coalesce(title, '') || ' ' || coalesce(division, '')) ~ '\m(male|men|man|boys?)\M' THEN 'male'
+    WHEN lower(trim(coalesce(gender, ''))) IN ('female', 'woman', 'women') THEN 'female'
+    WHEN lower(trim(coalesce(gender, ''))) IN ('male', 'man', 'men') THEN 'male'
+    WHEN lower(trim(coalesce(division, ''))) IN ('female', 'woman', 'women', 'girl', 'girls') THEN 'female'
+    WHEN lower(trim(coalesce(division, ''))) IN ('male', 'man', 'men', 'boy', 'boys') THEN 'male'
+    WHEN position('female' in lower(coalesce(title, ''))) > 0
+      OR position('women' in lower(coalesce(title, ''))) > 0
+      OR position('woman' in lower(coalesce(title, ''))) > 0
+      OR position('girl' in lower(coalesce(title, ''))) > 0 THEN 'female'
+    WHEN position('male' in lower(coalesce(title, ''))) > 0
+      OR position('men' in lower(coalesce(title, ''))) > 0
+      OR position('man' in lower(coalesce(title, ''))) > 0
+      OR position('boy' in lower(coalesce(title, ''))) > 0 THEN 'male'
     ELSE NULL
   END
   FROM public.wm_profiles
