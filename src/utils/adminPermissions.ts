@@ -431,7 +431,9 @@ export function normalizeDepartmentSlug(value: string | null | undefined): strin
   if (!clean) return '';
   if (clean === 'human-resources' || clean === 'human_resources') return 'hr';
   if (clean === 'delegate-affairs' || clean === 'delegate_affairs') return 'dcc';
-  if (clean === 'media' || clean === 'press') return 'media-press';
+  if (clean === 'media-press') return 'media';
+  if (clean === 'media') return 'media';
+  if (clean === 'press') return 'press';
   if (clean === 'volunteer') return 'volunteers';
   return clean;
 }
@@ -462,7 +464,8 @@ export function getActorDepartmentSlug(
   const label = `${user.title || ''} ${user.division || ''}`.toLowerCase();
   if (/\b(hr|human\s+resources)\b/.test(label)) return 'hr';
   if (/\b(dcc|delegate\s+affairs|delegate\s+care)\b/.test(label)) return 'dcc';
-  if (/\b(media|press)\b/.test(label)) return 'media-press';
+  if (/\bpress\b/.test(label)) return 'press';
+  if (/\bmedia\b/.test(label)) return 'media';
   if (/\bsecurity\b/.test(label)) return 'security';
   if (/\bvolunteers?\b/.test(label)) return 'volunteers';
   return null;
@@ -688,7 +691,7 @@ export function canAccessApplication(
     if (!canAccessDepartment(user, application.departmentId, departments)) return false;
 
     const actorDeptSlug = getActorDepartmentSlug(user, departments);
-    if (actorDeptSlug === 'media-press') {
+    if (actorDeptSlug === 'media-press' || actorDeptSlug === 'media' || actorDeptSlug === 'press') {
       const subScope = getMediaPressSubScope(user);
       const appType = String(
         application.applicationType ||
