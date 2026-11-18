@@ -205,16 +205,30 @@ export function ExecutiveBoardAccountsView() {
   };
 
   const copySetupLink = async (account: Account) => {
-    const sharedUrl = `${window.location.origin}/eb-signup`;
+    if (!account.member_key) {
+      pushToast({ tone: 'error', title: 'Roster entry unavailable', description: 'Refresh the directory and try again.' });
+      return;
+    }
+    const { data, error: inviteError } = await supabase.functions.invoke('willow-staff-admin', {
+      body: { action: 'create_eb_invite', member_key: account.member_key },
+    });
+    if (inviteError || !data?.success || !data?.url) {
+      pushToast({
+        tone: 'error',
+        title: 'Invitation link could not be generated',
+        description: data?.error || inviteError?.message || 'Try again.',
+      });
+      return;
+    }
     try {
-      await navigator.clipboard.writeText(sharedUrl);
+      await navigator.clipboard.writeText(data.url);
       pushToast({
         tone: 'success',
-        title: 'Shared EB signup link copied',
-        description: `This same link works for every EB member, including ${account.full_name}.`,
+        title: 'Personal EB invitation copied',
+        description: `This one-time link is tied to ${account.email}.`,
       });
     } catch {
-      setManualSetupLink({ name: 'Shared EB signup', url: sharedUrl });
+      setManualSetupLink({ name: account.full_name, url: data.url });
     }
   };
 
@@ -461,7 +475,7 @@ export function ExecutiveBoardAccountsView() {
                         onClick={() => void copySetupLink(account)}
                         className="rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-inset)] px-3 py-2 text-xs text-[color:var(--wm-ink)]"
                       >
-                        Copy shared signup link
+                        Generate invite link
                       </button>
                     </>
                   ) : (
