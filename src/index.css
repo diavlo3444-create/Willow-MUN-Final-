@@ -533,8 +533,9 @@ body.intro-on {
   position: fixed;
   inset: 0;
   z-index: 40;
-  /* Transparent so the exact same looping site background remains visible beneath the intro. */
-  background: transparent;
+  /* Opaque olive stage hides the looping background video during the intro,
+     so the intro animation is the only tree visible until its handoff. */
+  background: #393f24;
   opacity: 0;
   pointer-events: none;
   transition: opacity 1.8s ease;
@@ -1074,7 +1075,7 @@ section.mun-scroll-section:nth-of-type(odd)::before {
 /* Mobile visual system: one consistent willow-olive tone across both videos and sections. */
 @media (max-width: 767px) {
    body.intro-on .willow-intro-backdrop {
-    background: transparent;
+    background: #393f24;
   }
 
   section.mun-scroll-section::before,
