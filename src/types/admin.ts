@@ -207,6 +207,7 @@ export interface Application {
   headRecommendation: RecommendationDecision;
   headNotes: string;
   recommendedBy: string | null;
+  recommendedByName?: string | null;
   recommendedAt: string | null;
   // Stage 2: Admin / Super Admin final decision
   finalDecisionBy: string | null;
