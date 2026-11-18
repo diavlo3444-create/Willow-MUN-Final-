@@ -19,7 +19,8 @@ import type {
 } from '../services/interfaces';
 import { conferenceDataService } from '../services/mockDataService';
 import { supabase } from '../lib/supabase';
-import { ROLE_DEFAULT_PERMISSIONS } from '../utils/adminPermissions';
+import { DEPARTMENT_HEAD_DEFAULT_PERMISSIONS, ROLE_DEFAULT_PERMISSIONS } from '../utils/adminPermissions';
+import membersJson from '../data/members.json';
 import type {
   AdminNotification,
   AdminUser,
@@ -194,8 +195,57 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
   // The underlying Supabase session remains the authenticated Super Admin session.
   const testModeHeadUser = useMemo(() => {
     if (!authenticatedUser || authenticatedUser.role !== 'super_admin' || !testModeHeadUserId) return null;
-    return data.users.find((u) => u.id === testModeHeadUserId && u.role === 'department_head' && u.isActive && u.status === 'active') ?? null;
-  }, [authenticatedUser, data.users, testModeHeadUserId]);
+    const provisioned = data.users.find((u) => u.id === testModeHeadUserId && u.role === 'department_head' && u.isActive && u.status === 'active');
+    if (provisioned) return provisioned;
+
+    // Allow Super Admins to preview a preloaded Secretariat head before signup.
+    // This is a frontend-only preview identity; it does not authenticate as that person in Supabase.
+    const rosterId = testModeHeadUserId.startsWith('roster:')
+      ? testModeHeadUserId.slice('roster:'.length)
+      : '';
+    const member = membersJson.members.find((entry) => entry.id === rosterId);
+    if (!member || !member.role || !/\\bhead\\b/i.test(member.role)) return null;
+
+    const departmentByGroup: Record<string, string> = {
+      media: 'media-press',
+      press: 'media-press',
+      marketing: 'marketing',
+      design: 'design',
+      security: 'security',
+      it: 'it',
+      hr: 'hr',
+      'delegate-affairs': 'dcc',
+      volunteers: 'volunteers',
+    };
+    const departmentKey = departmentByGroup[member.group];
+    const department = data.departments.find((item) =>
+      item.id === departmentKey || item.slug === departmentKey
+    );
+    const template = data.users.find((user) => user.role === 'department_head') ?? data.users[0];
+    if (!template || !department) return null;
+
+    return {
+      ...template,
+      id: testModeHeadUserId,
+      fullName: member.name,
+      email: '',
+      password: undefined,
+      role: 'department_head',
+      roleDefinitionId: 'department_head',
+      title: member.role,
+      departmentId: department.id,
+      division: null,
+      avatarUrl: member.photo ?? null,
+      isActive: true,
+      status: 'active',
+      invitationStatus: 'none',
+      invitationToken: null,
+      lastPasswordResetAt: null,
+      permissions: DEPARTMENT_HEAD_DEFAULT_PERMISSIONS,
+      createdAt: new Date().toISOString(),
+      lastActiveAt: new Date().toISOString(),
+    };
+  }, [authenticatedUser, data.departments, data.users, testModeHeadUserId]);
 
   const currentUser = testModeHeadUser ?? authenticatedUser;
 
@@ -370,15 +420,19 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
     (headUserId: string) => {
       if (!currentUser || currentUser.role !== 'super_admin') return false;
       const target = data.users.find((u) => u.id === headUserId && u.role === 'department_head');
-      if (!target) {
-        pushToast({ tone: 'error', title: 'Select a Department Head account to test' });
+      const rosterId = headUserId.startsWith('roster:') ? headUserId.slice('roster:'.length) : '';
+      const member = rosterId ? membersJson.members.find((entry) => entry.id === rosterId) : null;
+      if (!target && (!member || !member.role || !/\\bhead\\b/i.test(member.role))) {
+        pushToast({ tone: 'error', title: 'Department Head preview could not be found' });
         return false;
       }
-      setTestModeHeadUserId(target.id);
+      const targetName = target?.fullName ?? member?.name ?? 'Department Head';
+      const targetTitle = target?.title ?? member?.role ?? 'Department Head';
+      setTestModeHeadUserId(headUserId);
       pushToast({
         tone: 'info',
-        title: `Testing Mode Active: ${target.fullName}`,
-        description: `Viewing /head isolated as ${target.title}.`,
+        title: `Testing Mode Active: ${targetName}`,
+        description: `Previewing /head as ${targetTitle}. This is a simulated preview, not a separate Supabase login.`,
       });
       return true;
     },
