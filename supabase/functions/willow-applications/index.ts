@@ -57,9 +57,10 @@ function mapDepartment(appType: string, explicitDept?: string | null): string {
     case "volunteers":
       return "volunteers";
     case "media":
-    case "press":
     case "media-press":
-      return "media-press";
+      return "media";
+    case "press":
+      return "press";
     case "security":
       return "security";
     case "delegate":
