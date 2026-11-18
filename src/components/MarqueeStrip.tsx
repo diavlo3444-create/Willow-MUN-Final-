@@ -28,16 +28,16 @@ export function MarqueeStrip(_props: MarqueeStripProps) {
   return (
     <nav
       aria-label="Conference prospectus index"
-      className="relative z-[1] w-full border-y border-[#ede6ca]/16 bg-[#111508]/92"
+      className="mun-chapter-index relative z-[2] w-full border-y border-[#ede6ca]/20 bg-[#101408]/90 backdrop-blur-sm"
     >
-      <div className="mx-auto max-w-[1200px] px-[clamp(16px,4vw,48px)]">
-        <div className="mun-no-scrollbar flex lg:grid lg:grid-cols-5 overflow-x-auto divide-x divide-[#ede6ca]/14">
+      <div className="mx-auto max-w-[1320px] px-[clamp(18px,5vw,76px)]">
+        <div className="mun-no-scrollbar flex overflow-x-auto divide-x divide-[#ede6ca]/14 lg:grid lg:grid-cols-5">
           {INDEX_CHAPTERS.map((chapter) => (
             <a
               key={chapter.href}
               href={chapter.href}
               onClick={(e) => handleJump(e, chapter.href)}
-              className="group flex shrink-0 items-baseline gap-2.5 px-4 py-3.5 first:pl-0 lg:first:pl-4 lg:justify-between transition-colors duration-150 hover:bg-[#ede6ca]/[0.04] whitespace-nowrap"
+              className="mun-chapter-link group flex min-h-[52px] shrink-0 items-baseline gap-3 px-4 py-4 first:pl-0 transition-colors duration-200 hover:bg-[#ede6ca]/[0.045] lg:justify-between lg:first:pl-4 whitespace-nowrap"
             >
               <span className="font-mono text-[11px] text-[#a9b47e] tabular-nums">
                 {chapter.num}
