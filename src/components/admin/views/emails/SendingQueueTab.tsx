@@ -36,7 +36,7 @@ const QUEUE_STATUS_META: Record<
     Icon: Loader2,
   },
   sent: {
-    label: 'Staged / Sent (Preview)',
+    label: 'Sent successfully',
     classes: 'border-emerald-400/30 bg-emerald-500/[0.1] text-emerald-200',
     Icon: CheckCircle2,
   },
@@ -79,7 +79,7 @@ export function SendingQueueTab({
             <p className="wm-serif mt-1.5 text-2xl text-amber-200">{processingCount}</p>
           </div>
           <div className="px-5 py-4">
-            <p className="wm-section-kicker">Completed (Preview)</p>
+            <p className="wm-section-kicker">Completed / Sent</p>
             <p className="wm-serif mt-1.5 text-2xl text-emerald-200">{sentCount}</p>
           </div>
           <div className="px-5 py-4">
@@ -96,7 +96,7 @@ export function SendingQueueTab({
                 Bulk Queue Progress
               </p>
               <p className="text-[11px] text-[color:var(--wm-ink-muted)]">
-                UI preview only — backend mail delivery is not connected, so no actual emails are sent.
+                Real delivery queue. Emails are transmitted when Send Queue is clicked; keep the dashboard open until it finishes.
               </p>
             </div>
 
@@ -108,7 +108,7 @@ export function SendingQueueTab({
                   className="inline-flex h-8 items-center gap-1.5 rounded-md border border-amber-400/40 bg-amber-500/[0.12] px-3 text-[11px] font-medium text-amber-100 hover:bg-amber-500/[0.2] cursor-pointer"
                 >
                   <Pause className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span>Pause UI Preview</span>
+                  <span>Sending…</span>
                 </button>
               ) : (
                 <button
@@ -118,7 +118,7 @@ export function SendingQueueTab({
                   className="inline-flex h-8 items-center gap-1.5 rounded-md bg-[color:var(--wm-emerald)] px-3 text-[11px] font-semibold text-[#eef4ef] hover:bg-[#357a5b] disabled:opacity-40 cursor-pointer"
                 >
                   <Play className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span>Preview Queue Run ({waitingCount})</span>
+                  <span>Send Queue ({waitingCount})</span>
                 </button>
               )}
 
@@ -155,7 +155,7 @@ export function SendingQueueTab({
       <section className="wm-surface-panel overflow-hidden">
         <div className="border-b border-[color:var(--wm-hairline)] bg-[color:var(--wm-inset)] px-5 py-3 flex items-center justify-between gap-3">
           <h2 className="text-xs font-semibold text-[color:var(--wm-ink)]">
-            Staged Sending Queue
+            Live Sending Queue
           </h2>
           <span className="font-mono text-[11px] text-[color:var(--wm-ink-muted)] tabular-nums">
             {totalCount} item{totalCount === 1 ? '' : 's'}
