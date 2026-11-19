@@ -289,6 +289,7 @@ export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePorta
     'documents',
     'faqs',
     'settings',
+    'emails',
     'account-management',
     'admins',
     'eb-accounts',
