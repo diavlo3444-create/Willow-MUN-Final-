@@ -23,6 +23,7 @@ import {
   EmailManagementView,
   NotificationsCenterView,
 } from '../views/CommunicationViews';
+import { EmailsDashboardView } from '../views/EmailsDashboardView';
 import { ConferenceCmsView } from '../views/ConferenceCmsView';
 import { DepartmentsView } from '../views/DepartmentsView';
 import { FormBuilderView } from '../views/FormBuilderView';
@@ -176,6 +177,10 @@ const SECTION_META: Record<string, { title: string; subtitle: string }> = {
   versions: {
     title: 'Website Version History & Rollback',
     subtitle: 'Compare published snapshots and safely restore previous versions.',
+  },
+  emails: {
+    title: 'Emails',
+    subtitle: 'Daily sending overview, delivery history, failures, retries, and editable decision templates.',
   },
   email: {
     title: 'Email Center',
@@ -479,6 +484,8 @@ export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePorta
         section === 'seo' ||
         section === 'versions' ? (
         <WebsiteCmsView mode={section} />
+      ) : section === 'emails' ? (
+        hasPermission(currentUser, 'email.view') ? <EmailsDashboardView /> : renderDenied('Email management is restricted to Admin and HR accounts.')
       ) : section === 'email' ? (
         <EmailManagementView preselectedApplicationIds={preselectedEmailIds} />
       ) : section === 'notifications' ? (
