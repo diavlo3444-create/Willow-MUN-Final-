@@ -1347,7 +1347,6 @@ export function ApplySection() {
                                   {errMsg && <p role="alert" className="text-xs text-rose-300">{errMsg}</p>}
                                 </div>
                               ) : (
-                              <div className="space-y-2">
                               <div className="mb-1.5 flex items-baseline justify-between gap-3">
                                 <label
                                   htmlFor={`apply-${q.id}`}
@@ -1381,7 +1380,6 @@ export function ApplySection() {
                                 </p>
                               )}
                             </div>
-                              </div>
                               )}
                             </div>
                           );
