@@ -56,7 +56,7 @@ Deno.serve(async (req: Request) => {
     const applicationId = String(body.application_id || "");
     if (!applicationId) return json({ error: "Application ID required." }, 400);
     const { data: app, error: appErr } = await admin.from("wm_applications")
-      .select("id,applicant_name,email,application_type,department_id,position,status")
+      .select("id,applicant_name,email,application_type,department_id,position,status,gender")
       .eq("id", applicationId).maybeSingle();
     if (appErr || !app) return json({ error: "Applicant record not found." }, 404);
     if (app.status !== "accepted") return json({ error: "Only accepted applicants can receive signup links." }, 409);
@@ -119,17 +119,17 @@ Deno.serve(async (req: Request) => {
       const { data: created, error: createErr } = await admin.auth.admin.createUser({
         email, password, email_confirm: true, user_metadata: { full_name: app.applicant_name },
       });
-      if (createErr || !created.user) throw createErr || new Error("Account creation failed.");
+      if (createErr || !created.user) throw new Error("Auth account creation failed: " + (createErr?.message || "No user returned."));
       createdId = created.user.id;
       const { error: profileErr } = await admin.from("wm_profiles").upsert({
         user_id: createdId, full_name: app.applicant_name, role, department_id: departmentId,
-        title: position, division: app.gender || null, is_active: true, permissions: {}, eb_permissions: {},
+        title: position, gender: app.gender || null, division: null, is_active: true, permissions: {}, eb_permissions: {},
       }, { onConflict: "user_id" });
-      if (profileErr) throw profileErr;
+      if (profileErr) throw new Error("Profile creation failed: " + profileErr.message);
       const { error: claimErr } = await admin.from("wm_hr_signup_invites").update({
         claimed_at: new Date().toISOString(), claimed_user_id: createdId, claim_started_at: null,
       }).eq("id", invite.id).is("claimed_at", null);
-      if (claimErr) throw claimErr;
+      if (claimErr) throw new Error("Invite claim update failed: " + claimErr.message);
       return json({ success: true, email, role, message: "Account created. Sign in to your assigned portal." });
     } catch (err) {
       if (createdId) await admin.auth.admin.deleteUser(createdId);
