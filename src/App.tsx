@@ -18,7 +18,7 @@ import {
   type WillowIntroEmblemHandle,
 } from './components/WillowIntroEmblem';
 import { PortalAuthView } from './components/admin/PortalAuthView';
-import { ExecutiveBoardSignupView } from './components/admin/ExecutiveBoardSignupView';
+import { ExecutiveBoardSignupView } from './components/admin/ExecutiveBoardSignupView';\nimport { HrApplicantSignupView } from './components/admin/HrApplicantSignupView';
 import { HeadPasswordSetupView } from './components/admin/HeadPasswordSetupView';
 import { ToastViewport } from './components/admin/ToastViewport';
 import { AdminPortal } from './components/admin/portals/AdminPortal';
@@ -98,7 +98,7 @@ function AdminRouter({ pathname, navigate }: { pathname: string; navigate: (path
     pathname === '/head-login' ? 'department_head' :
     pathname === '/super-admin-login' ? 'super_admin' :
     pathname === '/security-login' ? 'security' : undefined;
-  const isEbSignup = pathname === '/eb-signup';
+  const isEbSignup = pathname === '/eb-signup';\n  const isHrSignup = pathname === '/team-signup';
   const isHeadSetup = pathname === '/head-setup';
 
   useEffect(() => {
