@@ -22,6 +22,7 @@ interface ApplicantsBulkTabProps {
   onSelectMany: (ids: string[]) => void;
   onClearSelection: () => void;
   onRequestSendSelected: (recipients: EmailApplicantRecord[], preferredType?: EmailDecisionType) => void;
+  onResend: (applicant: EmailApplicantRecord) => void;
 }
 
 const APP_STATUS_BADGE: Record<
@@ -67,6 +68,7 @@ export function ApplicantsBulkTab({
   onSelectMany,
   onClearSelection,
   onRequestSendSelected,
+  onResend,
 }: ApplicantsBulkTabProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('all');
@@ -361,6 +363,7 @@ export function ApplicantsBulkTab({
                     <th className="px-3 py-3 font-medium">Applied Position</th>
                     <th className="px-3 py-3 font-medium">Application Status</th>
                     <th className="px-3 py-3 font-medium">Email Status</th>
+                    <th className="px-3 py-3 font-medium">Email Action</th>
                     <th className="px-4 py-3 font-medium text-right">Application Date</th>
                   </tr>
                 </thead>
@@ -414,6 +417,13 @@ export function ApplicantsBulkTab({
                           >
                             {emailBadge.label}
                           </span>
+                        </td>
+                        <td className="px-3 py-3 align-middle">
+                          {row.applicationStatus !== 'pending' && (
+                            <button type="button" onClick={() => onResend(row)} className="inline-flex h-7 items-center gap-1 rounded border border-[color:var(--wm-hairline-strong)] px-2 text-[10px] font-medium text-[color:var(--wm-ink)] hover:bg-[color:var(--wm-overlay)]">
+                              <Send className="h-3 w-3" aria-hidden="true" /> Resend
+                            </button>
+                          )}
                         </td>
                         <td className="px-4 py-3 align-middle text-right font-mono text-[11px] text-[color:var(--wm-ink-muted)] tabular-nums whitespace-nowrap">
                           {new Date(row.applicationDate).toLocaleDateString()}
