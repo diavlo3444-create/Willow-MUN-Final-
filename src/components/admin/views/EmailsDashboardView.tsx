@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, Clock3, FileCode2, History, Info, Mail, Send, Users, XCircle } from 'lucide-react';
 import { useAdminStore } from '../../../context/AdminStoreContext';
-import { supabase } from '../../../../lib/supabase';
+import { supabase } from '../../../lib/supabase';
 import { ApplicantsBulkTab } from './emails/ApplicantsBulkTab';
 import { BulkSendConfirmModal } from './emails/BulkSendConfirmModal';
 import { EmailHistoryTab } from './emails/EmailHistoryTab';
