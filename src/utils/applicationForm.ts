@@ -136,7 +136,7 @@ export const VOLUNTEER_QUESTIONS: readonly RoleQuestionDefinition[] = [
 ] as const;
 
 export const SECURITY_QUESTIONS: readonly RoleQuestionDefinition[] = [
-  { id: 'security_q1', label: 'Why are you interested in joining Willow MUN as Security?', placeholder: 'Explain why you want to join Willow MUN Security.', minLength: 15 },
+  { id: 'security_q1', label: 'Why are you interested in joining Willow MUN as Security?', placeholder: 'Explain why you want to join Willow MUN Security.', minLength: 20 },
   { id: 'security_q2', label: 'What differentiates you from other candidates?', placeholder: 'Explain what makes you a strong candidate.', minLength: 15 },
   { id: 'security_q3', label: 'You notice that one of your fellow Security members is ignoring their responsibilities. What would you do?', placeholder: 'Explain how you would handle this situation.', minLength: 15 },
   { id: 'security_q4', label: 'Any allergies?', placeholder: 'If yes, please describe.', minLength: 0 },
@@ -283,7 +283,7 @@ export function validateStep(
     if (!isValidEmail(draft.email)) {
       errors.email = 'Please enter a valid email address (for example, name@example.com).';
     }
-    if (track !== 'security' && draft.gender !== 'male' && draft.gender !== 'female') {
+    if (draft.gender !== 'male' && draft.gender !== 'female') {
       errors.gender = 'Please select your gender.';
     }
     if (!draft.grade.trim()) {
@@ -307,7 +307,7 @@ export function validateStep(
         guardianRes.error || "Please enter a valid guardian's phone number.";
     }
 
-    if (track !== 'security' && draft.hasMedicalCondition !== 'yes' && draft.hasMedicalCondition !== 'no') {
+    if (draft.hasMedicalCondition !== 'yes' && draft.hasMedicalCondition !== 'no') {
       errors.hasMedicalCondition =
         'Please select Yes or No regarding medical conditions or regular medication.';
     }
