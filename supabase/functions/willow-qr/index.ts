@@ -144,10 +144,6 @@ Deno.serve(async (req: Request) => {
   const actorPermissions = (actor.permissions && typeof actor.permissions === "object")
     ? (actor.permissions as Record<string, unknown>)
     : {};
-  const actorEbPermissions = (actor.eb_permissions && typeof actor.eb_permissions === "object")
-    ? (actor.eb_permissions as Record<string, unknown>)
-    : {};
-
   const isSuperAdmin = actor.role === "super_admin";
   const isAdmin = isSuperAdmin || actor.role === "admin";
 
