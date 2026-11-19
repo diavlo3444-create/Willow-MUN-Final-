@@ -598,9 +598,8 @@ body.intro-transitioning .willow-intro-backdrop {
   opacity: 0;
 }
 body.intro-transitioning .willow-intro-video {
-  /* Last beat: push the intro footage forward as it dissolves into the real hero background. */
   opacity: 0;
-  transform: scale(1.16);
+  transform: scale(1.025);
 }
 
 .willow-intro-controls {
