@@ -1388,6 +1388,7 @@ export function ApplySection() {
                         })}
 
                         {/* Question 5: Attendance including extra rehearsal day */}
+                        {selectedTrack !== 'security' && (
                         <div className="willow-folio-inset rounded-[3px] p-4 sm:p-5 space-y-3.5">
                           <span
                             id="apply-attendance-label"
@@ -1465,6 +1466,8 @@ export function ApplySection() {
                             </div>
                           )}
                         </div>
+                        )}
+
                       </div>
                     )}
 
@@ -1500,7 +1503,7 @@ export function ApplySection() {
                             <div>
                               <dt className="text-[#c9c2a6]/75">Applicant</dt>
                               <dd className="text-[#ede6ca] font-medium mt-0.5 capitalize">
-                                {currentDraft.applicant_name} ({currentDraft.gender})
+                                {currentDraft.applicant_name}{selectedTrack !== 'security' ? ` (${currentDraft.gender})` : ''}
                               </dd>
                             </div>
                             <div>
