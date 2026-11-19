@@ -580,7 +580,7 @@ export function isSecurityAccount(
   departments?: Department[],
 ): boolean {
   if (!user || !user.isActive || user.status !== 'active') return false;
-  if (user.role === 'super_admin' || user.role === 'admin') return true;
+  if (user.role === 'super_admin') return true;
   if (user.role === 'department_head') {
     return (
       getActorDepartmentSlug(user, departments) === 'security'
