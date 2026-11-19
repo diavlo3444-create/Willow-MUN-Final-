@@ -149,13 +149,11 @@ Deno.serve(async (req: Request) => {
 
   const isSecurityHead =
     actor.role === "department_head" &&
-    actorDeptSlug === "security" &&
-    actorPermissions["qr.scan"] !== false;
+    actorDeptSlug === "security";
 
   const isSecurityEb =
     actor.role === "executive_board" &&
-    actorDeptSlug === "security" &&
-    actorPermissions["qr.scan"] !== false;
+    actorDeptSlug === "security";
 
   const canAdminScan = isAdmin;
   const canAdminManage = isSuperAdmin || (actor.role === "admin" && actorPermissions["qr.manage"] !== false);
