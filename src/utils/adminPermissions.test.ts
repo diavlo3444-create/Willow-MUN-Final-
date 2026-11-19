@@ -401,7 +401,19 @@ test('Security accounts get dedicated /security scanner portal without admin pri
   assert.equal(isSecurityAccount(regularAdmin, departments), false);
   assert.equal(canAccessPortal(regularAdmin, 'security', departments), false);
   assert.equal(canAccessPortal(regularAdmin, 'admin', departments), true);
+
+  const adminNav = getNavigationGroups(regularAdmin, 'admin');
+  const adminOps = adminNav.find((g) => g.id === 'operations');
+  assert.ok(adminOps);
+  assert.equal(adminOps.items.some((i) => i.id === 'application-management'), true);
+
+  const sa = makeUser({
+    role: 'super_admin',
+    permissions: { ...SUPER_ADMIN_PERMISSIONS },
+  });
+  const saNav = getNavigationGroups(sa, 'super_admin');
+  const saOps = saNav.find((g) => g.id === 'operations');
+  assert.ok(saOps);
+  assert.equal(saOps.items.some((i) => i.id === 'application-management'), true);
 });
-
-
 

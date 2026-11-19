@@ -920,6 +920,7 @@ export function getNavigationGroups(
       items: [
         { id: 'dashboard', label: 'Overview', path: base },
         { id: 'applications', label: 'Registrations', path: base + '/applications', requiredPermission: 'applications.view' },
+        { id: 'application-management', label: 'Application Management', path: base + '/application-management', requiredPermission: 'departments.toggle_registration' },
         ...(isHrActor(user, departments)
           ? [{ id: 'hr-accepted', label: 'Accepted Applicants', path: base + '/hr-accepted' } satisfies NavItemConfig]
           : []),

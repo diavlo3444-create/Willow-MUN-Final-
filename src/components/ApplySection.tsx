@@ -14,6 +14,7 @@ import {
   X,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { fetchPublicApplicationAvailability } from '../services/applicationAvailabilityService';
 
 const TRACK_DEPARTMENT_SLUG: Record<string, string> = { media: 'media', press: 'press', volunteer: 'volunteers', security: 'security' };
 import {
@@ -241,15 +242,10 @@ export function ApplySection() {
   useEffect(() => {
     let active = true;
     const loadRegistrationStatus = async () => {
-      const { data, error } = await supabase
-        .from('wm_departments')
-        .select('slug,registration_open')
-        .in('slug', ['media', 'press', 'volunteers', 'security']);
+      const { statusMap, error } = await fetchPublicApplicationAvailability();
       if (!active) return;
-      if (!error && data) {
-        const next: Record<string, boolean> = {};
-        for (const row of data) next[row.slug] = row.registration_open === true;
-        setRegistrationStatus(next);
+      if (!error) {
+        setRegistrationStatus(statusMap);
       }
       setRegistrationStatusLoaded(true);
     };
@@ -320,12 +316,26 @@ export function ApplySection() {
     modalBodyRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const isTrackOpen = useCallback(
+    (track: ApplicationTrack) => {
+      const slug = TRACK_DEPARTMENT_SLUG[track];
+      return Boolean(registrationStatusLoaded && slug && registrationStatus[slug] === true);
+    },
+    [registrationStatus, registrationStatusLoaded],
+  );
+
+  const openTracks = useMemo(
+    () => TRACKS.filter((item) => isTrackOpen(item.id)),
+    [isTrackOpen],
+  );
+
+  const isSelectedTrackOpen = isTrackOpen(selectedTrack);
+
   const openModalForTrack = (
     track: ApplicationTrack,
     triggerEl?: HTMLButtonElement | null,
   ) => {
-    const departmentSlug = TRACK_DEPARTMENT_SLUG[track];
-    if (departmentSlug && (!registrationStatusLoaded || registrationStatus[departmentSlug] !== true)) return;
+    if (!isTrackOpen(track)) return;
     if (closeTimerRef.current !== null) {
       window.clearTimeout(closeTimerRef.current);
       closeTimerRef.current = null;
@@ -477,6 +487,12 @@ export function ApplySection() {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (inFlightRef.current || busy) return;
+    if (!isTrackOpen(selectedTrack)) {
+      setErrors({
+        general: `Applications for ${currentTrackConfig.title} are currently closed.`,
+      });
+      return;
+    }
 
     const { firstInvalidStep, errors: allErrors } = validateAllSteps(
       currentDraft,
@@ -649,15 +665,24 @@ export function ApplySection() {
         />
         <RevealItem staggerIndex={1} className="flex flex-col sm:flex-row sm:items-center gap-4">
           <p className="text-sm text-[#c9c2a6] max-w-[44ch]">
-            Select Media, Press, or Volunteers below to complete our guided four-step application dossier.
+            Select Media, Press, Volunteers, or Security below to complete our guided four-step application dossier.
           </p>
           <button
             type="button"
-            disabled={registrationStatusLoaded && registrationStatus[TRACK_DEPARTMENT_SLUG[selectedTrack]] === false}
-            onClick={(e) => openModalForTrack(selectedTrack, e.currentTarget)}
-            className="mun-btn-interactive group inline-flex min-h-[44px] items-center justify-center gap-2 rounded-[2px] bg-[#ede6ca] px-5 py-2.5 text-sm font-semibold text-[#181c0d] hover:bg-[#dad3b4] cursor-pointer whitespace-nowrap shrink-0"
+            disabled={!registrationStatusLoaded || openTracks.length === 0}
+            onClick={(e) => {
+              const targetTrack = isSelectedTrackOpen ? selectedTrack : openTracks[0]?.id;
+              if (targetTrack) openModalForTrack(targetTrack, e.currentTarget);
+            }}
+            className="mun-btn-interactive group inline-flex min-h-[44px] items-center justify-center gap-2 rounded-[2px] bg-[#ede6ca] px-5 py-2.5 text-sm font-semibold text-[#181c0d] hover:bg-[#dad3b4] disabled:opacity-55 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap shrink-0"
           >
-            <span>Open Application Dossier</span>
+            <span>
+              {!registrationStatusLoaded
+                ? 'Checking Availability...'
+                : openTracks.length === 0
+                  ? 'Applications Closed'
+                  : 'Open Application Dossier'}
+            </span>
             <ArrowRight
               className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5"
               aria-hidden="true"
@@ -666,7 +691,20 @@ export function ApplySection() {
         </RevealItem>
       </div>
 
-      {/* Editorial 3-Track Directory (Media, Press, Volunteers) */}
+      {registrationStatusLoaded && openTracks.length === 0 && (
+        <div
+          role="status"
+          className="mb-6 flex items-start gap-3 rounded-[3px] border border-rose-300/25 bg-[#12160a]/90 px-5 py-4 text-sm text-[#ede6ca]"
+        >
+          <Lock className="mt-0.5 h-4 w-4 shrink-0 text-rose-300" aria-hidden="true" />
+          <p className="leading-relaxed">
+            <strong className="font-semibold text-rose-200">Applications are currently closed.</strong>{' '}
+            All organizing team application tracks are turned off at this time. Please check back later.
+          </p>
+        </div>
+      )}
+
+      {/* Editorial Track Directory (Media, Press, Volunteers, Security) */}
       <RevealItem staggerIndex={2} className="willow-folio rounded-[3px] grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:gap-px bg-[#ede6ca]/14 border border-[#ede6ca]/16 overflow-hidden">
         {TRACKS.map((item) => {
           const draft = drafts[item.id];
@@ -677,10 +715,13 @@ export function ApplySection() {
               draft.mediaPhotos.length > 0 ||
               Object.values(draft.roleAnswers).some((v) => v.trim()),
           );
+          const trackOpen = isTrackOpen(item.id);
+          const trackClosed = registrationStatusLoaded && !trackOpen;
 
           return (
             <article
               key={item.id}
+              data-testid={`public-track-${item.id}`}
               className="group bg-[#12160a]/95 p-6 sm:p-8 flex flex-col justify-between gap-6 transition-colors duration-200 hover:bg-[#171c0e]"
             >
               <div className="space-y-3">
@@ -688,8 +729,8 @@ export function ApplySection() {
                   <span className="font-mono text-xs tracking-[0.14em] text-[#a9b47e] tabular-nums">
                     TRACK {item.index} · {item.wing.toUpperCase()}
                   </span>
-                  <span className={`font-mono text-[11px] uppercase tracking-[0.12em] ${registrationStatus[TRACK_DEPARTMENT_SLUG[item.id]] === false ? 'text-rose-300' : 'text-[#a9b47e]'}`}>
-                    {!registrationStatusLoaded ? 'Checking...' : registrationStatus[TRACK_DEPARTMENT_SLUG[item.id]] === true ? (hasDraft ? 'Draft Saved' : 'Open') : 'Applications Closed'}
+                  <span className={`font-mono text-[11px] uppercase tracking-[0.12em] ${trackClosed ? 'text-rose-300' : 'text-[#a9b47e]'}`}>
+                    {!registrationStatusLoaded ? 'Checking...' : trackOpen ? (hasDraft ? 'Draft Saved' : 'Open') : 'Applications Closed'}
                   </span>
                 </div>
 
@@ -700,6 +741,13 @@ export function ApplySection() {
                 <p className="text-sm leading-[1.7] text-[#c9c2a6]">
                   {item.detail}
                 </p>
+
+                {trackClosed && (
+                  <p className="flex items-center gap-2 rounded-[2px] border border-rose-300/20 bg-rose-500/[0.06] px-3 py-2 text-xs text-rose-200">
+                    <Lock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                    <span>Applications for {item.title} are currently closed.</span>
+                  </p>
+                )}
               </div>
 
               <div className="border-t border-[#ede6ca]/12 pt-4 flex flex-col sm:flex-row lg:flex-col xl:flex-row xl:items-center justify-between gap-4">
@@ -709,12 +757,12 @@ export function ApplySection() {
 
                 <button
                   type="button"
-                  disabled={!registrationStatusLoaded || registrationStatus[TRACK_DEPARTMENT_SLUG[item.id]] !== true}
+                  disabled={!trackOpen}
                   onClick={(e) => openModalForTrack(item.id, e.currentTarget)}
-                  className="mun-btn-interactive inline-flex min-h-[44px] items-center justify-center gap-2 rounded-[2px] border border-[#ede6ca]/32 bg-transparent px-4 py-2 text-xs font-semibold text-[#ede6ca] hover:bg-[#ede6ca] hover:text-[#181c0d] hover:border-[#ede6ca] cursor-pointer whitespace-nowrap shrink-0"
+                  className="mun-btn-interactive inline-flex min-h-[44px] items-center justify-center gap-2 rounded-[2px] border border-[#ede6ca]/32 bg-transparent px-4 py-2 text-xs font-semibold text-[#ede6ca] hover:bg-[#ede6ca] hover:text-[#181c0d] hover:border-[#ede6ca] disabled:opacity-55 disabled:hover:bg-transparent disabled:hover:text-[#ede6ca] disabled:hover:border-[#ede6ca]/32 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap shrink-0"
                 >
                   <span>
-                    {!registrationStatusLoaded ? 'Checking...' : registrationStatus[TRACK_DEPARTMENT_SLUG[item.id]] !== true ? 'Applications Closed' : hasDraft ? `Resume ${item.title}` : `Apply for ${item.title}`}
+                    {!registrationStatusLoaded ? 'Checking...' : !trackOpen ? 'Applications Closed' : hasDraft ? `Resume ${item.title}` : `Apply for ${item.title}`}
                   </span>
                   <ArrowRight className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5" aria-hidden="true" />
                 </button>
@@ -770,7 +818,7 @@ export function ApplySection() {
                   </button>
                 </div>
 
-                {!receipt && (
+                {!receipt && isSelectedTrackOpen && (
                   <div className="mt-4 space-y-2.5">
                     <div className="grid grid-cols-4 gap-1.5 sm:gap-2" role="tablist" aria-label="Application steps">
                       {STEPS.map((s) => {
@@ -892,6 +940,30 @@ export function ApplySection() {
                         Return to conference page
                       </button>
                     </div>
+                  </div>
+                ) : registrationStatusLoaded && !isSelectedTrackOpen ? (
+                  <div className="mun-step-enter space-y-5 py-6 text-center">
+                    <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-[2px] border border-rose-300/35 bg-rose-500/10 text-rose-300">
+                      <Lock className="h-5 w-5" aria-hidden="true" />
+                    </div>
+                    <div className="space-y-2">
+                      <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-rose-300">
+                        Applications Closed
+                      </p>
+                      <h4 className="font-serif text-2xl font-medium text-[#ede6ca]">
+                        {currentTrackConfig.title} applications are currently closed
+                      </h4>
+                      <p className="mx-auto max-w-md text-sm leading-relaxed text-[#c9c2a6]">
+                        This application form has been turned off by conference administrators and is not accepting submissions right now.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={closeModal}
+                      className="mun-btn-interactive inline-flex min-h-[44px] items-center justify-center rounded-[2px] bg-[#ede6ca] px-6 py-2 text-xs font-semibold text-[#181c0d] hover:bg-[#dad3b4] cursor-pointer"
+                    >
+                      Return to conference page
+                    </button>
                   </div>
                 ) : (
                   <form id="willow-application-form" onSubmit={handleSubmit} noValidate>

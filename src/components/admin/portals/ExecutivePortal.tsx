@@ -13,6 +13,7 @@ import { PortalAuthView } from '../PortalAuthView';
 import { AccountManagementView } from '../views/AccountManagementView';
 import { HeadAccountsView } from '../views/HeadAccountsView';
 import { ActivityLogsView } from '../views/ActivityLogsView';
+import { ApplicationManagementView } from '../views/ApplicationManagementView';
 import { ApplicationsView } from '../views/ApplicationsView';
 import { CommitteesManagementView } from '../views/CommitteesManagementView';
 import { HrAcceptedApplicantsView } from '../views/HrAcceptedApplicantsView';
@@ -55,6 +56,10 @@ const SECTION_META: Record<string, { title: string; subtitle: string }> = {
   applications: {
     title: 'All Applications',
     subtitle: 'Review and finalize applicant decisions across departments.',
+  },
+  'application-management': {
+    title: 'Application Management',
+    subtitle: 'Turn public website application forms ON or OFF and monitor intake status.',
   },
   'hr-accepted': {
     title: 'Accepted Applicants (HR)',
@@ -261,6 +266,7 @@ export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePorta
   const westPortalSections = new Set([
     'dashboard',
     'applications',
+    'application-management',
     'hr-accepted',
     'staff-apps',
     'executive-board',
@@ -390,6 +396,15 @@ export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePorta
           <HrAcceptedApplicantsView />
         ) : (
           renderDenied('Accepted Applicants is restricted to HR and Administrators.')
+        )
+      ) : section === 'application-management' ? (
+        hasPermission(currentUser, 'departments.toggle_registration') ||
+        hasPermission(currentUser, 'registration.manage') ? (
+          <ApplicationManagementView
+            onOpenApplications={() => onNavigate(`${basePath}/applications`)}
+          />
+        ) : (
+          renderDenied('Your account lacks permission to manage application availability.')
         )
       ) : section === 'applications' || section === 'staff-apps' ? (
         hasPermission(currentUser, 'applications.view') ? (

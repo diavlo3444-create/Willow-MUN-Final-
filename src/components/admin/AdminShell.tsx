@@ -5,7 +5,7 @@ import {
   ClipboardList, Clock, ExternalLink, FileCode, FileText, FlaskConical,
   FolderKanban, Globe, HelpCircle, History, Image as ImageIcon, Inbox,
   KeyRound, LayoutDashboard, Lock, LogOut, Mail, MapPin, Megaphone, Menu, Link2,
-  QrCode, ScanLine, Search, Server, Settings, Shield, Tag, UserCheck,
+  QrCode, ScanLine, Search, Server, Settings, Shield, Tag, ToggleRight, UserCheck,
   UserCog, Users, X, ChevronRight, Layers,
 } from 'lucide-react';
 import { useAdminStore } from '../../context/AdminStoreContext';
@@ -29,6 +29,7 @@ interface AdminShellProps {
 
 const NAV_ICONS: Record<string, typeof LayoutDashboard> = {
   dashboard: LayoutDashboard, overview: LayoutDashboard, applications: FileText,
+  'application-management': ToggleRight,
   'hr-accepted': UserCheck, delegates: Award, 'staff-apps': Users, recommendations: ClipboardCheck,
   forms: ClipboardList, committees: BookOpen, secretariat: UserCheck,
   'executive-board': UserCheck, departments: Building2, department: Building2,

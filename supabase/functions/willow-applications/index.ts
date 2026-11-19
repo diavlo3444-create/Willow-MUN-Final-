@@ -212,6 +212,26 @@ Deno.serve(async (req: Request) => {
   const action = String(body?.action || "");
 
   // ---------------------------------------------------------------------------
+  // 0. Public Application Availability Status
+  // ---------------------------------------------------------------------------
+  if (action === "get_availability") {
+    const { data: deptRows, error: deptErr } = await admin
+      .from("wm_departments")
+      .select("slug,registration_open,updated_at")
+      .in("slug", ["media", "press", "volunteers", "security"]);
+
+    if (deptErr) return json({ error: "Could not load application availability." }, 500);
+
+    const availability: Record<string, boolean> = {};
+    for (const row of deptRows || []) {
+      const slug = String(row.slug || "").trim().toLowerCase();
+      if (slug) availability[slug] = row.registration_open === true;
+    }
+
+    return json({ availability });
+  }
+
+  // ---------------------------------------------------------------------------
   // 1. Public File Upload Initializer (Signed Upload URL into private bucket)
   // ---------------------------------------------------------------------------
   if (action === "init_upload") {
