@@ -335,7 +335,11 @@ export function AccountManagementView({
 
     setSaving(true);
     const body: Record<string, unknown> = {
-      action: editingRealId ? 'update' : 'create',
+      action: isPendingRoster && formRole === 'executive_board'
+        ? 'update_eb_roster'
+        : editingRealId
+          ? 'update'
+          : 'create',
       full_name: cleanName,
       // For existing accounts, omit email entirely unless it actually changed.
       // Role/permission updates should not invoke Supabase Auth email validation.
@@ -354,6 +358,9 @@ export function AccountManagementView({
         : {}),
     };
     if (editingRealId) body.user_id = editingRealId;
+    if (isPendingRoster && formRole === 'executive_board') {
+      body.member_key = editingAccount?.member_key;
+    }
     if (formPassword.trim()) body.password = formPassword.trim();
 
     const { data: res, error } = await supabase.functions.invoke('willow-staff-admin', { body });
