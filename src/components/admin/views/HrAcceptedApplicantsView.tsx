@@ -33,7 +33,8 @@ export function HrAcceptedApplicantsView({
   const [search, setSearch] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('all');
   const [genderFilter, setGenderFilter] = useState<'all' | 'female' | 'male'>('all');
-  const [selectedApp, setSelectedApp] = useState<Application | null>(null);\n  const [draftingInviteFor, setDraftingInviteFor] = useState<string | null>(null);
+  const [selectedApp, setSelectedApp] = useState<Application | null>(null);
+  const [draftingInviteFor, setDraftingInviteFor] = useState<string | null>(null);
 
   const hrAuthorized = isHrActor(actor, data.departments);
 
