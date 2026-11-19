@@ -550,12 +550,19 @@ export function ApplySection() {
           ? currentDraft.medicalDetails.trim() || null
           : null,
       availability:
-        currentDraft.attendsAllDays === 'yes'
-          ? 'Both conference days + extra rehearsal day'
-          : `Conflict on conference/rehearsal schedule: ${currentDraft.absenceReason.trim()}`,
-      attends_all_days: currentDraft.attendsAllDays === 'yes',
+        selectedTrack === 'security'
+          ? null
+          : currentDraft.attendsAllDays === 'yes'
+            ? 'Both conference days + extra rehearsal day'
+            : `Conflict on conference/rehearsal schedule: ${currentDraft.absenceReason.trim()}`,
+      attends_all_days:
+        selectedTrack === 'security'
+          ? null
+          : currentDraft.attendsAllDays === 'yes',
       absence_reason:
-        currentDraft.attendsAllDays === 'no' ? currentDraft.absenceReason.trim() : null,
+        selectedTrack !== 'security' && currentDraft.attendsAllDays === 'no'
+          ? currentDraft.absenceReason.trim()
+          : null,
       motivation: primaryMotivation,
       experience: safeExperienceValue,
       camera_model: selectedTrack === 'media' ? currentDraft.cameraModel.trim() : null,
