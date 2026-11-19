@@ -747,5 +747,37 @@ Deno.serve(async (req: Request) => {
     return json({ application: enriched });
   }
 
+  if (action === "delete") {
+    if (!isAdmin) return json({ error: "Only Administrators can permanently delete applications." }, 403);
+    const id = String(body?.id || "").trim();
+    if (!id) return json({ error: "Application ID is required." }, 400);
+    const { data: existing, error: fetchError } = await admin.from("wm_applications").select("id,proof_files,media_photos,writing_samples").eq("id", id).maybeSingle();
+    if (fetchError) return json({ error: fetchError.message }, 400);
+    if (!existing) return json({ error: "Application not found." }, 404);
+    const storagePaths = new Set<string>();
+    for (const field of ["proof_files", "media_photos", "writing_samples"] as const) {
+      const list = (existing as any)[field];
+      if (!Array.isArray(list)) continue;
+      for (const item of list) {
+        if (!item || typeof item !== "object") continue;
+        const path = String((item as any).storagePath || (item as any).storage_path || "").trim();
+        if (path && !path.includes("..")) storagePaths.add(path);
+      }
+    }
+    const relatedDeletes = await Promise.all([
+      admin.from("wm_application_medical").delete().eq("application_id", id),
+      admin.from("wm_hr_signup_invites").delete().eq("application_id", id),
+      admin.from("wm_qr_passes").delete().eq("application_id", id),
+    ]);
+    const relatedError = relatedDeletes.find((result) => result.error)?.error;
+    if (relatedError) return json({ error: relatedError.message }, 400);
+    const { error: deleteError } = await admin.from("wm_applications").delete().eq("id", id);
+    if (deleteError) return json({ error: deleteError.message }, 400);
+    if (storagePaths.size > 0) {
+      const { error: storageError } = await admin.storage.from(STORAGE_BUCKET).remove(Array.from(storagePaths));
+      if (storageError) return json({ success: true, storage_cleanup_warning: storageError.message });
+    }
+    return json({ success: true });
+  }
   return json({ error: "Unsupported action." }, 400);
 });
