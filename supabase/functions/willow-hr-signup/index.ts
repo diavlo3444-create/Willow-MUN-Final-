@@ -97,7 +97,7 @@ Deno.serve(async (req: Request) => {
     let createdId: string | null = null;
     try {
       const { data: app, error: appErr } = await admin.from("wm_applications")
-        .select("id,applicant_name,email,application_type,department_id,position,status")
+        .select("id,applicant_name,email,application_type,department_id,position,status,gender")
         .eq("id", invite.application_id).maybeSingle();
       if (appErr || !app || app.status !== "accepted") throw new Error("Application is no longer accepted.");
       const email = cleanEmail(app.email);
