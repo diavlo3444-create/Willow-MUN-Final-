@@ -57,26 +57,30 @@ export function EmailsDashboardView(){
  const activeQueue=queue.filter(q=>q.status==='waiting'||q.status==='processing').length;
  const openAll=(type:EmailDecisionType)=>{const eligible=type==='accepted'?acceptedPending:rejectedPending;setConfirmState({mode:type==='accepted'?'all_accepted':'all_rejected',emailType:type,recipients:eligible,skippedAlreadySentCount:(type==='accepted'?accepted:rejected)-eligible.length,skippedIneligibleCount:total-(type==='accepted'?accepted:rejected)})};
  const openSelected=(list:EmailApplicantRecord[],type?:EmailDecisionType)=>{if(list.length)setConfirmState({mode:'selected',emailType:type||(list.every(a=>a.applicationStatus==='rejected')?'rejected':'accepted'),recipients:list,skippedAlreadySentCount:0,skippedIneligibleCount:0})};
- const confirmSend=(type:EmailDecisionType)=>{
-  if(!confirmState)return;
-  const rec=confirmState.recipients.filter(a=>a.applicationStatus===type&&a.email.trim()&&a.emailStatus!=='sent');
-  const staged=rec.map((r,i):EmailQueueItem=>({id:`q-${Date.now()}-${i}-${r.id}`,applicantId:r.id,recipientName:r.applicantName,recipientEmail:r.email,department:r.department,emailType:type,subject:renderEmailPreview(templates[type].subject,r,type),status:'waiting',queuedAt:new Date().toISOString()}));
-  setQueue(prev=>[...staged,...prev]);if(confirmState.mode==='selected')setSelectedIds([]);setConfirmState(null);setActiveTab('queue');
-  pushToast({tone:'info',title:`${staged.length} email(s) queued`,description:'Review recipient list, then use Send Queue to deliver.'});
- };
- const sendQueue=async()=>{
-  if(sending)return;const pending=queue.filter(q=>q.status==='waiting');if(!pending.length)return;
-  setSending(true);setProgress({done:0,total:pending.length});let done=0;
-  for(const item of pending){
+ const sendBatch=async(items:EmailQueueItem[])=>{
+  if(sending||!items.length)return;
+  setSending(true);setProgress({done:0,total:items.length});let done=0;
+  for(const item of items){
    setQueue(q=>q.map(x=>x.id===item.id?{...x,status:'processing'}:x));
    try{
     const {data,error}=await supabase.functions.invoke('willow-application-email',{body:{application_id:item.applicantId,decision:item.emailType}});
     if(error||data?.error)throw new Error(data?.error||error?.message||'Send error');
     setQueue(q=>q.map(x=>x.id===item.id?{...x,status:data?.status==='failed'?'failed':'sent',errorDetails:data?.status==='failed'?'Delivery marked failed':null}:x));
    }catch(e){setQueue(q=>q.map(x=>x.id===item.id?{...x,status:'failed',errorDetails:e instanceof Error?e.message:'Delivery failed'}:x))}
-   done++;setProgress({done,total:pending.length});
+   done++;setProgress({done,total:items.length});
   }
-  setSending(false);await refresh();pushToast({tone:'info',title:'Batch complete',description:'Refresh completed. Review failed delivery records if any.'});
+  setSending(false);await refresh();pushToast({tone:'info',title:'Bulk send complete',description:'Review any failed deliveries in Email History.'});
+ };
+ const confirmSend=(type:EmailDecisionType)=>{
+  if(!confirmState||sending)return;
+  const rec=confirmState.recipients.filter(a=>a.applicationStatus===type&&a.email.trim()&&a.emailStatus!=='sent');
+  const staged=rec.map((r,i):EmailQueueItem=>({id:`q-${Date.now()}-${i}-${r.id}`,applicantId:r.id,recipientName:r.applicantName,recipientEmail:r.email,department:r.department,emailType:type,subject:renderEmailPreview(templates[type].subject,r,type),status:'waiting',queuedAt:new Date().toISOString()}));
+  setQueue(prev=>[...staged,...prev]);if(confirmState.mode==='selected')setSelectedIds([]);setConfirmState(null);
+  void sendBatch(staged);
+ };
+ const sendQueue=async()=>{
+  const pending=queue.filter(q=>q.status==='waiting');if(!pending.length||sending)return;
+  void sendBatch(pending);
  };
  const retry=async(id:string)=>{try{const {data,error}=await supabase.functions.invoke('willow-email-management',{body:{action:'retry',delivery_id:id}});if(error||data?.error)throw new Error(data?.error||error?.message);pushToast({tone:'success',title:'Retry request sent'});await refresh()}catch(e){pushToast({tone:'error',title:'Retry failed',description:e instanceof Error?e.message:'Request failed'})}};
  const saveTemplate=async(key:EmailDecisionType,subject:string,body:string)=>{try{const {data,error}=await supabase.functions.invoke('willow-email-management',{body:{action:'save_template',template_key:key,subject,body_text:body}});if(error||data?.error)throw new Error(data?.error||error?.message);if(data?.template)setTemplates(p=>({...p,[key]:templateMap(data.template)}));pushToast({tone:'success',title:'Template saved to Supabase'})}catch(e){pushToast({tone:'error',title:'Template save failed',description:e instanceof Error?e.message:'Request failed'})}};
