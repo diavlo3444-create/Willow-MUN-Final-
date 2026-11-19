@@ -168,7 +168,7 @@ Deno.serve(async (req: Request) => {
         entry.member_key !== memberKey && (
           cleanEmail(entry.email) === email ||
           (entry.email_aliases || []).some((alias: string) => cleanEmail(alias) === email)
-        );
+        ));
       if (duplicateRoster) return json({ error: "Another Executive Board roster entry already uses this email." }, 409);
       const existingUser = await findUserByEmail(email);
       if (existingUser) return json({ error: "An Auth account already exists for this email." }, 409);
