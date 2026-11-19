@@ -900,7 +900,7 @@ export function getNavigationGroups(
         ? [{ id: 'scanner', label: 'Entrance Scanner', path: '/head/scanner', requiredPermission: 'qr.scan' } satisfies NavItemConfig]
         : []),
       ...(isHrActor(user, departments)
-        ? [{ id: 'hr-accepted', label: 'Accepted Applicants', path: '/head/hr-accepted' } satisfies NavItemConfig]
+        ? [{ id: 'hr-accepted', label: 'Accepted Applicants', path: '/head/hr-accepted' }, { id: 'emails', label: 'Emails', path: '/head/emails', requiredPermission: 'email.view' } satisfies NavItemConfig]
         : []),
       ...(isDccActor(user, departments)
         ? [{ id: 'committees', label: 'Committees', path: '/head/committees', requiredPermission: 'committees.manage' } satisfies NavItemConfig]
@@ -947,6 +947,7 @@ export function getNavigationGroups(
       id: 'communications',
       label: 'Communications',
       items: [
+        { id: 'emails', label: 'Emails', path: base + '/emails', requiredPermission: 'email.view' },
         { id: 'settings', label: 'Settings', path: base + '/settings', requiredPermission: 'system.settings' },
       ],
     },
