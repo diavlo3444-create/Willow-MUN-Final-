@@ -71,7 +71,7 @@ export function ExecutiveBoardAccountsView() {
       supabase.from('wm_departments').select('id,name,slug,cluster').order('name'),
     ]);
     if (accountResult.error) setError(accountResult.error.message);
-    else setAccounts((accountResult.data?.accounts ?? []).filter((a: Account) => a.role === 'executive_board'));
+    else setAccounts((accountResult.data?.accounts ?? []).filter((a: Account) => a.role === 'executive_board' || a.role === 'department_head'));
     if (deptResult.error) setError((old) => (old ? old + ' ' + deptResult.error.message : deptResult.error.message));
     else setDepartments((deptResult.data ?? []) as Department[]);
     setLoading(false);
@@ -214,7 +214,7 @@ export function ExecutiveBoardAccountsView() {
     const dept = departments.find((d) => d.id === account.department_id || d.slug === account.department_id);
     const ok = enterDepartmentTestMode({
       id: account.user_id,
-      role: 'executive_board',
+      role: account.role,
       fullName: account.full_name,
       email: account.email,
       title: account.title,
