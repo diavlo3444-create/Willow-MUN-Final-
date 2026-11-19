@@ -533,8 +533,7 @@ body.intro-on {
   position: fixed;
   inset: 0;
   z-index: 40;
-  /* Opaque olive stage hides the looping background video during the intro,
-     so the intro animation is the only tree visible until its handoff. */
+  /* Color-matched stage uses the exact canvas tone behind the loop video. */
   background: #393f24;
   opacity: 0;
   pointer-events: none;
@@ -551,7 +550,9 @@ body.intro-on .willow-intro-backdrop {
   height: 100vh;
   height: 100dvh;
   object-fit: cover;
-  mix-blend-mode: screen;
+  /* Avoid the bright screen-blend look that made the intro feel like a separate clip. */
+  mix-blend-mode: normal;
+  filter: brightness(0.9) saturate(0.88) contrast(1.04);
   pointer-events: none;
   opacity: 0;
   transform: scale(0.96);
