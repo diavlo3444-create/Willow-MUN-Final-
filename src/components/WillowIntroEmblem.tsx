@@ -285,28 +285,15 @@ export const WillowIntroEmblem = forwardRef<WillowIntroEmblemHandle, WillowIntro
       };
       document.addEventListener('visibilitychange', onVisibilityChange);
 
-      const isAutostart =
-        new URLSearchParams(window.location.search).get('autostart') === '1';
-
+      // The intro is intended to run on each public-site entry. Reduced-motion users
+      // still receive an instant handoff rather than a forced animation.
       if (shouldAutoStartRef.current) {
-        // Mark the first visit immediately so refreshes and portal round-trips never replay it.
-        try {
-          window.localStorage.setItem('willow-intro-seen', '1');
-        } catch {
-          // The intro can still play when browser storage is unavailable.
-        }
-
-        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || isAutostart) {
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
           finishedRef.current = false;
           finishIntro({ seekToEnd: true });
         } else {
           startIntro(false);
         }
-      } else {
-        // This public-page mount is a return visit: keep the background loop, skip the intro.
-        finishedRef.current = true;
-        video?.pause();
-        document.body.classList.remove('intro-on', 'intro-transitioning');
       }
 
       return () => {
