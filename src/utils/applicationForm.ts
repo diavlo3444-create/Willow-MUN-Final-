@@ -6,6 +6,7 @@ export const PUBLIC_APPLICATION_TRACKS: readonly ApplicationTrack[] = [
   'media',
   'press',
   'volunteer',
+  'security',
 ] as const;
 
 export interface UploadedApplicationFile {
@@ -135,30 +136,11 @@ export const VOLUNTEER_QUESTIONS: readonly RoleQuestionDefinition[] = [
 ] as const;
 
 export const SECURITY_QUESTIONS: readonly RoleQuestionDefinition[] = [
-  {
-    id: 'security_q1',
-    label: 'Why do you want to join the Security Corps at WILLOW MUN?',
-    placeholder: 'Share why you want to support venue order, badge verification, and delegate safety.',
-    minLength: 15,
-  },
-  {
-    id: 'security_q2',
-    label: 'What sets you apart from other applicants?',
-    placeholder: 'Describe your composure, vigilance, communication skills, and teamwork.',
-    minLength: 15,
-  },
-  {
-    id: 'security_q3',
-    label: 'How do you handle access control or policy violations calmly?',
-    placeholder: 'Explain how you uphold rules respectfully without escalating conflict.',
-    minLength: 15,
-  },
-  {
-    id: 'security_q4',
-    label: 'How would you coordinate with Volunteer and Secretariat teams during peak transitions?',
-    placeholder: 'Describe your communication approach at checkpoints and hallways.',
-    minLength: 15,
-  },
+  { id: 'security_q1', label: 'Why are you interested in joining Willow MUN as Security?', placeholder: 'Explain why you want to join Willow MUN Security.', minLength: 15 },
+  { id: 'security_q2', label: 'What differentiates you from other candidates?', placeholder: 'Explain what makes you a strong candidate.', minLength: 15 },
+  { id: 'security_q3', label: 'You notice that one of your fellow Security members is ignoring their responsibilities. What would you do?', placeholder: 'Explain how you would handle this situation.', minLength: 15 },
+  { id: 'security_q4', label: 'Any allergies?', placeholder: 'If yes, please describe.', minLength: 0 },
+  { id: 'security_q5', label: 'Any inquiries?', placeholder: 'If yes, please write them here.', minLength: 0 },
 ] as const;
 
 export function getRoleQuestionsForTrack(track: ApplicationTrack): readonly RoleQuestionDefinition[] {
@@ -301,7 +283,7 @@ export function validateStep(
     if (!isValidEmail(draft.email)) {
       errors.email = 'Please enter a valid email address (for example, name@example.com).';
     }
-    if (draft.gender !== 'male' && draft.gender !== 'female') {
+    if (track !== 'security' && draft.gender !== 'male' && draft.gender !== 'female') {
       errors.gender = 'Please select your gender.';
     }
     if (!draft.grade.trim()) {
@@ -325,7 +307,7 @@ export function validateStep(
         guardianRes.error || "Please enter a valid guardian's phone number.";
     }
 
-    if (draft.hasMedicalCondition !== 'yes' && draft.hasMedicalCondition !== 'no') {
+    if (track !== 'security' && draft.hasMedicalCondition !== 'yes' && draft.hasMedicalCondition !== 'no') {
       errors.hasMedicalCondition =
         'Please select Yes or No regarding medical conditions or regular medication.';
     }
@@ -375,7 +357,11 @@ export function validateStep(
     const questions = getRoleQuestionsForTrack(track);
     for (const q of questions) {
       const answer = (draft.roleAnswers[q.id] || '').trim();
-      if (answer.length < q.minLength) {
+      if (track === 'security' && (q.id === 'security_q4' || q.id === 'security_q5')) {
+        if (answer !== 'no' && !(answer.startsWith('yes:') && answer.slice(4).trim().length >= 3)) {
+          errors[`role_${q.id}`] = 'Select No, or select Yes and provide details.';
+        }
+      } else if (answer.length < q.minLength) {
         errors[`role_${q.id}`] = `Please write at least ${q.minLength} characters for this question.`;
       }
     }
