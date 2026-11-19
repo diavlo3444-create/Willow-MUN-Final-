@@ -12,7 +12,7 @@ import {
   Users,
 } from 'lucide-react';
 import { useAdminStore } from '../../../context/AdminStoreContext';
-import { fetchHrAcceptedApplications } from '../../../services/liveBackendService';
+import { fetchHrAcceptedApplications, createHrApplicantSignupInvite } from '../../../services/liveBackendService';
 import type { AdminUser, Application } from '../../../types/admin';
 import { isHrActor, normalizeDepartmentSlug } from '../../../utils/adminPermissions';
 import { scopeAcceptedApplicationsForHr } from '../../../utils/applicationFilters';
@@ -33,9 +33,45 @@ export function HrAcceptedApplicantsView({
   const [search, setSearch] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('all');
   const [genderFilter, setGenderFilter] = useState<'all' | 'female' | 'male'>('all');
-  const [selectedApp, setSelectedApp] = useState<Application | null>(null);
+  const [selectedApp, setSelectedApp] = useState<Application | null>(null);\n  const [draftingInviteFor, setDraftingInviteFor] = useState<string | null>(null);
 
   const hrAuthorized = isHrActor(actor, data.departments);
+
+  const draftAcceptanceEmail = useCallback(async (app: Application) => {
+    if (!app.email) {
+      pushToast({ tone: 'error', title: 'Applicant email missing', description: 'This application does not contain an email address.' });
+      return;
+    }
+    const popup = window.open('', '_blank');
+    if (!popup) {
+      pushToast({ tone: 'warning', title: 'Popup blocked', description: 'Allow popups to open Gmail with the acceptance draft.' });
+      return;
+    }
+    setDraftingInviteFor(app.id);
+    const invite = await createHrApplicantSignupInvite(app.id);
+    setDraftingInviteFor(null);
+    if (!invite.url) {
+      popup.close();
+      pushToast({ tone: 'error', title: 'Signup link failed', description: invite.error || 'Could not generate a permanent signup link.' });
+      return;
+    }
+    const subject = 'Willow MUN — Application Accepted';
+    const body = `Hello ${app.applicantName},
+
+Congratulations! Your application to Willow MUN has been accepted for ${app.position || 'your assigned team'}.
+
+Create your account using your personal signup link:
+${invite.url}
+
+This link does not expire, but it can only be used once. After creating your account, sign in to your assigned Willow MUN dashboard.
+
+Welcome to Willow MUN.
+
+Human Resources
+Willow MUN`;
+    const composeUrl = 'https://mail.google.com/mail/?view=cm&fs=1&to=' + encodeURIComponent(app.email) + '&su=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+    popup.location.href = composeUrl;
+  }, [pushToast]);
 
   const load = useCallback(async () => {
     if (!hrAuthorized) {
@@ -157,7 +193,12 @@ export function HrAcceptedApplicantsView({
               <Mail className="mt-0.5 h-4 w-4 shrink-0 text-[color:var(--wm-accent)]" aria-hidden="true" />
               <div className="min-w-0">
                 <p className="text-[10px] font-mono uppercase tracking-wider text-[color:var(--wm-ink-muted)]">Email</p>
-                <p className="mt-0.5 truncate text-xs text-[color:var(--wm-ink)]">{selectedApp.email || '—'}</p>
+                {selectedApp.email ? (
+                  <button type="button" onClick={() => void draftAcceptanceEmail(selectedApp)} disabled={draftingInviteFor === selectedApp.id}
+                    className="mt-0.5 truncate text-left text-xs text-[color:var(--wm-accent)] underline disabled:opacity-60">
+                    {draftingInviteFor === selectedApp.id ? 'Generating permanent signup link…' : selectedApp.email}
+                  </button>
+                ) : <p className="mt-0.5 text-xs text-[color:var(--wm-ink)]">—</p>}
               </div>
             </div>
             <div className="wm-surface-inset flex items-start gap-2.5 p-3.5">
@@ -337,7 +378,10 @@ export function HrAcceptedApplicantsView({
                 <tr key={app.id} className="transition-colors hover:bg-[color:var(--wm-inset)]/60">
                   <td className="px-4 py-3">
                     <p className="font-semibold text-[color:var(--wm-ink)]">{app.applicantName}</p>
-                    <p className="mt-0.5 text-[11px] text-[color:var(--wm-ink-muted)]">{app.email}</p>
+                    <button type="button" onClick={() => void draftAcceptanceEmail(app)} disabled={draftingInviteFor === app.id}
+                      className="mt-0.5 block max-w-full truncate text-left text-[11px] text-[color:var(--wm-accent)] underline disabled:opacity-60">
+                      {draftingInviteFor === app.id ? 'Generating signup link…' : app.email}
+                    </button>
                   </td>
                   <td className="px-4 py-3 text-[color:var(--wm-ink-secondary)]">
                     {deptNameById.get(app.departmentId) || app.departmentId}
