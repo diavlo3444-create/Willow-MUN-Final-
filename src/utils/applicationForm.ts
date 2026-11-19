@@ -366,12 +366,14 @@ export function validateStep(
       }
     }
 
-    if (draft.attendsAllDays !== 'yes' && draft.attendsAllDays !== 'no') {
-      errors.attendsAllDays =
-        'Please indicate whether you can attend both conference days and the extra rehearsal day.';
-    } else if (draft.attendsAllDays === 'no' && draft.absenceReason.trim().length < 5) {
-      errors.absenceReason =
-        'Please explain why you are unable to attend both conference days and the rehearsal day.';
+    if (track !== 'security') {
+      if (draft.attendsAllDays !== 'yes' && draft.attendsAllDays !== 'no') {
+        errors.attendsAllDays =
+          'Please indicate whether you can attend both conference days and the extra rehearsal day.';
+      } else if (draft.attendsAllDays === 'no' && draft.absenceReason.trim().length < 5) {
+        errors.absenceReason =
+          'Please explain why you are unable to attend both conference days and the rehearsal day.';
+      }
     }
   }
 
