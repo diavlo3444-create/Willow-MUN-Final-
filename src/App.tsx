@@ -32,14 +32,8 @@ import { isAdminRoute, usePathname } from './utils/router';
 
 function PublicWebsite() {
   const [showAnnouncement, setShowAnnouncement] = useState(true);
-  const [introPlaying, setIntroPlaying] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    try {
-      return window.localStorage.getItem('willow-intro-seen') !== '1';
-    } catch {
-      return true;
-    }
-  });
+  // Always show the opening animation on a fresh public-site entry.
+  const [introPlaying, setIntroPlaying] = useState(true);
 
   const introEmblemRef = useRef<WillowIntroEmblemHandle | null>(null);
 
