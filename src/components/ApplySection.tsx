@@ -1049,7 +1049,7 @@ export function ApplySection() {
                           </div>
                         </div>
 
-                        {selectedTrack !== 'invalid' && (
+                        {Boolean(selectedTrack) && (
                         <div>
                           <span
                             id="apply-gender-label"
@@ -1184,7 +1184,7 @@ export function ApplySection() {
                         </div>
 
                         {/* Medical Condition Disclosure (Private / Admin Restricted) */}
-                        {selectedTrack !== 'invalid' && (
+                        {Boolean(selectedTrack) && (
                         <div className="willow-folio-inset rounded-[3px] p-4 sm:p-5 space-y-3.5">
                           <div className="flex items-start justify-between gap-3">
                             <span
