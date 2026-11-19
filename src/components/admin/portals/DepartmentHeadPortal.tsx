@@ -59,7 +59,8 @@ export function DepartmentHeadPortal({ pathname, onNavigate }: DepartmentHeadPor
 
   const canViewApps = hasPermission(effectiveHead, 'applications.view', data.departments);
   const canScanQr = hasPermission(effectiveHead, 'qr.scan', data.departments);
-  const isHrHead = isHrActor(effectiveHead, data.departments);\n  const canManageEmails = isHrHead && hasPermission(effectiveHead, 'email.view', data.departments);
+  const isHrHead = isHrActor(effectiveHead, data.departments);
+  const canManageEmails = isHrHead && hasPermission(effectiveHead, 'email.view', data.departments);
   const isDccHead = isDccActor(effectiveHead, data.departments);
   const canViewQr = hasPermission(effectiveHead, 'qr.view_pass', data.departments);
 
@@ -79,7 +80,8 @@ export function DepartmentHeadPortal({ pathname, onNavigate }: DepartmentHeadPor
     (section === 'applications' && canViewApps) ||
     (section === 'scanner' && canScanQr) ||
     (section === 'qr' && canViewQr) ||
-    (section === 'hr-accepted' && isHrHead) ||\n    (section === 'emails' && canManageEmails) ||
+    (section === 'hr-accepted' && isHrHead) ||
+    (section === 'emails' && canManageEmails) ||
     (section === 'committees' && isDccHead);
 
   const isQrOtherUserAttempt =
@@ -167,7 +169,8 @@ export function DepartmentHeadPortal({ pathname, onNavigate }: DepartmentHeadPor
   const pageTitles: Record<string, string> = {
     applications: `${assignedDepartment.name} Applications`,
     scanner: 'Entrance QR Pass Scanner',
-    'hr-accepted': 'HR · Accepted Applicants',\n    emails: 'Email Management & Delivery',
+    'hr-accepted': 'HR · Accepted Applicants',
+    emails: 'Email Management & Delivery',
     committees: 'DCC · Committee Management',
     qr: 'My QR Credential',
   };
