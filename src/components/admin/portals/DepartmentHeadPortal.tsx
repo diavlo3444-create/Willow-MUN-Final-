@@ -14,7 +14,8 @@ import { MyQrCard } from '../MyQrModal';
 import { PortalAuthView } from '../PortalAuthView';
 import { CommitteesManagementView } from '../views/CommitteesManagementView';
 import { HeadApplicationsView } from '../views/HeadApplicationsView';
-import { HrAcceptedApplicantsView } from '../views/HrAcceptedApplicantsView';\nimport { EmailsDashboardView } from '../views/EmailsDashboardView';
+import { HrAcceptedApplicantsView } from '../views/HrAcceptedApplicantsView';
+import { EmailsDashboardView } from '../views/EmailsDashboardView';
 import { QrAttendanceView } from '../views/QrAttendanceView';
 
 interface DepartmentHeadPortalProps {
@@ -153,7 +154,9 @@ export function DepartmentHeadPortal({ pathname, onNavigate }: DepartmentHeadPor
   const activeNavId =
     section === 'scanner' && canScanQr
       ? 'scanner'
-      : section === 'hr-accepted' && isHrHead
+      : section === 'emails' && canManageEmails
+        ? 'emails'
+        : section === 'hr-accepted' && isHrHead
         ? 'hr-accepted'
         : section === 'committees' && isDccHead
           ? 'committees'
@@ -227,6 +230,8 @@ export function DepartmentHeadPortal({ pathname, onNavigate }: DepartmentHeadPor
           </div>
           <QrAttendanceView mode="qr" actingUserOverride={effectiveHead} />
         </div>
+      ) : activeNavId === 'emails' ? (
+        <EmailsDashboardView />
       ) : activeNavId === 'hr-accepted' ? (
         <HrAcceptedApplicantsView actingUserOverride={effectiveHead} />
       ) : activeNavId === 'committees' ? (
