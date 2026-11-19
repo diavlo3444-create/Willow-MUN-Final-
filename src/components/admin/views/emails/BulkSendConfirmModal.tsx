@@ -186,7 +186,7 @@ export function BulkSendConfirmModal({
                 {request.recipients.length === 1 ? '' : 's'}.
               </p>
               <p className="text-[11px] text-amber-200/85">
-                UI Preview Mode: Backend mail dispatch is not connected yet. Confirming adds these
+                Live delivery mode: Confirming stages the selected recipients. Click Send Queue to transmit real emails.
                 items to the Sending Queue interface without transmitting actual emails.
               </p>
             </div>
