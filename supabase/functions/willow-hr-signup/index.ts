@@ -65,18 +65,28 @@ Deno.serve(async (req: Request) => {
     const { data: previous, error: previousErr } = await admin.from("wm_hr_signup_invites")
       .select("id,claimed_at,token_value").eq("application_id", app.id).maybeSingle();
     if (previousErr) return json({ error: "Could not inspect previous signup link." }, 500);
+    if (previous?.claimed_at) return json({ error: "Applicant has already claimed their signup link." }, 409);
+
+    // Reuse the same link whenever possible. For legacy invites, add a second
+    // accepted token instead of replacing the original hash, so old emails keep working.
     const token = previous?.token_value || newToken();
     const tokenHash = await hash(token);
-    if (previous?.claimed_at) return json({ error: "Applicant has already claimed their signup link." }, 409);
-    const inviteWrite = previous
-      ? await admin.from("wm_hr_signup_invites").update({
-          token_hash: tokenHash, token_value: token, issued_by: userData.user.id, issued_at: previous.token_value ? undefined : new Date().toISOString(),
-          revoked_at: null, claim_started_at: null,
-        }).eq("id", previous.id)
-      : await admin.from("wm_hr_signup_invites").insert({
-          application_id: app.id, token_hash: tokenHash, token_value: token, issued_by: userData.user.id,
-        });
-    if (inviteWrite.error) return json({ error: "Could not create signup link." }, 500);
+    if (previous) {
+      if (!previous.token_value) {
+        const { error: tokenSaveErr } = await admin.from("wm_hr_signup_invites")
+          .update({ token_value: token, issued_by: userData.user.id })
+          .eq("id", previous.id);
+        if (tokenSaveErr) return json({ error: "Could not preserve signup link." }, 500);
+        const { error: aliasErr } = await admin.from("wm_hr_signup_invite_tokens")
+          .insert({ invite_id: previous.id, token_hash: tokenHash, token_value: token });
+        if (aliasErr) return json({ error: "Could not add resendable signup link." }, 500);
+      }
+    } else {
+      const { error: inviteErr } = await admin.from("wm_hr_signup_invites").insert({
+        application_id: app.id, token_hash: tokenHash, token_value: token, issued_by: userData.user.id,
+      });
+      if (inviteErr) return json({ error: "Could not create signup link." }, 500);
+    }
     const origin = String(body.origin || req.headers.get("origin") || "https://willow-mun.vercel.app").replace(/\/$/, "");
     return json({ success: true, signup_url: `${origin}/team-signup?token=${encodeURIComponent(token)}`, email, full_name: app.applicant_name, position: app.position });
   }
@@ -87,11 +97,26 @@ Deno.serve(async (req: Request) => {
     if (!/^[a-f0-9]{64}$/i.test(token)) return json({ error: "Signup link is invalid." }, 400);
     if (password.length < 10) return json({ error: "Password must be at least 10 characters." }, 400);
     const tokenHash = await hash(token);
-    const { data: invite, error: lockErr } = await admin.from("wm_hr_signup_invites")
+    let { data: invite, error: lockErr } = await admin.from("wm_hr_signup_invites")
+      .select("id,application_id,claimed_at").eq("token_hash", tokenHash).maybeSingle();
+    if (lockErr) return json({ error: "Could not verify signup link. Please try again." }, 500);
+    if (!invite) {
+      const { data: alias, error: aliasErr } = await admin.from("wm_hr_signup_invite_tokens")
+        .select("invite_id").eq("token_hash", tokenHash).maybeSingle();
+      if (aliasErr) return json({ error: "Could not verify signup link. Please try again." }, 500);
+      if (alias) {
+        const parent = await admin.from("wm_hr_signup_invites")
+          .select("id,application_id,claimed_at").eq("id", alias.invite_id).maybeSingle();
+        invite = parent.data;
+        lockErr = parent.error;
+      }
+    }
+    if (lockErr || !invite) return json({ error: "Signup link not found. Ask HR to resend the invitation." }, 404);
+    if (invite.claimed_at) return json({ error: "This applicant has already signed up. Please sign in instead." }, 409);
+    const { data: claimable, error: claimLockErr } = await admin.from("wm_hr_signup_invites")
       .update({ claim_started_at: new Date().toISOString() })
-      .eq("token_hash", tokenHash).is("claimed_at", null)
-      .select("id,application_id").maybeSingle();
-    if (lockErr || !invite) return json({ error: "This signup link was already used or could not be found." }, 409);
+      .eq("id", invite.id).is("claimed_at", null).select("id").maybeSingle();
+    if (claimLockErr || !claimable) return json({ error: "This applicant has already signed up. Please sign in instead." }, 409);
     let createdId: string | null = null;
     try {
       const { data: app, error: appErr } = await admin.from("wm_applications")
