@@ -60,7 +60,7 @@ export function DepartmentHeadPortal({ pathname, onNavigate }: DepartmentHeadPor
   const canViewApps = hasPermission(effectiveHead, 'applications.view', data.departments);
   const canScanQr = hasPermission(effectiveHead, 'qr.scan', data.departments);
   const isHrHead = isHrActor(effectiveHead, data.departments);
-  const canManageEmails = isHrHead && hasPermission(effectiveHead, 'email.view', data.departments);
+  const canManageEmails = isHrHead;
   const isDccHead = isDccActor(effectiveHead, data.departments);
   const canViewQr = hasPermission(effectiveHead, 'qr.view_pass', data.departments);
 
