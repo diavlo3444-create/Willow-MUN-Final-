@@ -43,8 +43,12 @@ export const WillowIntroEmblem = forwardRef<WillowIntroEmblemHandle, WillowIntro
       const width = window.innerWidth;
       const height = window.innerHeight;
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      canvas.width = Math.round(width * dpr);
-      canvas.height = Math.round(height * dpr);
+      const targetWidth = Math.round(width * dpr);
+      const targetHeight = Math.round(height * dpr);
+      if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+      }
       canvas.style.width = '100vw';
       canvas.style.height = '100dvh';
       ctx.clearRect(0, 0, canvas.width, canvas.height);
