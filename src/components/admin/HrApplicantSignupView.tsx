@@ -4,7 +4,10 @@ import { supabase } from '../../lib/supabase';
 import { claimHrApplicantSignup } from '../../services/liveBackendService';
 
 export function HrApplicantSignupView({ onNavigate }: { onNavigate: (path: string) => void }) {
-  const token = new URLSearchParams(window.location.search).get('token') || '';
+  const rawToken = new URLSearchParams(window.location.search).get('token') || '';
+  // Email clients sometimes append encoded line breaks or punctuation to wrapped links.
+  // Extract the exact 64-character hexadecimal invite token before submitting it.
+  const token = rawToken.match(/[a-f0-9]{64}/i)?.[0] || '';
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [busy, setBusy] = useState(false);
