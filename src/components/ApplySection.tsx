@@ -1286,7 +1286,7 @@ export function ApplySection() {
                           </label>
                           <textarea
                             id="apply-experience"
-                            rows={4}
+                            rows={1}
                             required
                             value={currentDraft.experience}
                             onChange={(e) => updateField('experience', e.target.value)}
