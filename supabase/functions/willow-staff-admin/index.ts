@@ -159,6 +159,53 @@ Deno.serve(async (req: Request) => {
         return json({ error: "Department assignment is required for Department Head and Executive Board accounts." }, 400);
       }
 
+      // Executive Board entries must be added to the database-backed signup roster.
+      // The member creates their own Auth account later through /eb-signup.
+      if (fields.role === "executive_board") {
+        const { data: existingRoster, error: rosterLookupError } = await admin
+          .from("wm_eb_signup_allowlist")
+          .select("member_key,email,email_aliases");
+        if (rosterLookupError) throw rosterLookupError;
+        const alreadyListed = (existingRoster || []).some((entry: any) =>
+          cleanEmail(entry.email) === email ||
+          (entry.email_aliases || []).some((alias: string) => cleanEmail(alias) === email)
+        );
+        if (alreadyListed) return json({ error: "This email is already listed in the Executive Board roster." }, 409);
+        const existingUser = await findUserByEmail(email);
+        if (existingUser) return json({ error: "An account already exists for this email. Edit the existing account instead." }, 409);
+        const { data: rosterEntry, error: rosterInsertError } = await admin
+          .from("wm_eb_signup_allowlist")
+          .insert({
+            email,
+            member_key: crypto.randomUUID(),
+            full_name: fields.full_name,
+            title: fields.title || "Executive Board",
+            department_id: fields.department_id,
+            eb_rank: fields.eb_rank,
+            eb_permissions: fields.eb_permissions,
+            permissions: fields.permissions,
+            gender: fields.division,
+          })
+          .select("member_key,email,full_name,title,department_id,eb_rank,eb_permissions")
+          .single();
+        if (rosterInsertError) throw rosterInsertError;
+        return json({
+          account: {
+            user_id: `pending:${rosterEntry.member_key}`,
+            email: rosterEntry.email,
+            full_name: rosterEntry.full_name,
+            role: "executive_board",
+            department_id: rosterEntry.department_id,
+            title: rosterEntry.title,
+            eb_rank: rosterEntry.eb_rank,
+            eb_permissions: rosterEntry.eb_permissions,
+            is_active: true,
+            signup_status: "awaiting_signup",
+          },
+          message: "EB member added to the approved signup roster.",
+        }, 201);
+      }
+
       // Duplicate email guard before creating auth user
       const duplicate = await findUserByEmail(email);
       if (duplicate) {
