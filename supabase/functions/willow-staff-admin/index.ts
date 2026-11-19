@@ -321,11 +321,19 @@ Deno.serve(async (req: Request) => {
       if (body.email !== undefined) {
         const nextEmail = cleanEmail(body.email);
         if (!nextEmail) return json({ error: "Email address cannot be blank." }, 400);
-        const dup = await findUserByEmail(nextEmail);
-        if (dup && dup.id !== userId) {
-          return json({ error: `Another account already uses email "${nextEmail}".` }, 409);
+        // Only perform the duplicate-account lookup when the email is actually changing.
+        // Role/department/title edits often submit the existing email too; those
+        // edits must not be blocked by a duplicate lookup of the account itself.
+        const { data: currentAuthUser, error: currentAuthError } = await admin.auth.admin.getUserById(userId);
+        if (currentAuthError) throw currentAuthError;
+        const currentEmail = cleanEmail(currentAuthUser.user?.email);
+        if (nextEmail !== currentEmail) {
+          const dup = await findUserByEmail(nextEmail);
+          if (dup && dup.id !== userId) {
+            return json({ error: `Another account already uses email "${nextEmail}".` }, 409);
+          }
+          authPatch.email = nextEmail;
         }
-        authPatch.email = nextEmail;
       }
       if (body.password !== undefined && String(body.password).trim()) {
         const nextPassword = String(body.password);
