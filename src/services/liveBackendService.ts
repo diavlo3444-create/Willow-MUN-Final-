@@ -1072,6 +1072,16 @@ export async function claimHrApplicantSignup(token: string, password: string): P
   const { data, error } = await supabase.functions.invoke('willow-hr-signup', {
     body: { action: 'signup', token, password },
   });
-  if (error || !data?.success) return { error: data?.error || error?.message || 'Signup failed.' };
+  if (error || !data?.success) {
+    let detail = data?.error || error?.message || 'Signup failed.';
+    const context = (error as any)?.context;
+    if (context instanceof Response) {
+      try {
+        const body = await context.clone().json();
+        if (body?.error) detail = String(body.error);
+      } catch { /* Keep the SDK message if the response body cannot be read. */ }
+    }
+    return { error: detail };
+  }
   return { success: true, email: data.email };
 }
