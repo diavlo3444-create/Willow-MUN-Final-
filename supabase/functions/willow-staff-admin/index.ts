@@ -145,6 +145,54 @@ Deno.serve(async (req: Request) => {
       return json({ accounts: [...liveProfiles, ...pendingEb] });
     }
 
+    if (action === "update_eb_roster") {
+      const memberKey = String(body.member_key || "").trim();
+      const email = cleanEmail(body.email);
+      const fields = profileFields(body);
+      if (!memberKey || !email || !fields.full_name || fields.role !== "executive_board") {
+        return json({ error: "Member key, name, email, and Executive Board role are required for roster edits." }, 400);
+      }
+      if (!fields.department_id) return json({ error: "Department assignment is required for Executive Board accounts." }, 400);
+      const { data: currentEntry, error: currentErr } = await admin.from("wm_eb_signup_allowlist")
+        .select("member_key,email,email_aliases,claimed_at,claimed_user_id")
+        .eq("member_key", memberKey)
+        .maybeSingle();
+      if (currentErr) throw currentErr;
+      if (!currentEntry || currentEntry.claimed_at || currentEntry.claimed_user_id) {
+        return json({ error: "This pending EB entry is no longer editable (it may have been claimed)." }, 409);
+      }
+      const { data: allRoster, error: rosterErr } = await admin.from("wm_eb_signup_allowlist")
+        .select("member_key,email,email_aliases");
+      if (rosterErr) throw rosterErr;
+      const duplicateRoster = (allRoster || []).some((entry: any) =>
+        entry.member_key !== memberKey && (
+          cleanEmail(entry.email) === email ||
+          (entry.email_aliases || []).some((alias: string) => cleanEmail(alias) === email)
+        );
+      if (duplicateRoster) return json({ error: "Another Executive Board roster entry already uses this email." }, 409);
+      const existingUser = await findUserByEmail(email);
+      if (existingUser) return json({ error: "An Auth account already exists for this email." }, 409);
+      const { data: updatedEntry, error: updateErr } = await admin.from("wm_eb_signup_allowlist")
+        .update({
+          email,
+          full_name: fields.full_name,
+          title: fields.title || "Executive Board",
+          department_id: fields.department_id,
+          eb_rank: fields.eb_rank,
+          eb_permissions: fields.eb_permissions,
+          permissions: fields.permissions,
+          gender: fields.division,
+        })
+        .eq("member_key", memberKey)
+        .is("claimed_at", null)
+        .is("claimed_user_id", null)
+        .select("member_key,email,full_name,title,department_id,eb_rank,eb_permissions")
+        .maybeSingle();
+      if (updateErr) throw updateErr;
+      if (!updatedEntry) return json({ error: "Roster entry changed or was claimed while saving. Refresh and try again." }, 409);
+      return json({ account: { user_id: `pending:${updatedEntry.member_key}`, ...updatedEntry, role: "executive_board", is_active: true, signup_status: "awaiting_signup" } });
+    }
+
     if (action === "create") {
       const email = cleanEmail(body.email);
       const requestedRole = String(body.role || "");
