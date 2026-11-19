@@ -14,7 +14,7 @@ import { MyQrCard } from '../MyQrModal';
 import { PortalAuthView } from '../PortalAuthView';
 import { CommitteesManagementView } from '../views/CommitteesManagementView';
 import { HeadApplicationsView } from '../views/HeadApplicationsView';
-import { HrAcceptedApplicantsView } from '../views/HrAcceptedApplicantsView';
+import { HrAcceptedApplicantsView } from '../views/HrAcceptedApplicantsView';\nimport { EmailsDashboardView } from '../views/EmailsDashboardView';
 import { QrAttendanceView } from '../views/QrAttendanceView';
 
 interface DepartmentHeadPortalProps {
@@ -58,7 +58,7 @@ export function DepartmentHeadPortal({ pathname, onNavigate }: DepartmentHeadPor
 
   const canViewApps = hasPermission(effectiveHead, 'applications.view', data.departments);
   const canScanQr = hasPermission(effectiveHead, 'qr.scan', data.departments);
-  const isHrHead = isHrActor(effectiveHead, data.departments);
+  const isHrHead = isHrActor(effectiveHead, data.departments);\n  const canManageEmails = isHrHead && hasPermission(effectiveHead, 'email.view', data.departments);
   const isDccHead = isDccActor(effectiveHead, data.departments);
   const canViewQr = hasPermission(effectiveHead, 'qr.view_pass', data.departments);
 
@@ -78,7 +78,7 @@ export function DepartmentHeadPortal({ pathname, onNavigate }: DepartmentHeadPor
     (section === 'applications' && canViewApps) ||
     (section === 'scanner' && canScanQr) ||
     (section === 'qr' && canViewQr) ||
-    (section === 'hr-accepted' && isHrHead) ||
+    (section === 'hr-accepted' && isHrHead) ||\n    (section === 'emails' && canManageEmails) ||
     (section === 'committees' && isDccHead);
 
   const isQrOtherUserAttempt =
@@ -164,7 +164,7 @@ export function DepartmentHeadPortal({ pathname, onNavigate }: DepartmentHeadPor
   const pageTitles: Record<string, string> = {
     applications: `${assignedDepartment.name} Applications`,
     scanner: 'Entrance QR Pass Scanner',
-    'hr-accepted': 'HR · Accepted Applicants',
+    'hr-accepted': 'HR · Accepted Applicants',\n    emails: 'Email Management & Delivery',
     committees: 'DCC · Committee Management',
     qr: 'My QR Credential',
   };
