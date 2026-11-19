@@ -583,12 +583,11 @@ export function isSecurityAccount(
   if (user.role === 'super_admin' || user.role === 'admin') return true;
   if (user.role === 'department_head') {
     return (
-      getActorDepartmentSlug(user, departments) === 'security' &&
-      user.permissions?.['qr.scan'] !== false
+      getActorDepartmentSlug(user, departments) === 'security'
     );
   }
   if (user.role === 'executive_board') {
-    return getActorDepartmentSlug(user, departments) === 'security' && user.permissions?.['qr.scan'] !== false;
+    return getActorDepartmentSlug(user, departments) === 'security';
   }
   return false;
 }
@@ -664,7 +663,7 @@ export function hasPermission(
       return user.permissions?.['qr.view_pass'] !== false;
     }
     if (permission === 'qr.scan') {
-      return getActorDepartmentSlug(user, departments) === 'security' && user.permissions?.['qr.scan'] !== false;
+      return getActorDepartmentSlug(user, departments) === 'security';
     }
     return false;
   }
