@@ -82,6 +82,17 @@ export function EmailsDashboardView(){
   const pending=queue.filter(q=>q.status==='waiting');if(!pending.length||sending)return;
   void sendBatch(pending);
  };
+ const resendApplicant=async(applicant:EmailApplicantRecord)=>{
+  if(sending)return;
+  const decision=applicant.applicationStatus;
+  if(decision!=='accepted'&&decision!=='rejected')return;
+  try{
+   const {data,error}=await supabase.functions.invoke('willow-application-email',{body:{application_id:applicant.id,decision,force_resend:true}});
+   if(error||data?.error)throw new Error(data?.error||error?.message||'Email send failed');
+   pushToast({tone:'success',title:'Email resent',description:`A fresh ${decision} email was sent to ${applicant.email}.`});
+   await refresh();
+  }catch(e){pushToast({tone:'error',title:'Resend failed',description:e instanceof Error?e.message:'Email could not be sent.'})}
+ };
  const retry=async(id:string)=>{try{const {data,error}=await supabase.functions.invoke('willow-email-management',{body:{action:'retry',delivery_id:id}});if(error||data?.error)throw new Error(data?.error||error?.message);pushToast({tone:'success',title:'Retry request sent'});await refresh()}catch(e){pushToast({tone:'error',title:'Retry failed',description:e instanceof Error?e.message:'Request failed'})}};
  const saveTemplate=async(key:EmailDecisionType,subject:string,body:string)=>{try{const {data,error}=await supabase.functions.invoke('willow-email-management',{body:{action:'save_template',template_key:key,subject,body_text:body}});if(error||data?.error)throw new Error(data?.error||error?.message);if(data?.template)setTemplates(p=>({...p,[key]:templateMap(data.template)}));pushToast({tone:'success',title:'Template saved to Supabase'})}catch(e){pushToast({tone:'error',title:'Template save failed',description:e instanceof Error?e.message:'Request failed'})}};
  const resetTemplate=(key:EmailDecisionType)=>void saveTemplate(key,DEFAULT_EMAIL_TEMPLATES[key].subject,DEFAULT_EMAIL_TEMPLATES[key].body);
@@ -94,7 +105,7 @@ export function EmailsDashboardView(){
   <section className="wm-surface-panel flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between"><div><h2 className="text-xs font-semibold uppercase">Bulk Dispatch</h2><p className="text-[11px] text-[color:var(--wm-ink-muted)]">Verify the recipient batch before staging.</p></div><div className="flex flex-wrap gap-2"><button onClick={()=>openAll('accepted')} className="rounded-md bg-[color:var(--wm-emerald)] px-3 py-2 text-xs font-semibold">Send All Accepted ({acceptedPending.length})</button><button onClick={()=>openAll('rejected')} className="rounded-md border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-100">Send All Rejected ({rejectedPending.length})</button><button disabled={!selected.length} onClick={()=>openSelected(selected)} className="rounded-md border px-3 py-2 text-xs disabled:opacity-40">Send Selected ({selected.length})</button></div></section>
   <nav className="flex flex-wrap gap-1.5 border-b border-[color:var(--wm-hairline)] pb-3">{tabs.map(t=>{const I=t.Icon;return <button key={t.id} onClick={()=>setActiveTab(t.id)} className={`inline-flex items-center gap-2 rounded-md px-3 py-2 text-xs ${activeTab===t.id?'bg-[color:var(--wm-focal)] text-[#12170c]':'border bg-[color:var(--wm-surface)] text-[color:var(--wm-ink-secondary)]'}`}><I className="h-3.5 w-3.5"/>{t.label}{t.badge? <span>{t.badge}</span>:null}</button>})}</nav>
   {loading&&<div className="wm-surface-panel p-4 text-sm">Loading live records…</div>}
-  {activeTab==='applicants'&&<ApplicantsBulkTab applicants={applicants} selectedIds={selectedIds} onToggleOne={toggle} onSelectMany={setSelectedIds} onClearSelection={()=>setSelectedIds([])} onRequestSendSelected={openSelected}/>}
+  {activeTab==='applicants'&&<ApplicantsBulkTab applicants={applicants} selectedIds={selectedIds} onToggleOne={toggle} onSelectMany={setSelectedIds} onClearSelection={()=>setSelectedIds([])} onRequestSendSelected={openSelected} onResend={resendApplicant}/>}
   {activeTab==='queue'&&<SendingQueueTab queue={queue} simulationRunning={sending} onStartSimulation={sendQueue} onPauseSimulation={()=>{}} onRetryItem={id=>setQueue(q=>q.map(x=>x.id===id?{...x,status:'waiting',errorDetails:null}:x))} onRemoveItem={id=>setQueue(q=>q.filter(x=>x.id!==id))} onClearCompleted={()=>setQueue(q=>q.filter(x=>x.status!=='sent'))}/>}
   {activeTab==='history'&&<EmailHistoryTab history={history} onRetryHistoryItem={retry}/>}
   {activeTab==='templates'&&<EmailTemplatesTab templates={templates} applicants={applicants} onSaveTemplate={saveTemplate} onResetTemplate={resetTemplate}/>}
