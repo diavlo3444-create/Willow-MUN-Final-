@@ -550,9 +550,9 @@ body.intro-on .willow-intro-backdrop {
   height: 100vh;
   height: 100dvh;
   object-fit: cover;
-  /* Canvas intro is already transparent: keep the tree native and matte-free. */
-  mix-blend-mode: normal;
-  filter: none;
+  /* Match the clip's olive tone to the page backdrop and blend away its matte. */
+  mix-blend-mode: screen;
+  filter: brightness(0.72) saturate(0.78) contrast(1.08);
   transform: scale(1.08);
   pointer-events: none;
   opacity: 0;
