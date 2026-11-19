@@ -1,90 +1,511 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, CheckCircle2, Clock3, Mail, RefreshCw, Save, Send, XCircle } from 'lucide-react';
-import { supabase } from '../../../lib/supabase';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  CheckCircle2,
+  Clock3,
+  FileCode2,
+  History,
+  Info,
+  Mail,
+  Send,
+  Users,
+  XCircle,
+} from 'lucide-react';
 import { useAdminStore } from '../../../context/AdminStoreContext';
+import { ApplicantsBulkTab } from './emails/ApplicantsBulkTab';
+import { BulkSendConfirmModal } from './emails/BulkSendConfirmModal';
+import { EmailHistoryTab } from './emails/EmailHistoryTab';
+import { EmailTemplatesTab } from './emails/EmailTemplatesTab';
+import { SendingQueueTab } from './emails/SendingQueueTab';
+import {
+  DEFAULT_EMAIL_TEMPLATES,
+  ESTIMATED_DAILY_CAPACITY,
+  SAMPLE_EMAIL_APPLICANTS,
+  SAMPLE_EMAIL_HISTORY,
+  SAMPLE_INITIAL_QUEUE,
+  renderEmailPreview,
+} from './emails/sampleData';
+import type {
+  BulkSendConfirmState,
+  EmailApplicantRecord,
+  EmailDecisionType,
+  EmailHistoryRecord,
+  EmailQueueItem,
+  EmailTemplateRecord,
+} from './emails/types';
 
-type Delivery = { id:string; application_id:string; recipient_email:string; recipient_name:string; decision_status:string; subject:string; status:string; attempts:number; error_message:string|null; sent_at:string|null; created_at:string; updated_at:string };
-type Template = { template_key:'accepted'|'rejected'; name:string; subject:string; body_text:string; updated_at:string };
-type DashboardData = { deliveries:Delivery[]; templates:Template[] };
-const tokens = ['{{applicant_name}}','{{department}}','{{position}}','{{signup_link}}'];
-const LIMIT_ESTIMATE = 500;
+type DashboardTab = 'applicants' | 'queue' | 'history' | 'templates';
 
 export function EmailsDashboardView() {
-  const { currentUser, pushToast } = useAdminStore();
-  const [data,setData] = useState<DashboardData>({deliveries:[],templates:[]});
-  const [loading,setLoading] = useState(true);
-  const [error,setError] = useState('');
-  const [tab,setTab] = useState<'overview'|'history'|'failed'|'templates'>('overview');
-  const [templateKey,setTemplateKey] = useState<'accepted'|'rejected'>('accepted');
-  const [subject,setSubject] = useState('');
-  const [body,setBody] = useState('');
-  const [saving,setSaving] = useState(false);
-  const [retrying,setRetrying] = useState<string|null>(null);
-  const [filter,setFilter] = useState('all');
+  const { pushToast } = useAdminStore();
 
-  const load = useCallback(async () => {
-    setLoading(true); setError('');
-    const {data:result,error:invokeError}=await supabase.functions.invoke('willow-email-management',{body:{action:'dashboard'}});
-    if(invokeError || result?.error){setError(result?.error||invokeError?.message||'Could not load email dashboard.');setLoading(false);return;}
-    setData({deliveries:result.deliveries||[],templates:result.templates||[]});
-    setLoading(false);
-  },[]);
-  useEffect(()=>{void load();},[load]);
-  const activeTemplate=data.templates.find(t=>t.template_key===templateKey);
-  useEffect(()=>{if(activeTemplate){setSubject(activeTemplate.subject);setBody(activeTemplate.body_text);}},[activeTemplate]);
-  const sent=data.deliveries.filter(x=>x.status==='sent');
-  const failed=data.deliveries.filter(x=>x.status==='failed');
-  const pending=data.deliveries.filter(x=>x.status==='pending'||x.status==='sending');
-  const today=new Date().toLocaleDateString();
-  const todaySent=sent.filter(x=>x.sent_at&&new Date(x.sent_at).toLocaleDateString()===today).length;
-  const quota=Math.min(todaySent,LIMIT_ESTIMATE), percent=Math.round(quota/LIMIT_ESTIMATE*100);
-  const visible=(tab==='failed'?failed:data.deliveries).filter(x=>filter==='all'||x.decision_status===filter);
-  const save=async()=>{
-    setSaving(true);
-    const {data:result,error:invokeError}=await supabase.functions.invoke('willow-email-management',{body:{action:'save_template',template_key:templateKey,subject,body_text:body}});
-    setSaving(false);
-    if(invokeError||result?.error){pushToast({tone:'error',title:'Template not saved',description:result?.error||invokeError?.message});return;}
-    pushToast({tone:'success',title:'Email template saved'});
-    await load();
+  // Sample dataset (UI-only phase). Kept cleanly structured so real Supabase
+  // queries and handlers can drop straight into these state hooks later.
+  const [applicants] = useState<EmailApplicantRecord[]>(SAMPLE_EMAIL_APPLICANTS);
+  const [history, setHistory] = useState<EmailHistoryRecord[]>(SAMPLE_EMAIL_HISTORY);
+  const [queue, setQueue] = useState<EmailQueueItem[]>(SAMPLE_INITIAL_QUEUE);
+  const [templates, setTemplates] = useState<Record<EmailDecisionType, EmailTemplateRecord>>(
+    DEFAULT_EMAIL_TEMPLATES,
+  );
+
+  const [activeTab, setActiveTab] = useState<DashboardTab>('applicants');
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [confirmState, setConfirmState] = useState<BulkSendConfirmState | null>(null);
+  const [simulationRunning, setSimulationRunning] = useState(false);
+
+  // Derived overview metrics
+  const totalApplications = applicants.length;
+  const acceptedCount = applicants.filter((a) => a.applicationStatus === 'accepted').length;
+  const rejectedCount = applicants.filter((a) => a.applicationStatus === 'rejected').length;
+  const sentEmailsCount = history.filter((h) => h.status === 'sent').length;
+  const failedEmailsCount = history.filter((h) => h.status === 'failed').length;
+  const remainingCapacity = Math.max(0, ESTIMATED_DAILY_CAPACITY - sentEmailsCount);
+  const capacityPct = Math.min(
+    100,
+    Math.round((sentEmailsCount / ESTIMATED_DAILY_CAPACITY) * 100),
+  );
+
+  // Ready-to-send batches for primary "Send All" buttons
+  const pendingAcceptanceRecipients = useMemo(
+    () =>
+      applicants.filter(
+        (a) => a.applicationStatus === 'accepted' && a.emailStatus !== 'sent',
+      ),
+    [applicants],
+  );
+  const alreadySentAcceptedCount = acceptedCount - pendingAcceptanceRecipients.length;
+
+  const pendingRejectionRecipients = useMemo(
+    () =>
+      applicants.filter(
+        (a) => a.applicationStatus === 'rejected' && a.emailStatus !== 'sent',
+      ),
+    [applicants],
+  );
+  const alreadySentRejectedCount = rejectedCount - pendingRejectionRecipients.length;
+
+  const selectedApplicants = useMemo(() => {
+    const selectedSet = new Set(selectedIds);
+    return applicants.filter((a) => selectedSet.has(a.id));
+  }, [applicants, selectedIds]);
+
+  const queueActiveCount = queue.filter(
+    (q) => q.status === 'waiting' || q.status === 'processing',
+  ).length;
+
+  // UI-only queue progression preview (stops automatically when queue drains)
+  useEffect(() => {
+    if (!simulationRunning) return;
+    const timer = window.setInterval(() => {
+      setQueue((prev) => {
+        const processingIdx = prev.findIndex((q) => q.status === 'processing');
+        if (processingIdx !== -1) {
+          return prev.map((item, idx) =>
+            idx === processingIdx ? { ...item, status: 'sent', errorDetails: null } : item,
+          );
+        }
+        const nextWaitingIdx = prev.findIndex((q) => q.status === 'waiting');
+        if (nextWaitingIdx !== -1) {
+          return prev.map((item, idx) =>
+            idx === nextWaitingIdx ? { ...item, status: 'processing' } : item,
+          );
+        }
+        setSimulationRunning(false);
+        return prev;
+      });
+    }, 650);
+    return () => window.clearInterval(timer);
+  }, [simulationRunning]);
+
+  const openSendAllAcceptance = () => {
+    setConfirmState({
+      mode: 'all_accepted',
+      emailType: 'accepted',
+      recipients: pendingAcceptanceRecipients,
+      skippedAlreadySentCount: alreadySentAcceptedCount,
+      skippedIneligibleCount: totalApplications - acceptedCount,
+    });
   };
-  const retry=async(id:string,decision:string)=>{
-    setRetrying(id);
-    const {data:result,error:invokeError}=await supabase.functions.invoke('willow-email-management',{body:{action:'retry',delivery_id:id}});
-    setRetrying(null);
-    if(invokeError||result?.error){pushToast({tone:'error',title:'Retry failed',description:result?.error||invokeError?.message});return;}
-    pushToast({tone:'success',title:'Retry queued'});
-    await load();
+
+  const openSendAllRejection = () => {
+    setConfirmState({
+      mode: 'all_rejected',
+      emailType: 'rejected',
+      recipients: pendingRejectionRecipients,
+      skippedAlreadySentCount: alreadySentRejectedCount,
+      skippedIneligibleCount: totalApplications - rejectedCount,
+    });
   };
-  const tabs=[['overview','Overview'],['history','Email history'],['failed','Failed'],['templates','Templates']] as const;
-  return <div className="space-y-5">
-    <div className="wm-surface-panel flex flex-wrap items-center justify-between gap-3 px-5 py-4">
-      <div className="flex items-center gap-2.5"><Mail className="h-4 w-4 text-[color:var(--wm-accent)]"/><div><p className="text-sm font-semibold text-[color:var(--wm-ink)]">Email operations</p><p className="text-xs text-[color:var(--wm-ink-muted)]">Automatic decision emails · Willow Gmail</p></div></div>
-      <button type="button" onClick={()=>void load()} className="inline-flex h-9 items-center gap-2 rounded border border-[color:var(--wm-hairline-strong)] px-3 text-xs text-[color:var(--wm-ink)]"><RefreshCw className="h-3.5 w-3.5"/>Refresh</button>
+
+  const openSendSelected = (
+    recipients: EmailApplicantRecord[],
+    preferredType?: EmailDecisionType,
+  ) => {
+    if (recipients.length === 0) return;
+    const inferredType: EmailDecisionType =
+      preferredType ??
+      (recipients.every((r) => r.applicationStatus === 'rejected') ? 'rejected' : 'accepted');
+    setConfirmState({
+      mode: 'selected',
+      emailType: inferredType,
+      recipients,
+      skippedAlreadySentCount: 0,
+      skippedIneligibleCount: 0,
+    });
+  };
+
+  const handleConfirmQueue = (emailType: EmailDecisionType) => {
+    if (!confirmState || confirmState.recipients.length === 0) return;
+    const template = templates[emailType];
+    const now = new Date().toISOString();
+
+    const stagedItems: EmailQueueItem[] = confirmState.recipients.map((recipient, idx) => ({
+      id: `q-staged-${Date.now()}-${idx}-${recipient.id}`,
+      applicantId: recipient.id,
+      recipientName: recipient.applicantName,
+      recipientEmail: recipient.email,
+      department: recipient.department,
+      emailType,
+      subject: renderEmailPreview(template.subject, recipient, emailType),
+      status: 'waiting',
+      queuedAt: now,
+    }));
+
+    setQueue((prev) => [...stagedItems, ...prev]);
+    if (confirmState.mode === 'selected') {
+      setSelectedIds([]);
+    }
+    const stagedCount = stagedItems.length;
+    setConfirmState(null);
+    setActiveTab('queue');
+
+    pushToast({
+      tone: 'info',
+      title: `Staged ${stagedCount} email${stagedCount === 1 ? '' : 's'} in Sending Queue`,
+      description: 'UI preview only — connect backend email dispatch to transmit messages.',
+    });
+  };
+
+  const handleRetryHistoryItem = (historyId: string) => {
+    const target = history.find((h) => h.id === historyId);
+    if (!target) return;
+    const staged: EmailQueueItem = {
+      id: `q-retry-${Date.now()}-${target.id}`,
+      applicantId: target.applicantId,
+      recipientName: target.recipientName,
+      recipientEmail: target.recipientEmail,
+      department: target.department,
+      emailType: target.emailType,
+      subject: target.subject,
+      status: 'waiting',
+      queuedAt: new Date().toISOString(),
+    };
+    setQueue((prev) => [staged, ...prev]);
+    setHistory((prev) =>
+      prev.map((row) =>
+        row.id === historyId ? { ...row, status: 'pending', errorDetails: null } : row,
+      ),
+    );
+    setActiveTab('queue');
+    pushToast({
+      tone: 'info',
+      title: `Re-queued email for ${target.recipientName}`,
+      description: 'Staged in Sending Queue (UI preview).',
+    });
+  };
+
+  const handleRetryQueueItem = (queueId: string) => {
+    setQueue((prev) =>
+      prev.map((item) =>
+        item.id === queueId ? { ...item, status: 'waiting', errorDetails: null } : item,
+      ),
+    );
+  };
+
+  const handleRemoveQueueItem = (queueId: string) => {
+    setQueue((prev) => prev.filter((item) => item.id !== queueId));
+  };
+
+  const handleSaveTemplate = (key: EmailDecisionType, subject: string, body: string) => {
+    setTemplates((prev) => ({
+      ...prev,
+      [key]: {
+        ...prev[key],
+        subject,
+        body,
+        updatedAt: new Date().toISOString(),
+      },
+    }));
+    pushToast({
+      tone: 'success',
+      title: `${key === 'accepted' ? 'Acceptance' : 'Rejection'} template draft updated`,
+      description: 'Saved in local UI state.',
+    });
+  };
+
+  const handleResetTemplate = (key: EmailDecisionType) => {
+    setTemplates((prev) => ({
+      ...prev,
+      [key]: DEFAULT_EMAIL_TEMPLATES[key],
+    }));
+    pushToast({
+      tone: 'info',
+      title: 'Template reset to default',
+    });
+  };
+
+  const toggleOneSelection = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  };
+
+  const tabs: Array<{
+    id: DashboardTab;
+    label: string;
+    Icon: typeof Users;
+    badge?: number;
+  }> = [
+    { id: 'applicants', label: 'Applicants & Bulk Send', Icon: Users },
+    { id: 'queue', label: 'Sending Queue', Icon: Clock3, badge: queueActiveCount || undefined },
+    { id: 'history', label: 'Email History', Icon: History, badge: failedEmailsCount || undefined },
+    { id: 'templates', label: 'Templates', Icon: FileCode2 },
+  ];
+
+  return (
+    <div className="space-y-5">
+      {/* Page Header & UI Preview Banner */}
+      <section className="flex flex-col gap-3 border-b border-[color:var(--wm-hairline)] pb-5 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-[color:var(--wm-accent)]">
+            Admin &amp; HR Communications
+          </p>
+          <h1 className="wm-serif mt-1.5 text-3xl text-[color:var(--wm-ink)]">
+            Email Management Center
+          </h1>
+          <p className="mt-1 max-w-2xl text-xs leading-relaxed text-[color:var(--wm-ink-secondary)]">
+            Review applicants, dispatch bulk acceptance or rejection emails, track the sending queue,
+            and manage official decision templates.
+          </p>
+        </div>
+
+        <div className="inline-flex items-center gap-2 self-start rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-inset)] px-3 py-2 text-[11px] text-[color:var(--wm-ink-secondary)] lg:self-auto">
+          <Info className="h-3.5 w-3.5 shrink-0 text-[color:var(--wm-accent)]" aria-hidden="true" />
+          <span>Sample UI Preview · Backend email dispatch not connected yet</span>
+        </div>
+      </section>
+
+      {/* 1. Dashboard Overview — Clean 6-Metric Strip + Subtle Capacity Bar */}
+      <section aria-label="Email dashboard overview" className="wm-surface-panel overflow-hidden">
+        <div className="grid grid-cols-2 divide-y sm:grid-cols-3 lg:grid-cols-6 sm:divide-y-0 sm:divide-x divide-[color:var(--wm-hairline)] tabular-nums">
+          <div className="px-4 py-3.5">
+            <div className="flex items-center justify-between gap-2 text-[11px] text-[color:var(--wm-ink-muted)]">
+              <span>Total Applications</span>
+              <Users className="h-3.5 w-3.5 text-[color:var(--wm-accent)]" aria-hidden="true" />
+            </div>
+            <p className="mt-1.5 font-serif text-2xl font-medium text-[color:var(--wm-ink)]">
+              {totalApplications}
+            </p>
+          </div>
+
+          <div className="px-4 py-3.5">
+            <div className="flex items-center justify-between gap-2 text-[11px] text-[color:var(--wm-ink-muted)]">
+              <span>Accepted Applicants</span>
+              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-300" aria-hidden="true" />
+            </div>
+            <p className="mt-1.5 font-serif text-2xl font-medium text-emerald-200">
+              {acceptedCount}
+            </p>
+          </div>
+
+          <div className="px-4 py-3.5">
+            <div className="flex items-center justify-between gap-2 text-[11px] text-[color:var(--wm-ink-muted)]">
+              <span>Rejected Applicants</span>
+              <XCircle className="h-3.5 w-3.5 text-rose-300" aria-hidden="true" />
+            </div>
+            <p className="mt-1.5 font-serif text-2xl font-medium text-rose-200">
+              {rejectedCount}
+            </p>
+          </div>
+
+          <div className="px-4 py-3.5">
+            <div className="flex items-center justify-between gap-2 text-[11px] text-[color:var(--wm-ink-muted)]">
+              <span>Emails Sent</span>
+              <Mail className="h-3.5 w-3.5 text-[color:var(--wm-accent)]" aria-hidden="true" />
+            </div>
+            <p className="mt-1.5 font-serif text-2xl font-medium text-[color:var(--wm-ink)]">
+              {sentEmailsCount}
+            </p>
+          </div>
+
+          <div className="px-4 py-3.5">
+            <div className="flex items-center justify-between gap-2 text-[11px] text-[color:var(--wm-ink-muted)]">
+              <span>Daily Capacity Left</span>
+              <Send className="h-3.5 w-3.5 text-[color:var(--wm-ink-muted)]" aria-hidden="true" />
+            </div>
+            <p className="mt-1.5 font-serif text-2xl font-medium text-[color:var(--wm-ink)]">
+              {remainingCapacity}
+            </p>
+          </div>
+
+          <div className="px-4 py-3.5">
+            <div className="flex items-center justify-between gap-2 text-[11px] text-[color:var(--wm-ink-muted)]">
+              <span>Failed Emails</span>
+              <XCircle className="h-3.5 w-3.5 text-rose-300" aria-hidden="true" />
+            </div>
+            <p className="mt-1.5 font-serif text-2xl font-medium text-rose-200">
+              {failedEmailsCount}
+            </p>
+          </div>
+        </div>
+
+        {/* Subtle Capacity Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[color:var(--wm-hairline)] bg-[color:var(--wm-inset)]/60 px-4 py-2.5 text-[11px]">
+          <span className="text-[color:var(--wm-ink-muted)]">
+            Daily sending estimate ({sentEmailsCount} / {ESTIMATED_DAILY_CAPACITY} used · {capacityPct}%)
+          </span>
+          <div className="h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-[color:var(--wm-canvas)]">
+            <div
+              className="h-full rounded-full bg-[color:var(--wm-accent)]"
+              style={{ width: `${capacityPct}%` }}
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* 3. Prominent "Send All Emails" Primary Action Bar */}
+      <section
+        aria-label="Bulk email dispatch actions"
+        className="wm-surface-panel flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between"
+      >
+        <div>
+          <h2 className="text-xs font-semibold uppercase tracking-[0.12em] text-[color:var(--wm-ink)]">
+            Primary Bulk Dispatch
+          </h2>
+          <p className="mt-0.5 text-[11px] text-[color:var(--wm-ink-muted)]">
+            Send decision emails in batch with pre-send recipient verification.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            type="button"
+            onClick={openSendAllAcceptance}
+            className="inline-flex h-10 items-center gap-2 rounded-md bg-[color:var(--wm-emerald)] px-4 text-xs font-semibold text-[#eef4ef] transition-colors hover:bg-[#357a5b] cursor-pointer whitespace-nowrap"
+          >
+            <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />
+            <span>Send All Acceptance Emails ({pendingAcceptanceRecipients.length})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={openSendAllRejection}
+            className="inline-flex h-10 items-center gap-2 rounded-md border border-rose-400/40 bg-rose-500/[0.12] px-4 text-xs font-semibold text-rose-100 transition-colors hover:bg-rose-500/[0.2] cursor-pointer whitespace-nowrap"
+          >
+            <XCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
+            <span>Send All Rejection Emails ({pendingRejectionRecipients.length})</span>
+          </button>
+
+          <button
+            type="button"
+            disabled={selectedApplicants.length === 0}
+            onClick={() => openSendSelected(selectedApplicants)}
+            className="inline-flex h-10 items-center gap-2 rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-inset)] px-4 text-xs font-semibold text-[color:var(--wm-ink)] transition-colors hover:bg-[color:var(--wm-overlay)] disabled:opacity-45 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap"
+          >
+            <Send className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <span>Send Selected Emails ({selectedApplicants.length})</span>
+          </button>
+        </div>
+      </section>
+
+      {/* Navigation Tabs */}
+      <nav
+        aria-label="Email management sections"
+        className="flex flex-wrap items-center gap-1.5 border-b border-[color:var(--wm-hairline)] pb-3"
+      >
+        {tabs.map((tab) => {
+          const active = activeTab === tab.id;
+          const Icon = tab.Icon;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={`inline-flex h-9 items-center gap-2 rounded-md px-3.5 text-xs font-medium transition-colors cursor-pointer whitespace-nowrap ${
+                active
+                  ? 'bg-[color:var(--wm-focal)] font-semibold text-[#12170c]'
+                  : 'border border-[color:var(--wm-hairline)] bg-[color:var(--wm-surface)] text-[color:var(--wm-ink-secondary)] hover:bg-[color:var(--wm-inset)] hover:text-[color:var(--wm-ink)]'
+              }`}
+            >
+              <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>{tab.label}</span>
+              {typeof tab.badge === 'number' && tab.badge > 0 && (
+                <span
+                  className={`rounded px-1.5 py-0.5 font-mono text-[10px] tabular-nums ${
+                    active
+                      ? 'bg-[#12170c]/15 text-[#12170c]'
+                      : 'bg-[color:var(--wm-inset)] text-[color:var(--wm-ink)]'
+                  }`}
+                >
+                  {tab.badge}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </nav>
+
+      {/* Active Workspace Tab */}
+      {activeTab === 'applicants' && (
+        <ApplicantsBulkTab
+          applicants={applicants}
+          selectedIds={selectedIds}
+          onToggleOne={toggleOneSelection}
+          onSelectMany={setSelectedIds}
+          onClearSelection={() => setSelectedIds([])}
+          onRequestSendSelected={openSendSelected}
+        />
+      )}
+
+      {activeTab === 'queue' && (
+        <SendingQueueTab
+          queue={queue}
+          simulationRunning={simulationRunning}
+          onStartSimulation={() => setSimulationRunning(true)}
+          onPauseSimulation={() => setSimulationRunning(false)}
+          onRetryItem={handleRetryQueueItem}
+          onRemoveItem={handleRemoveQueueItem}
+          onClearCompleted={() =>
+            setQueue((prev) => prev.filter((item) => item.status !== 'sent'))
+          }
+        />
+      )}
+
+      {activeTab === 'history' && (
+        <EmailHistoryTab
+          history={history}
+          onRetryHistoryItem={handleRetryHistoryItem}
+        />
+      )}
+
+      {activeTab === 'templates' && (
+        <EmailTemplatesTab
+          templates={templates}
+          applicants={applicants}
+          onSaveTemplate={handleSaveTemplate}
+          onResetTemplate={handleResetTemplate}
+        />
+      )}
+
+      {/* Confirmation Modal */}
+      <BulkSendConfirmModal
+        request={confirmState}
+        templates={templates}
+        onChangeType={(emailType) =>
+          setConfirmState((prev) => (prev ? { ...prev, emailType } : null))
+        }
+        onConfirm={handleConfirmQueue}
+        onCancel={() => setConfirmState(null)}
+      />
     </div>
-    <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
-      {[
-        {label:'Delivered total',value:sent.length,icon:CheckCircle2},
-        {label:'Sent today',value:todaySent,icon:Send},
-        {label:'Failed',value:failed.length,icon:XCircle},
-        {label:'Pending / sending',value:pending.length,icon:Clock3},
-      ].map(card=>{const Icon=card.icon;return <div key={card.label} className="wm-surface-panel p-4"><div className="flex items-center justify-between"><p className="text-[11px] text-[color:var(--wm-ink-muted)]">{card.label}</p><Icon className="h-4 w-4 text-[color:var(--wm-accent)]"/></div><p className="mt-2 text-2xl font-semibold tabular-nums text-[color:var(--wm-ink)]">{card.value}</p></div>})}
-    </div>
-    <section className="wm-surface-panel p-5 space-y-3">
-      <div className="flex items-center justify-between gap-3"><div><h2 className="text-sm font-semibold text-[color:var(--wm-ink)]">Daily sending estimate</h2><p className="text-xs text-[color:var(--wm-ink-muted)]">Gmail personal-account limit is an estimate, not live quota verification.</p></div><p className="font-mono text-sm tabular-nums text-[color:var(--wm-ink)]">{todaySent} / {LIMIT_ESTIMATE}</p></div>
-      <div className="h-2.5 rounded-full bg-[color:var(--wm-inset)] overflow-hidden"><div className="h-full rounded-full bg-[color:var(--wm-accent)]" style={{width:percent+'%'}}/></div>
-      <p className="text-xs text-[color:var(--wm-ink-secondary)]">{percent}% estimated usage · {Math.max(0,LIMIT_ESTIMATE-todaySent)} estimated remaining</p>
-    </section>
-    <div className="flex flex-wrap gap-1.5">{tabs.map(([key,label])=><button key={key} type="button" onClick={()=>setTab(key)} className={`rounded px-3 py-2 text-xs font-medium ${tab===key?'bg-[color:var(--wm-focal)] text-[#12170c]':'wm-surface-panel text-[color:var(--wm-ink-secondary)]'}`}>{label}{key==='failed'&&failed.length>0?' ('+failed.length+')':''}</button>)}</div>
-    {loading?<div className="wm-surface-panel p-8 text-center text-xs text-[color:var(--wm-ink-muted)]">Loading email records…</div>:error?<div className="wm-surface-panel p-6 text-sm text-rose-300">{error}</div>:tab==='templates'?<section className="wm-surface-panel p-5 space-y-4">
-      <div className="flex flex-wrap gap-2">{(['accepted','rejected'] as const).map(k=><button key={k} onClick={()=>setTemplateKey(k)} className={`rounded px-3 py-2 text-xs ${templateKey===k?'bg-[color:var(--wm-focal)] text-[#12170c]':'border border-[color:var(--wm-hairline)] text-[color:var(--wm-ink-secondary)]'}`}>{k==='accepted'?'Acceptance':'Rejection'}</button>)}</div>
-      <label className="block text-xs text-[color:var(--wm-ink-secondary)]">Subject<input value={subject} onChange={e=>setSubject(e.target.value)} className="mt-1 block w-full rounded border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-rail)] p-2 text-sm text-[color:var(--wm-ink)]"/></label>
-      <label className="block text-xs text-[color:var(--wm-ink-secondary)]">Message body<textarea rows={10} value={body} onChange={e=>setBody(e.target.value)} className="mt-1 block w-full rounded border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-rail)] p-3 text-sm text-[color:var(--wm-ink)]"/></label>
-      <div className="rounded border border-[color:var(--wm-hairline)] p-3"><p className="text-[11px] font-medium text-[color:var(--wm-ink-secondary)]">Available placeholders</p><div className="mt-2 flex flex-wrap gap-1">{tokens.map(t=><code key={t} className="rounded bg-[color:var(--wm-inset)] px-2 py-1 text-[11px]">{t}</code>)}</div></div>
-      <button type="button" onClick={()=>void save()} disabled={saving||!subject.trim()||!body.trim()} className="inline-flex h-9 items-center gap-2 rounded bg-[color:var(--wm-focal)] px-4 text-xs font-semibold text-[#12170c] disabled:opacity-40"><Save className="h-3.5 w-3.5"/>{saving?'Saving…':'Save template'}</button>
-      <p className="text-xs text-[color:var(--wm-ink-muted)]">Saved templates are managed in Willow’s database. They become the outgoing decision email content after the sender integration is wired to use template overrides.</p>
-    </section>:<section className="wm-surface-panel overflow-hidden">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[color:var(--wm-hairline)] p-4"><h2 className="text-sm font-semibold text-[color:var(--wm-ink)]">{tab==='overview'?'Recent email activity':tab==='failed'?'Failed email queue':'Email history'}</h2><select value={filter} onChange={e=>setFilter(e.target.value)} className="h-8 rounded border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-rail)] px-2 text-xs text-[color:var(--wm-ink)]"><option value="all">All decisions</option><option value="accepted">Acceptance</option><option value="rejected">Rejection</option></select></div>
-      {visible.length===0?<div className="p-8 text-center text-xs text-[color:var(--wm-ink-muted)]">No email records found.</div>:<div className="divide-y divide-[color:var(--wm-hairline)]">{visible.slice(0,tab==='overview'?12:100).map(m=><article key={m.id} className="flex flex-wrap items-start justify-between gap-3 p-4 text-xs"><div className="min-w-0"><p className="font-semibold text-[color:var(--wm-ink)]">{m.recipient_name||m.recipient_email} <span className="font-normal text-[color:var(--wm-ink-muted)]">{m.recipient_email}</span></p><p className="mt-1 text-[color:var(--wm-accent)]">{m.subject||'Decision email'} · {m.decision_status}</p><p className="mt-1 text-[color:var(--wm-ink-muted)]">Attempts: {m.attempts} · {m.sent_at?new Date(m.sent_at).toLocaleString():new Date(m.created_at).toLocaleString()}</p>{m.error_message&&<p className="mt-1 text-rose-300"><AlertTriangle className="mr-1 inline h-3 w-3"/>{m.error_message}</p>}</div><div className="flex items-center gap-2"><span className={`rounded px-2 py-1 text-[10px] uppercase ${m.status==='sent'?'text-emerald-300 bg-emerald-500/10':m.status==='failed'?'text-rose-300 bg-rose-500/10':'text-amber-300 bg-amber-500/10'}`}>{m.status}</span>{m.status==='failed'&&<button type="button" disabled={retrying===m.id} onClick={()=>void retry(m.id,m.decision_status)} className="inline-flex h-8 items-center gap-1 rounded border border-[color:var(--wm-hairline-strong)] px-2 text-xs disabled:opacity-40"><RefreshCw className="h-3 w-3"/>{retrying===m.id?'Retrying':'Retry'}</button>}</div></article>)}</div>}
-    </section>}
-  </div>;
+  );
 }

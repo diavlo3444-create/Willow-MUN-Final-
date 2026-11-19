@@ -38,7 +38,7 @@ const NAV_ICONS: Record<string, typeof LayoutDashboard> = {
   workspace: FolderKanban, shifts: Clock, deployment: MapPin, attendance: ScanLine,
   qr: QrCode, scanner: ScanLine, history: History, 'website-editor': Globe, pages: LayoutDashboard, sections: Layers,
   media: ImageIcon, navigation: ExternalLink, seo: Search, versions: History,
-  email: Mail, messages: Inbox, notifications: Activity, registration: ClipboardList,
+  email: Mail, emails: Mail, messages: Inbox, notifications: Activity, registration: ClipboardList,
   reports: BarChart3, logs: Activity, settings: Settings, monitoring: Server,
   admins: Shield, heads: UserCog, 'account-management': UserCog, roles: KeyRound, 'permission-defs': Lock,
   testing: FlaskConical, 'eb-accounts': Users, 'eb-signup-link': Link2,
