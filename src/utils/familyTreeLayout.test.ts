@@ -39,10 +39,10 @@ test('formatObjectPosition handles focus array and null defaults cleanly', () =>
 test('organizeFamilyTree orders secretariat -> left groups -> right groups canonically', () => {
   const tree = organizeFamilyTree(membersData as FamilyTreeData);
 
-  assert.equal(tree.orderedMembers.length, 22);
+  assert.equal(tree.orderedMembers.length, 28);
   assert.equal(tree.centerGroups.length, 1);
   assert.equal(tree.leftGroups.length, 4);
-  assert.equal(tree.rightGroups.length, 5);
+  assert.equal(tree.rightGroups.length, 7);
 
   // Check exact group traversal order across orderedMembers
   const seenGroups: string[] = [];
@@ -62,16 +62,26 @@ test('organizeFamilyTree orders secretariat -> left groups -> right groups canon
     'hr',
     'delegate-affairs',
     'volunteers',
+    'dcc',
+    'logistics',
   ]);
+
+  // Two Secretary-Generals appear first at the top of secretariat
+  assert.equal(tree.orderedMembers[0].id, 'naya-almasr');
+  assert.equal(tree.orderedMembers[1].id, 'lana-ahmed');
 
   // Nasser Alqassem (role: null) receives fallback displayRole "Executive Board"
   const nasserIdx = tree.indexById['nasser-alqassem'];
   assert.equal(typeof nasserIdx, 'number');
   assert.equal(tree.orderedMembers[nasserIdx].displayRole, 'Executive Board');
 
-  // Jad Yassin and AbdalRahman AbdAllah preserve null photo
-  assert.equal(tree.orderedMembers[tree.indexById['jad-yassin']].photo, null);
+  // Updated Jad Yassin and Ahmed Magdi photos/metadata; AbdalRahman AbdAllah & Saleh Samaha remain null photo
+  assert.equal(tree.orderedMembers[tree.indexById['jad-yassin']].photo, 'photos/jad-yassin.jpg');
+  assert.equal(tree.orderedMembers[tree.indexById['jad-yassin']].objectPosition, '50% 35%');
+  assert.equal(tree.orderedMembers[tree.indexById['ahmed-magdi']].photo, 'photos/ahmed-magdi.jpg');
+  assert.equal(tree.orderedMembers[tree.indexById['ahmed-magdi']].quoteBy, 'Sun Tzu');
   assert.equal(tree.orderedMembers[tree.indexById['abdalrahman-abdallah']].photo, null);
+  assert.equal(tree.orderedMembers[tree.indexById['saleh-samaha']].photo, null);
 });
 
 test('computeDesktopPedigreePaths creates trunk, branches, bracket spines, and ticks', () => {

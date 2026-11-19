@@ -58,9 +58,47 @@
       "label": "Volunteers",
       "side": "right",
       "cluster": "Operations"
+    },
+    {
+      "id": "dcc",
+      "label": "DCC",
+      "side": "right",
+      "cluster": "Operations"
+    },
+    {
+      "id": "logistics",
+      "label": "Logistics",
+      "side": "right",
+      "cluster": "Operations"
     }
   ],
   "members": [
+    {
+      "id": "naya-almasr",
+      "name": "Naya Almasr",
+      "role": "Secretary-General",
+      "group": "secretariat",
+      "quote": "الحمدلله",
+      "quoteBy": null,
+      "photo": "photos/naya-almasr.jpg",
+      "focus": [
+        46,
+        50
+      ]
+    },
+    {
+      "id": "lana-ahmed",
+      "name": "Lana Ahmed",
+      "role": "Secretary-General",
+      "group": "secretariat",
+      "quote": "With Allah by my side, I need no one else.",
+      "quoteBy": null,
+      "photo": "photos/lana-ahmed.jpg",
+      "focus": [
+        48,
+        42
+      ]
+    },
     {
       "id": "naya-barakat",
       "name": "Naya Barakat",
@@ -81,8 +119,11 @@
       "group": "secretariat",
       "quote": "We have two lives, and the second begins when we realize we have one",
       "quoteBy": null,
-      "photo": null,
-      "focus": null
+      "photo": "photos/jad-yassin.jpg",
+      "focus": [
+        50,
+        35
+      ]
     },
     {
       "id": "abdullah-ahmer",
@@ -202,6 +243,19 @@
       ]
     },
     {
+      "id": "aria",
+      "name": "Aria",
+      "role": "Marketing Member",
+      "group": "marketing",
+      "quote": "We accept the love we think we deserve",
+      "quoteBy": null,
+      "photo": "photos/aria.jpg",
+      "focus": [
+        50,
+        35
+      ]
+    },
+    {
       "id": "dana-jradi",
       "name": "Dana Jradi",
       "role": "Head of Design",
@@ -225,6 +279,19 @@
       "focus": [
         50,
         40
+      ]
+    },
+    {
+      "id": "mallak-abbas",
+      "name": "Mallak Abbas",
+      "role": "Head of Design",
+      "group": "design",
+      "quote": "To love and to be loved",
+      "quoteBy": null,
+      "photo": "photos/mallak-abbas.jpg",
+      "focus": [
+        52,
+        38
       ]
     },
     {
@@ -274,6 +341,19 @@
       "focus": null
     },
     {
+      "id": "ahmed-magdi",
+      "name": "Ahmed Magdi",
+      "role": "Information Technology",
+      "group": "it",
+      "quote": "In the midst of chaos, there is also opportunity.",
+      "quoteBy": "Sun Tzu",
+      "photo": "photos/ahmed-magdi.jpg",
+      "focus": [
+        48,
+        24
+      ]
+    },
+    {
       "id": "muaz-tagelsir",
       "name": "Muaz Tagelsir",
       "role": "Head of HR",
@@ -283,6 +363,19 @@
       "photo": "photos/muaz-tagelsir.jpg",
       "focus": [
         60,
+        45
+      ]
+    },
+    {
+      "id": "ahmed-jamiel",
+      "name": "Ahmed Jamiel",
+      "role": "Head of HR",
+      "group": "hr",
+      "quote": "Hi",
+      "quoteBy": null,
+      "photo": "photos/ahmed-jamiel.jpg",
+      "focus": [
+        50,
         45
       ]
     },
@@ -313,24 +406,30 @@
       ]
     },
     {
-      "id": "mallak-abbas",
-      "name": "Mallak Abbas",
-      "role": "Head of Design",
-      "group": "design",
-      "quote": "To love and be loved",
-      "quoteBy": null,
-      "photo": null,
-      "focus": null
-    },
-    {
       "id": "tala-mohammed",
       "name": "Tala Mohammed",
-      "role": "DCC Member",
-      "group": "delegate-affairs",
+      "role": "DCC Co-Head",
+      "group": "dcc",
       "quote": "Why would I choose cosmic energy over Katara?",
+      "quoteBy": "Aang",
+      "photo": "photos/tala-mohammed.jpg",
+      "focus": [
+        50,
+        30
+      ]
+    },
+    {
+      "id": "muaz-elamir",
+      "name": "Muaz Elamir",
+      "role": "Co-Head of Logistics",
+      "group": "logistics",
+      "quote": "Hi, I’m Muaz Elamir and I will be your Co-Head of Logistics for Willow MUN",
       "quoteBy": null,
-      "photo": null,
-      "focus": null
+      "photo": "photos/muaz-elamir.jpg",
+      "focus": [
+        44,
+        18
+      ]
     }
   ]
 }

@@ -461,7 +461,10 @@ export function MemberProfileModal({
         {/* Quote revealed word by word (25ms/word) inside large quotation marks */}
         {words.length > 0 && (
           <figure className="relative z-10 mt-5 w-full max-w-[44ch] px-3 sm:px-5">
-            <blockquote className="relative font-serif text-lg sm:text-[1.35rem] italic leading-relaxed text-[#f2ecd4]">
+            <blockquote
+              dir="auto"
+              className="relative font-serif text-lg sm:text-[1.35rem] italic leading-relaxed text-[#f2ecd4]"
+            >
               <span
                 aria-hidden="true"
                 className="mr-1.5 inline-block align-top font-serif text-3xl sm:text-4xl not-italic leading-none text-[#a9b47e]/85"
