@@ -14,7 +14,7 @@ export function ExecutiveBoardSignupView({ onNavigate }: { onNavigate: (path: st
     event.preventDefault();
     setError('');
     const normalizedEmail = email.trim().toLowerCase();
-    if (!/^[^\\s@]+@[^\\s@]+$/.test(normalizedEmail)) { setError('Enter your registered EB email address.'); return; }
+    if (!/^[^\s@]+@[^\s@]+$/.test(normalizedEmail)) { setError('Enter your registered EB email address.'); return; }
     if (password.length < 10) { setError('Use a password with at least 10 characters.'); return; }
     if (password !== confirmPassword) { setError('The passwords do not match.'); return; }
 
