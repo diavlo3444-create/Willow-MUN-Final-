@@ -550,9 +550,9 @@ body.intro-on .willow-intro-backdrop {
   height: 100vh;
   height: 100dvh;
   object-fit: cover;
-  /* Blend the clip's black matte into the full-screen olive canvas so it reads as background, not a video rectangle. */
-  mix-blend-mode: screen;
-  filter: brightness(0.72) saturate(0.78) contrast(1.08);
+  /* Canvas intro is already transparent: keep the tree native and matte-free. */
+  mix-blend-mode: normal;
+  filter: none;
   transform: scale(1.08);
   pointer-events: none;
   opacity: 0;
