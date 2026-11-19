@@ -587,7 +587,7 @@ body.intro-on .willow-intro-video {
     min-height: 100dvh;
     max-height: none;
     object-fit: contain !important;
-    object-position: 50% 18% !important;
+    object-position: 50% 50% !important;
   }
 }
 
