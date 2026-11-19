@@ -64,14 +64,19 @@ Deno.serve(async (req: Request) => {
     if (!email) return json({ error: "Application has no valid email." }, 400);
     const token = newToken();
     const tokenHash = await hash(token);
-    const { error: revokeErr } = await admin.from("wm_hr_signup_invites")
-      .update({ revoked_at: new Date().toISOString() })
-      .eq("application_id", app.id).is("claimed_at", null).is("revoked_at", null);
-    if (revokeErr) return json({ error: "Could not rotate previous signup link." }, 500);
-    const { error: insertErr } = await admin.from("wm_hr_signup_invites").insert({
-      application_id: app.id, token_hash: tokenHash, issued_by: userData.user.id,
-    });
-    if (insertErr) return json({ error: "Could not create signup link." }, 500);
+    const { data: previous, error: previousErr } = await admin.from("wm_hr_signup_invites")
+      .select("id,claimed_at").eq("application_id", app.id).maybeSingle();
+    if (previousErr) return json({ error: "Could not inspect previous signup link." }, 500);
+    if (previous?.claimed_at) return json({ error: "Applicant has already claimed their signup link." }, 409);
+    const inviteWrite = previous
+      ? await admin.from("wm_hr_signup_invites").update({
+          token_hash: tokenHash, issued_by: userData.user.id, issued_at: new Date().toISOString(),
+          revoked_at: null, claim_started_at: null,
+        }).eq("id", previous.id)
+      : await admin.from("wm_hr_signup_invites").insert({
+          application_id: app.id, token_hash: tokenHash, issued_by: userData.user.id,
+        });
+    if (inviteWrite.error) return json({ error: "Could not create signup link." }, 500);
     const origin = String(body.origin || req.headers.get("origin") || "https://willow-mun.vercel.app").replace(/\/$/, "");
     return json({ success: true, signup_url: `${origin}/team-signup?token=${encodeURIComponent(token)}`, email, full_name: app.applicant_name, position: app.position });
   }
