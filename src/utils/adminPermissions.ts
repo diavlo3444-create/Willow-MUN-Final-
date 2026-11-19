@@ -627,10 +627,8 @@ export function hasPermission(
       return user.permissions?.['qr.view_pass'] !== false;
     }
     if (permission === 'qr.scan') {
-      return (
-        getActorDepartmentSlug(user, departments) === 'security' &&
-        user.permissions?.['qr.scan'] !== false
-      );
+      // Security department assignment grants scanner access to the entire Security team.
+      return getActorDepartmentSlug(user, departments) === 'security';
     }
     if (permission === 'committees.manage') {
       return isDccActor(user, departments);
