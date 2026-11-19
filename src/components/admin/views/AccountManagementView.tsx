@@ -337,7 +337,11 @@ export function AccountManagementView({
     const body: Record<string, unknown> = {
       action: editingRealId ? 'update' : 'create',
       full_name: cleanName,
-      email: cleanEmail,
+      // For existing accounts, omit email entirely unless it actually changed.
+      // Role/permission updates should not invoke Supabase Auth email validation.
+      ...(editingRealId && cleanEmail === (editingAccount?.email || '').trim().toLowerCase()
+        ? {}
+        : { email: cleanEmail }),
       role: formRole,
       department_id: formRole === 'admin' ? formDepartmentId || null : formDepartmentId,
       division: formDivision || null,
