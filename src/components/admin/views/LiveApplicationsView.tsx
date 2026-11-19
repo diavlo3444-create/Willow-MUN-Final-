@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ExternalLink, RefreshCw, Search } from 'lucide-react';
+import { ExternalLink, RefreshCw, Search, Trash2 } from 'lucide-react';
 import { useAdminStore } from '../../../context/AdminStoreContext';
 import { supabase } from '../../../lib/supabase';
 import {
@@ -36,6 +36,7 @@ export function LiveApplicationsView({
   const [type, setType] = useState('all');
   const [status, setStatus] = useState('all');
   const [busyId, setBusyId] = useState('');
+  const [deletingId, setDeletingId] = useState('');
   const [notes, setNotes] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
@@ -116,6 +117,17 @@ export function LiveApplicationsView({
     setBusyId('');
   };
 
+  const deleteApplication = async (app: Application) => {
+    if (effectiveActor?.role !== 'admin' && effectiveActor?.role !== 'super_admin') return;
+    if (!window.confirm("Permanently delete this applicant and their application, medical record, signup invite, QR pass, and uploaded files when cleanup succeeds? This cannot be undone.")) return;
+    setDeletingId(app.id);
+    const { data, error: invokeError } = await supabase.functions.invoke('willow-applications', { body: { action: 'delete', id: app.id } });
+    setDeletingId("");
+    if (invokeError || data?.error) { setError(data?.error || invokeError?.message || "Could not delete application."); return; }
+    if (data?.storage_cleanup_warning) setError("Application deleted, but uploaded-file cleanup needs attention: " + data.storage_cleanup_warning);
+    setRawRows((rows) => rows.filter((row) => row.id !== app.id));
+    if (selectedId === app.id) onClose?.();
+  };
   const active = selectedId ? applications.find((app) => app.id === selectedId) : null;
   if (selectedId) {
     return (
@@ -260,9 +272,14 @@ export function LiveApplicationsView({
                       {app.gradeOrYear ? ` (${app.gradeOrYear})` : ''}
                     </p>
                   </div>
-                  <span className="text-[10px] text-[color:var(--wm-ink-muted)]">
-                    {new Date(app.submittedAt).toLocaleString()}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-[color:var(--wm-ink-muted)]">{new Date(app.submittedAt).toLocaleString()}</span>
+                    {(effectiveActor?.role === 'admin' || effectiveActor?.role === 'super_admin') && (
+                      <button type="button" disabled={busyId === app.id || deletingId === app.id} onClick={() => void deleteApplication(app)} aria-label="Delete applicant" title="Permanently delete applicant" className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-rose-400/35 text-rose-200 hover:bg-rose-500/15 disabled:opacity-40">
+                        <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                      </button>
+                    )}
+                  </div>
                 </div>
                 {app.experienceLevel && (
                   <p className="mt-3 whitespace-pre-wrap text-xs leading-6 text-[color:var(--wm-ink-secondary)]">
