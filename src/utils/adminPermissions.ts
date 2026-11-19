@@ -580,7 +580,7 @@ export function isSecurityAccount(
   departments?: Department[],
 ): boolean {
   if (!user || !user.isActive || user.status !== 'active') return false;
-  if (user.role === 'super_admin') return true;
+  if (user.role === 'super_admin' || user.role === 'admin') return true;
   if (user.role === 'department_head') {
     return (
       getActorDepartmentSlug(user, departments) === 'security' &&
@@ -588,9 +588,7 @@ export function isSecurityAccount(
     );
   }
   if (user.role === 'executive_board') {
-    const deptSlug = getActorDepartmentSlug(user, departments);
-    if (deptSlug === 'security' && user.permissions?.['qr.scan'] !== false) return true;
-    return Boolean(user.permissions?.['qr.scan'] || user.ebPermissions?.scan_qr);
+    return getActorDepartmentSlug(user, departments) === 'security' && user.permissions?.['qr.scan'] !== false;
   }
   return false;
 }
@@ -609,6 +607,7 @@ export function hasPermission(
 ): boolean {
   if (!user || !user.isActive || user.status !== 'active') return false;
   if (user.role === 'super_admin') return true;
+  if (permission === 'qr.scan' && user.role === 'admin') return true;
   if (SUPER_ADMIN_ONLY_KEYS.has(permission)) return false;
 
   if (user.role === 'department_head') {
@@ -665,11 +664,7 @@ export function hasPermission(
       return user.permissions?.['qr.view_pass'] !== false;
     }
     if (permission === 'qr.scan') {
-      const deptSlug = getActorDepartmentSlug(user, departments);
-      return (
-        (deptSlug === 'security' && user.permissions?.['qr.scan'] !== false) ||
-        Boolean(user.permissions?.['qr.scan'] || user.ebPermissions?.scan_qr)
-      );
+      return getActorDepartmentSlug(user, departments) === 'security' && user.permissions?.['qr.scan'] !== false;
     }
     return false;
   }
