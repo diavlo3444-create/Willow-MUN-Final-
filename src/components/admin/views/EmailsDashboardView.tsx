@@ -55,7 +55,7 @@ export function EmailsDashboardView(){
  const rejectedPending=useMemo(()=>applicants.filter(a=>a.applicationStatus==='rejected'&&a.emailStatus!=='sent'),[applicants]);
  const selected=useMemo(()=>applicants.filter(a=>selectedIds.includes(a.id)),[applicants,selectedIds]);
  const activeQueue=queue.filter(q=>q.status==='waiting'||q.status==='processing').length;
- const openAll=(type:EmailDecisionType)=>{const eligible=type==='accepted'?acceptedPending:rejectedPending;setConfirmState({mode:type==='accepted'?'all_accepted':'all_rejected',emailType:type,recipients:eligible,skippedAlreadySentCount:(type==='accepted'?accepted:rejected)-eligible.length,skippedIneligibleCount:total-(type==='accepted'?accepted:rejected)})};
+ const openAll=(type:EmailDecisionType)=>{const eligible=type==='accepted'?acceptedPending:rejectedPending;const rec=eligible.filter(a=>a.email.trim()&&a.emailStatus!=='sent');const staged=rec.map((r,i):EmailQueueItem=>({id:`q-${Date.now()}-${i}-${r.id}`,applicantId:r.id,recipientName:r.applicantName,recipientEmail:r.email,department:r.department,emailType:type,subject:renderEmailPreview(templates[type].subject,r,type),status:'waiting',queuedAt:new Date().toISOString()}));setQueue(prev=>[...staged,...prev]);void sendBatch(staged);};
  const openSelected=(list:EmailApplicantRecord[],type?:EmailDecisionType)=>{if(list.length)setConfirmState({mode:'selected',emailType:type||(list.every(a=>a.applicationStatus==='rejected')?'rejected':'accepted'),recipients:list,skippedAlreadySentCount:0,skippedIneligibleCount:0})};
  const sendBatch=async(items:EmailQueueItem[])=>{
   if(sending||!items.length)return;
