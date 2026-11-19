@@ -360,7 +360,28 @@ export function AccountManagementView({
     setSaving(false);
 
     if (error || res?.error) {
-      setFormError(res?.error || error?.message || 'Could not save account.');
+      let detailedError = res?.error || error?.message || 'Could not save account.';
+      // Supabase FunctionsHttpError stores the actual HTTP response in error.context.
+      // Read it safely so non-2xx responses (such as 409) show the server message.
+      const errorContext = (error as any)?.context;
+      if (!res?.error && errorContext && typeof errorContext.clone === 'function') {
+        try {
+          const responseBody = await errorContext.clone().json();
+          if (typeof responseBody?.error === 'string' && responseBody.error.trim()) {
+            detailedError = responseBody.error;
+          } else if (typeof responseBody?.message === 'string' && responseBody.message.trim()) {
+            detailedError = responseBody.message;
+          }
+        } catch {
+          try {
+            const responseText = await errorContext.clone().text();
+            if (responseText.trim()) detailedError = responseText.trim();
+          } catch {
+            // Keep the safe fallback error.
+          }
+        }
+      }
+      setFormError(detailedError);
       return;
     }
 
