@@ -214,7 +214,7 @@ function toSubmitFileMetadata(files: UploadedApplicationFile[]) {
 
 /**
  * Editorial Organizing-Team Application Desk + Smooth 4-Step Animated Modal Dossier
- * for Media, Press, and Volunteers.
+ * for Media, Press, Volunteers, and Security.
  */
 export function ApplySection() {
   const initialStored = useMemo(() => loadStoredDrafts(), []);
@@ -1049,7 +1049,7 @@ export function ApplySection() {
                           </div>
                         </div>
 
-                        {selectedTrack !== 'security' && (
+                        {selectedTrack !== 'invalid' && (
                         <div>
                           <span
                             id="apply-gender-label"
@@ -1184,7 +1184,7 @@ export function ApplySection() {
                         </div>
 
                         {/* Medical Condition Disclosure (Private / Admin Restricted) */}
-                        {selectedTrack !== 'security' && (
+                        {selectedTrack !== 'invalid' && (
                         <div className="willow-folio-inset rounded-[3px] p-4 sm:p-5 space-y-3.5">
                           <div className="flex items-start justify-between gap-3">
                             <span
