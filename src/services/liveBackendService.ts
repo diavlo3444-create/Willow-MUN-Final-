@@ -1057,3 +1057,21 @@ export async function backfillStaffQrPasses(): Promise<{
   }
   return { ok: true, message: data?.message };
 }
+
+export async function createHrApplicantSignupInvite(applicationId: string): Promise<{ url?: string; email?: string; fullName?: string; error?: string }> {
+  const { data, error } = await supabase.functions.invoke('willow-hr-signup', {
+    body: { action: 'create_invite', application_id: applicationId, origin: window.location.origin },
+  });
+  if (error || !data?.success || !data?.signup_url) {
+    return { error: data?.error || error?.message || 'Could not create signup link.' };
+  }
+  return { url: data.signup_url, email: data.email, fullName: data.full_name };
+}
+
+export async function claimHrApplicantSignup(token: string, password: string): Promise<{ success?: boolean; email?: string; error?: string }> {
+  const { data, error } = await supabase.functions.invoke('willow-hr-signup', {
+    body: { action: 'signup', token, password },
+  });
+  if (error || !data?.success) return { error: data?.error || error?.message || 'Signup failed.' };
+  return { success: true, email: data.email };
+}
