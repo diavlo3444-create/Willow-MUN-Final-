@@ -62,19 +62,19 @@ Deno.serve(async (req: Request) => {
     if (app.status !== "accepted") return json({ error: "Only accepted applicants can receive signup links." }, 409);
     const email = cleanEmail(app.email);
     if (!email) return json({ error: "Application has no valid email." }, 400);
-    const token = newToken();
+    const token = previous?.token_value || newToken();
     const tokenHash = await hash(token);
     const { data: previous, error: previousErr } = await admin.from("wm_hr_signup_invites")
-      .select("id,claimed_at").eq("application_id", app.id).maybeSingle();
+      .select("id,claimed_at,token_value").eq("application_id", app.id).maybeSingle();
     if (previousErr) return json({ error: "Could not inspect previous signup link." }, 500);
     if (previous?.claimed_at) return json({ error: "Applicant has already claimed their signup link." }, 409);
     const inviteWrite = previous
       ? await admin.from("wm_hr_signup_invites").update({
-          token_hash: tokenHash, issued_by: userData.user.id, issued_at: new Date().toISOString(),
+          token_hash: tokenHash, token_value: token, issued_by: userData.user.id, issued_at: previous.token_value ? undefined : new Date().toISOString(),
           revoked_at: null, claim_started_at: null,
         }).eq("id", previous.id)
       : await admin.from("wm_hr_signup_invites").insert({
-          application_id: app.id, token_hash: tokenHash, issued_by: userData.user.id,
+          application_id: app.id, token_hash: tokenHash, token_value: token, issued_by: userData.user.id,
         });
     if (inviteWrite.error) return json({ error: "Could not create signup link." }, 500);
     const origin = String(body.origin || req.headers.get("origin") || "https://willow-mun.vercel.app").replace(/\/$/, "");
@@ -87,13 +87,11 @@ Deno.serve(async (req: Request) => {
     if (!/^[a-f0-9]{64}$/i.test(token)) return json({ error: "Signup link is invalid." }, 400);
     if (password.length < 10) return json({ error: "Password must be at least 10 characters." }, 400);
     const tokenHash = await hash(token);
-    const cutoff = new Date(Date.now() - 15 * 60 * 1000).toISOString();
     const { data: invite, error: lockErr } = await admin.from("wm_hr_signup_invites")
       .update({ claim_started_at: new Date().toISOString() })
-      .eq("token_hash", tokenHash).is("revoked_at", null).is("claimed_at", null)
-      .or(`claim_started_at.is.null,claim_started_at.lt.${cutoff}`)
+      .eq("token_hash", tokenHash).is("claimed_at", null)
       .select("id,application_id").maybeSingle();
-    if (lockErr || !invite) return json({ error: "This signup link is revoked, already used, or currently being claimed." }, 409);
+    if (lockErr || !invite) return json({ error: "This signup link was already used or could not be found." }, 409);
     let createdId: string | null = null;
     try {
       const { data: app, error: appErr } = await admin.from("wm_applications")
