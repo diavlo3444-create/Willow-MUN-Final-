@@ -62,11 +62,11 @@ Deno.serve(async (req: Request) => {
     if (app.status !== "accepted") return json({ error: "Only accepted applicants can receive signup links." }, 409);
     const email = cleanEmail(app.email);
     if (!email) return json({ error: "Application has no valid email." }, 400);
-    const token = previous?.token_value || newToken();
-    const tokenHash = await hash(token);
     const { data: previous, error: previousErr } = await admin.from("wm_hr_signup_invites")
       .select("id,claimed_at,token_value").eq("application_id", app.id).maybeSingle();
     if (previousErr) return json({ error: "Could not inspect previous signup link." }, 500);
+    const token = previous?.token_value || newToken();
+    const tokenHash = await hash(token);
     if (previous?.claimed_at) return json({ error: "Applicant has already claimed their signup link." }, 409);
     const inviteWrite = previous
       ? await admin.from("wm_hr_signup_invites").update({
