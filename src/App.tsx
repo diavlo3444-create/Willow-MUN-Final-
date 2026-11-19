@@ -165,7 +165,9 @@ function AdminRouter({ pathname, navigate }: { pathname: string; navigate: (path
         />
       ) : isHeadSetup ? (
         <HeadPasswordSetupView onComplete={() => navigate('/head')} />
-      ) : isHrSignup ? (\n        <HrApplicantSignupView onNavigate={navigate} />\n      ) : isEbSignup ? (
+      ) : isHrSignup ? (
+        <HrApplicantSignupView onNavigate={navigate} />
+      ) : isEbSignup ? (
         <ExecutiveBoardSignupView onNavigate={navigate} />
       ) : (
         <PortalAuthView portal={loginPortal} onNavigate={navigate} />
