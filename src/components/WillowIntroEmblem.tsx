@@ -6,6 +6,7 @@ import {
   useRef,
 } from 'react';
 import { CONFERENCE_DATA } from '../data/conference';
+import { useResponsiveVideoSources } from '../utils/responsiveVideo';
 
 const INTRO_TRANSITION_TIME_S = 7.9;
 const INTRO_TREE_BLEND_START_S = 7.7;
@@ -32,6 +33,7 @@ interface WillowIntroEmblemProps {
  */
 export const WillowIntroEmblem = forwardRef<WillowIntroEmblemHandle, WillowIntroEmblemProps>(
   function WillowIntroEmblem({ introPlaying, onIntroStateChange }, ref) {
+    const { isMobilePortrait } = useResponsiveVideoSources();
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const rafIdRef = useRef<number>(0);
     const fallbackTimerRef = useRef<number>(0);
@@ -314,10 +316,11 @@ export const WillowIntroEmblem = forwardRef<WillowIntroEmblemHandle, WillowIntro
         {/* Olive gradient backdrop during the intro (cross-dissolves into #bgVideo + scrim at handoff) */}
         <div className="willow-intro-backdrop" aria-hidden="true" />
 
-        {/* Full-bleed seamless <video> with mix-blend-mode: screen */}
+        {/* Full-bleed seamless <video> aligned to WillowBackground geometry on desktop and mobile */}
         <video
           ref={videoRef}
           src={CONFERENCE_DATA.brand.introVideoSrc}
+          data-mobile-portrait={isMobilePortrait ? 'true' : 'false'}
           autoPlay
           muted
           playsInline

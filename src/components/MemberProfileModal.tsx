@@ -402,7 +402,7 @@ export function MemberProfileModal({
           {hasPhoto && member.photo ? (
             <img
               key={member.id}
-              src={member.photo}
+              src={member.photo.startsWith('/') ? member.photo : `/${member.photo}`}
               alt={member.name}
               style={{ objectPosition: member.objectPosition }}
               onError={() =>
