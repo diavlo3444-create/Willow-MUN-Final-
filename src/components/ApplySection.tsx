@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
-const TRACK_DEPARTMENT_SLUG: Record<string, string> = { media: 'media', press: 'press', volunteer: 'volunteers' };
+const TRACK_DEPARTMENT_SLUG: Record<string, string> = { media: 'media', press: 'press', volunteer: 'volunteers', security: 'security' };
 import {
   ATTENDANCE_QUESTION_LABEL,
   GRADE_OPTIONS,
@@ -73,6 +73,14 @@ const TRACKS: readonly TrackConfig[] = [
     detail:
       'Delegate reception, floor logistics, wayfinding, policy adherence, and calm coordination throughout the venue.',
     deliverable: 'Experience overview & 5 operational scenario questions',
+  },
+  {
+    id: 'security',
+    index: '04',
+    title: 'Security',
+    wing: 'Delegate Affairs & Operations',
+    detail: 'Venue safety, access checks, responsibility, and clear communication.',
+    deliverable: 'Experience summary and proof, plus 3 written questions and two yes/no disclosures',
   },
 ] as const;
 
@@ -236,7 +244,7 @@ export function ApplySection() {
       const { data, error } = await supabase
         .from('wm_departments')
         .select('slug,registration_open')
-        .in('slug', ['media', 'press', 'volunteers']);
+        .in('slug', ['media', 'press', 'volunteers', 'security']);
       if (!active) return;
       if (!error && data) {
         const next: Record<string, boolean> = {};
@@ -894,7 +902,7 @@ export function ApplySection() {
                           <span className="mb-2 block text-xs font-medium text-[#c9c2a6]">
                             Application Track
                           </span>
-                          <div className="grid grid-cols-3 gap-2">
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                             {TRACKS.map((t) => {
                               const active = selectedTrack === t.id;
                               return (
@@ -969,6 +977,7 @@ export function ApplySection() {
                           </div>
                         </div>
 
+                        {selectedTrack !== 'security' && (
                         <div>
                           <span
                             id="apply-gender-label"
@@ -1018,6 +1027,8 @@ export function ApplySection() {
                             </p>
                           )}
                         </div>
+
+                        )}
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div>
@@ -1100,6 +1111,7 @@ export function ApplySection() {
                           />
                         </div>
 
+                        {selectedTrack !== 'security' && (
                         {/* Medical Condition Disclosure (Private / Admin Restricted) */}
                         <div className="willow-folio-inset rounded-[3px] p-4 sm:p-5 space-y-3.5">
                           <div className="flex items-start justify-between gap-3">
@@ -1185,6 +1197,8 @@ export function ApplySection() {
                             </span>
                           </p>
                         </div>
+                        )}
+
                       </div>
                     )}
 
@@ -1314,6 +1328,26 @@ export function ApplySection() {
                           const met = answer.trim().length >= q.minLength;
                           return (
                             <div key={q.id}>
+                              {selectedTrack === 'security' && (q.id === 'security_q4' || q.id === 'security_q5') ? (
+                                <div className="willow-folio-inset rounded-[3px] p-4 space-y-3">
+                                  <span className="block text-xs sm:text-[13px] font-medium text-[#ede6ca]">{q.label}</span>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    {(['yes', 'no'] as const).map((choice) => {
+                                      const selected = answer === 'no' ? choice === 'no' : answer.startsWith('yes:') ? choice === 'yes' : false;
+                                      return (
+                                        <button key={choice} type="button" onClick={() => updateRoleAnswer(q.id, choice === 'no' ? 'no' : 'yes:')} className={`min-h-[44px] rounded-[2px] border px-4 py-2 text-sm font-medium capitalize flex items-center justify-between ${selected ? 'border-[#ede6ca] bg-[#ede6ca]/[0.12] text-[#ede6ca]' : 'border-[#ede6ca]/22 bg-[#0e1208] text-[#c9c2a6]'}`}>
+                                          <span>{choice}</span><span aria-hidden="true" className={`h-3 w-3 rounded-full border ${selected ? 'border-[#ede6ca] bg-[#ede6ca]' : 'border-[#ede6ca]/35'}`} />
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                  {answer.startsWith('yes:') && (
+                                    <textarea rows={2} value={answer.slice(4)} onChange={(e) => updateRoleAnswer(q.id, `yes:${e.target.value}`)} placeholder={q.placeholder} className="w-full rounded-[2px] border border-[#ede6ca]/24 bg-[#0e1208] px-3.5 py-2.5 text-sm text-[#ede6ca] outline-none placeholder:text-[#8d8a73] focus:border-[#ede6ca] resize-y" />
+                                  )}
+                                  {errMsg && <p role="alert" className="text-xs text-rose-300">{errMsg}</p>}
+                                </div>
+                              ) : (
+                              <>
                               <div className="mb-1.5 flex items-baseline justify-between gap-3">
                                 <label
                                   htmlFor={`apply-${q.id}`}
@@ -1345,6 +1379,9 @@ export function ApplySection() {
                                 <p role="alert" className="mt-1.5 text-xs text-rose-300">
                                   {errMsg}
                                 </p>
+                              )}
+                            </div>
+                              </>
                               )}
                             </div>
                           );
