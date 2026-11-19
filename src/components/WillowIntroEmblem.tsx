@@ -1,17 +1,12 @@
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from 'react';
 import {
-  forwardRef,
-  useCallback,
-  useEffect,
-  useImperativeHandle,
-  useRef,
-} from 'react';
-import { useResponsiveVideoSources } from '../utils/responsiveVideo';
+  buildWillowCanvasGeometry,
+  configureWillowCanvasContext,
+  drawWillowCanvasFrame,
+} from '../utils/willowCanvasIntro';
 
-const INTRO_TRANSITION_TIME_S = 7.9;
-const INTRO_TREE_BLEND_START_S = 7.7;
-const INTRO_FALLBACK_TIMEOUT_MS = 12000;
-const INTRO_WATERMARK_FALLBACK_DURATION_S = 8.4;
-const REPLAY_FADE_OUT_MS = 560;
+const INTRO_DURATION_MS = 7900;
+const FALLBACK_TIMEOUT_MS = 12000;
 
 export interface WillowIntroEmblemHandle {
   replay: () => void;
@@ -22,331 +17,154 @@ interface WillowIntroEmblemProps {
   onIntroStateChange: (playing: boolean) => void;
 }
 
-/**
- * Full-bleed intro <video> (desktop widescreen vs dedicated portrait mobile asset) with mix-blend-mode: screen:
- * - Plays at full opacity (scale 1, z-index 50) over the olive backdrop
- * - At 7.9s (or on Skip), smoothly dissolves into the background loop video
- *   while revealing the conference frontispiece
- */
+/** Transparent canvas intro: no footage or baked-in matte, only the Willow tree drawing. */
 export const WillowIntroEmblem = forwardRef<WillowIntroEmblemHandle, WillowIntroEmblemProps>(
   function WillowIntroEmblem({ introPlaying, onIntroStateChange }, ref) {
-    const { isMobilePortrait, introVideoSrc } = useResponsiveVideoSources();
-    const videoRef = useRef<HTMLVideoElement | null>(null);
-    const rafIdRef = useRef<number>(0);
-    const fallbackTimerRef = useRef<number>(0);
-    const replayTimerRef = useRef<number>(0);
-    const finishedRef = useRef<boolean>(false);
-    const pendingWatermarkSeekRef = useRef<boolean>(false);
-    const shouldAutoStartRef = useRef<boolean>(introPlaying);
+    const canvasRef = useRef<HTMLCanvasElement | null>(null);
+    const rafRef = useRef<number>(0);
+    const timeoutRef = useRef<number>(0);
+    const finishedRef = useRef(false);
+    const startAtRef = useRef(0);
+    const geometryRef = useRef(buildWillowCanvasGeometry());
+    const autoStartRef = useRef(introPlaying);
 
-    const clearTimers = useCallback(() => {
-      if (rafIdRef.current !== 0) {
-        window.cancelAnimationFrame(rafIdRef.current);
-        rafIdRef.current = 0;
-      }
-      if (fallbackTimerRef.current !== 0) {
-        window.clearTimeout(fallbackTimerRef.current);
-        fallbackTimerRef.current = 0;
-      }
-      if (replayTimerRef.current !== 0) {
-        window.clearTimeout(replayTimerRef.current);
-        replayTimerRef.current = 0;
-      }
+    const clearAnimation = useCallback(() => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
+      rafRef.current = 0;
+      timeoutRef.current = 0;
     }, []);
 
-    const seekToWatermarkFrame = useCallback((video: HTMLVideoElement) => {
-      const duration =
-        Number.isFinite(video.duration) && video.duration > 0
-          ? video.duration
-          : INTRO_WATERMARK_FALLBACK_DURATION_S;
-      const targetTime = Math.max(INTRO_TRANSITION_TIME_S, duration - 0.05);
-
-      video.pause();
-      if (video.readyState >= 1) {
-        try {
-          video.currentTime = targetTime;
-          pendingWatermarkSeekRef.current = false;
-        } catch {
-          pendingWatermarkSeekRef.current = true;
-        }
-      } else {
-        pendingWatermarkSeekRef.current = true;
-      }
+    const drawProgress = useCallback((progress: number) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.round(width * dpr);
+      canvas.height = Math.round(height * dpr);
+      canvas.style.width = '100vw';
+      canvas.style.height = '100dvh';
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const scale = Math.min(width / 800, height / 720) * 1.15;
+      const x = (width - 800 * scale) / 2;
+      const y = (height - 720 * scale) / 2;
+      ctx.setTransform(dpr * scale, 0, 0, dpr * scale, dpr * x, dpr * y);
+      configureWillowCanvasContext(ctx);
+      drawWillowCanvasFrame(ctx, geometryRef.current, progress);
     }, []);
 
-    const finishIntro = useCallback(
-      (options?: { seekToEnd?: boolean }) => {
+    const finishIntro = useCallback(() => {
+      if (finishedRef.current) return;
+      finishedRef.current = true;
+      clearAnimation();
+      drawProgress(1);
+      document.body.classList.add('intro-transitioning');
+      window.setTimeout(() => document.body.classList.remove('intro-transitioning'), 2200);
+      document.body.classList.remove('intro-on');
+      onIntroStateChange(false);
+    }, [clearAnimation, drawProgress, onIntroStateChange]);
+
+    const startIntro = useCallback((replay: boolean) => {
+      clearAnimation();
+      finishedRef.current = false;
+      onIntroStateChange(true);
+      document.body.classList.remove('intro-transitioning');
+      document.body.classList.add('intro-on');
+      const docEl = document.documentElement;
+      const oldScrollBehavior = docEl.style.scrollBehavior;
+      docEl.style.scrollBehavior = 'auto';
+      window.scrollTo(0, 0);
+      docEl.style.scrollBehavior = oldScrollBehavior;
+      drawProgress(0);
+      startAtRef.current = performance.now();
+      const loop = (now: number) => {
         if (finishedRef.current) return;
-        finishedRef.current = true;
-        clearTimers();
-
-        document.body.classList.add('intro-transitioning');
-        window.setTimeout(() => {
-          document.body.classList.remove('intro-transitioning');
-        }, 2200);
-
-        const video = videoRef.current;
-        if (video) {
-          if (options?.seekToEnd) {
-            seekToWatermarkFrame(video);
-          } else {
-            window.setTimeout(() => {
-              if (finishedRef.current && videoRef.current) {
-                videoRef.current.pause();
-              }
-            }, 1850);
-          }
-        }
-
-        document.body.classList.remove('intro-on');
-        onIntroStateChange(false);
-      },
-      [clearTimers, onIntroStateChange, seekToWatermarkFrame],
-    );
-
-    const beginVideoPlayback = useCallback(() => {
-      const video = videoRef.current;
-      if (video) {
-        video.muted = true;
-        video.defaultMuted = true;
-        try {
-          video.currentTime = 0;
-        } catch {
-          // Ignore seek error prior to metadata
-        }
-        const playPromise = video.play();
-        if (playPromise !== undefined) {
-          playPromise.catch(() => {
-            // Autoplay fallback timer/user click will handle transition if blocked
-          });
-        }
-      }
-
-      const checkPlayback = () => {
         if (document.hidden) {
-          rafIdRef.current = 0;
+          rafRef.current = 0;
           return;
         }
-        if (finishedRef.current) return;
-        const currentVideo = videoRef.current;
-        if (currentVideo && currentVideo.currentTime >= INTRO_TREE_BLEND_START_S) {
-          document.body.classList.add('intro-transitioning');
-        }
-        if (currentVideo && currentVideo.currentTime >= INTRO_TRANSITION_TIME_S) {
-          rafIdRef.current = 0;
+        const progress = Math.min(1, (now - startAtRef.current) / INTRO_DURATION_MS);
+        drawProgress(progress);
+        if (progress >= 1) {
+          rafRef.current = 0;
           finishIntro();
           return;
         }
-        rafIdRef.current = window.requestAnimationFrame(checkPlayback);
+        rafRef.current = requestAnimationFrame(loop);
       };
+      rafRef.current = requestAnimationFrame(loop);
+      timeoutRef.current = window.setTimeout(finishIntro, FALLBACK_TIMEOUT_MS);
+      if (replay) canvasRef.current?.focus();
+    }, [clearAnimation, drawProgress, finishIntro, onIntroStateChange]);
 
-      rafIdRef.current = window.requestAnimationFrame(checkPlayback);
-      fallbackTimerRef.current = window.setTimeout(() => {
-        finishIntro();
-      }, INTRO_FALLBACK_TIMEOUT_MS);
-    }, [finishIntro]);
-
-    const startIntro = useCallback(
-      (isReplay: boolean) => {
-        clearTimers();
-        finishedRef.current = false;
-        pendingWatermarkSeekRef.current = false;
-        onIntroStateChange(true);
-
-        document.body.classList.remove('intro-transitioning');
-        document.body.classList.add('intro-on');
-
-        if (!isReplay) {
-          const docEl = document.documentElement;
-          const prevScrollBehavior = docEl.style.scrollBehavior;
-          docEl.style.scrollBehavior = 'auto';
-          window.scrollTo(0, 0);
-          docEl.style.scrollBehavior = prevScrollBehavior;
-
-          beginVideoPlayback();
-          return;
-        }
-
-        // Smooth replay: let text fade out & intro dissolve back in before resetting scroll & playing from 0
-        replayTimerRef.current = window.setTimeout(() => {
-          replayTimerRef.current = 0;
-          if (finishedRef.current) return;
-
-          const docEl = document.documentElement;
-          const prevScrollBehavior = docEl.style.scrollBehavior;
-          docEl.style.scrollBehavior = 'auto';
-          window.scrollTo(0, 0);
-          docEl.style.scrollBehavior = prevScrollBehavior;
-
-          beginVideoPlayback();
-        }, REPLAY_FADE_OUT_MS);
-      },
-      [beginVideoPlayback, clearTimers, onIntroStateChange],
-    );
-
-    useImperativeHandle(
-      ref,
-      () => ({
-        replay: () => {
-          if (!finishedRef.current) return;
-          startIntro(true);
-        },
-      }),
-      [startIntro],
-    );
+    useImperativeHandle(ref, () => ({ replay: () => { if (finishedRef.current) startIntro(true); } }), [startIntro]);
 
     useEffect(() => {
-      const video = videoRef.current;
-
-      const handleLoadedMetadata = () => {
-        if (!video) return;
-        if (pendingWatermarkSeekRef.current) {
-          seekToWatermarkFrame(video);
+      drawProgress(0);
+      const resize = () => {
+        if (finishedRef.current) drawProgress(1);
+        else drawProgress(Math.min(1, (performance.now() - startAtRef.current) / INTRO_DURATION_MS));
+      };
+      window.addEventListener('resize', resize);
+      const visibility = () => {
+        if (document.hidden || finishedRef.current) return;
+        if (rafRef.current === 0) {
+          const progress = Math.min(1, (performance.now() - startAtRef.current) / INTRO_DURATION_MS);
+          if (progress >= 1) finishIntro();
+          else rafRef.current = requestAnimationFrame((now) => {
+            const loop = (t: number) => {
+              if (finishedRef.current || document.hidden) { rafRef.current = 0; return; }
+              const p = Math.min(1, (t - startAtRef.current) / INTRO_DURATION_MS);
+              drawProgress(p);
+              if (p >= 1) { rafRef.current = 0; finishIntro(); }
+              else rafRef.current = requestAnimationFrame(loop);
+            };
+            loop(now);
+          });
         }
       };
-
-      const handleCanPlay = () => {
-        if (!video || finishedRef.current || replayTimerRef.current !== 0 || !video.paused) {
-          return;
-        }
-        video.muted = true;
-        video.play().catch(() => {});
-      };
-
-      const handleTimeUpdate = () => {
-        if (!video || finishedRef.current || replayTimerRef.current !== 0) return;
-        if (video.currentTime >= INTRO_TREE_BLEND_START_S) {
-          document.body.classList.add('intro-transitioning');
-        }
-        if (video.currentTime >= INTRO_TRANSITION_TIME_S) {
-          finishIntro();
-        }
-      };
-
-      const handleEnded = () => {
-        if (!finishedRef.current && replayTimerRef.current === 0) {
-          finishIntro();
-        }
-      };
-
-      const handleError = () => {
-        finishIntro();
-      };
-
-      if (video) {
-        video.addEventListener('loadedmetadata', handleLoadedMetadata);
-        video.addEventListener('canplay', handleCanPlay);
-        video.addEventListener('timeupdate', handleTimeUpdate);
-        video.addEventListener('ended', handleEnded);
-        video.addEventListener('error', handleError);
-      }
-
-      const onKeyDown = (event: KeyboardEvent) => {
-        if (
-          !finishedRef.current &&
-          (event.key === 'Escape' || event.key === ' ' || event.key === 'Enter')
-        ) {
+      document.addEventListener('visibilitychange', visibility);
+      const keydown = (event: KeyboardEvent) => {
+        if (!finishedRef.current && ['Escape', ' ', 'Enter'].includes(event.key)) {
           event.preventDefault();
           finishIntro();
         }
       };
-      document.addEventListener('keydown', onKeyDown);
-
-      const onVisibilityChange = () => {
-        if (document.hidden || finishedRef.current || replayTimerRef.current !== 0) return;
-        if (video && video.currentTime >= INTRO_TRANSITION_TIME_S) {
-          finishIntro();
-          return;
-        }
-        if (video && video.paused) {
-          video.muted = true;
-          video.play().catch(() => {});
-        }
-        if (rafIdRef.current === 0) {
-          const resumeCheck = () => {
-            if (document.hidden) {
-              rafIdRef.current = 0;
-              return;
-            }
-            if (finishedRef.current) return;
-            const currentVideo = videoRef.current;
-            if (currentVideo && currentVideo.currentTime >= INTRO_TREE_BLEND_START_S) {
-              document.body.classList.add('intro-transitioning');
-            }
-            if (currentVideo && currentVideo.currentTime >= INTRO_TRANSITION_TIME_S) {
-              rafIdRef.current = 0;
-              finishIntro();
-              return;
-            }
-            rafIdRef.current = window.requestAnimationFrame(resumeCheck);
-          };
-          rafIdRef.current = window.requestAnimationFrame(resumeCheck);
-        }
-      };
-      document.addEventListener('visibilitychange', onVisibilityChange);
-
-      // The intro is intended to run on each public-site entry. Reduced-motion users
-      // still receive an instant handoff rather than a forced animation.
-      if (shouldAutoStartRef.current) {
+      document.addEventListener('keydown', keydown);
+      if (autoStartRef.current) {
         if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-          finishedRef.current = false;
-          finishIntro({ seekToEnd: true });
-        } else {
-          startIntro(false);
-        }
+          finishedRef.current = true;
+          drawProgress(1);
+          document.body.classList.remove('intro-on');
+          onIntroStateChange(false);
+        } else startIntro(false);
       }
-
       return () => {
-        clearTimers();
-        if (video) {
-          video.removeEventListener('loadedmetadata', handleLoadedMetadata);
-          video.removeEventListener('canplay', handleCanPlay);
-          video.removeEventListener('timeupdate', handleTimeUpdate);
-          video.removeEventListener('ended', handleEnded);
-          video.removeEventListener('error', handleError);
-        }
-        document.removeEventListener('keydown', onKeyDown);
-        document.removeEventListener('visibilitychange', onVisibilityChange);
+        clearAnimation();
+        window.removeEventListener('resize', resize);
+        document.removeEventListener('visibilitychange', visibility);
+        document.removeEventListener('keydown', keydown);
       };
-    }, [clearTimers, finishIntro, seekToWatermarkFrame, startIntro]);
+    }, [clearAnimation, drawProgress, finishIntro, onIntroStateChange, startIntro]);
 
     return (
       <>
-        {/* Olive gradient backdrop during the intro (cross-dissolves into #bgVideo + scrim at handoff) */}
         <div className="willow-intro-backdrop" aria-hidden="true" />
-
-        {/* Full-bleed seamless <video> with mix-blend-mode: screen */}
-        <video
-          ref={videoRef}
-          src={introVideoSrc}
-          autoPlay={shouldAutoStartRef.current}
-          muted
-          playsInline
-          preload="auto"
-          disablePictureInPicture
-          aria-hidden="true"
-          tabIndex={-1}
-          style={{
-            objectPosition: isMobilePortrait ? '50% 18%' : '50% 45%',
-          }}
-          className="willow-intro-video select-none"
-        />
-
-        {/* Click/Skip interaction layer active only while intro is playing */}
+        <canvas ref={canvasRef} aria-hidden="true" tabIndex={-1} className="willow-intro-video willow-intro-canvas" />
         <div
           id="intro"
           aria-hidden={!introPlaying}
-          onClick={introPlaying ? () => finishIntro() : undefined}
+          onClick={introPlaying ? finishIntro : undefined}
           className={`willow-intro-controls ${introPlaying ? 'is-active' : ''}`}
         >
           <button
             id="introSkip"
             type="button"
             tabIndex={introPlaying ? 0 : -1}
-            onClick={(e) => {
-              e.stopPropagation();
-              finishIntro();
-            }}
+            onClick={(e) => { e.stopPropagation(); finishIntro(); }}
           >
             Skip
           </button>
