@@ -751,7 +751,7 @@ Deno.serve(async (req: Request) => {
     if (!isAdmin) return json({ error: "Only Administrators can permanently delete applications." }, 403);
     const id = String(body?.id || "").trim();
     if (!id) return json({ error: "Application ID is required." }, 400);
-    const { data: existing, error: fetchError } = await admin.from("wm_applications").select("id,proof_files,media_photos,writing_samples").eq("id", id).maybeSingle();
+    const { data: existing, error: fetchError } = await admin.from("wm_applications").select("id,application_type,proof_files,media_photos,writing_samples").eq("id", id).maybeSingle();
     if (fetchError) return json({ error: fetchError.message }, 400);
     if (!existing) return json({ error: "Application not found." }, 404);
     const storagePaths = new Set<string>();
@@ -761,7 +761,7 @@ Deno.serve(async (req: Request) => {
       for (const item of list) {
         if (!item || typeof item !== "object") continue;
         const path = String((item as any).storagePath || (item as any).storage_path || "").trim();
-        if (path && !path.includes("..")) storagePaths.add(path);
+        if (path && !path.includes("..") && !path.includes("\\") && path.startsWith(String(existing.application_type || "").trim().toLowerCase() + "/")) storagePaths.add(path);
       }
     }
     const relatedDeletes = await Promise.all([
