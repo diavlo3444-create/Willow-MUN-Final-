@@ -136,7 +136,7 @@ export function ExecutiveBoardAccountsView() {
       eb_rank: rank,
       eb_permissions: permissions,
     };
-    if (password.trim()) body.password = password;
+    if (editing && password.trim()) body.password = password;
     if (editing) body.user_id = editing;
     const { data, error: invokeError } = await supabase.functions.invoke('willow-staff-admin', { body });
     setSaving(false);
@@ -151,7 +151,7 @@ export function ExecutiveBoardAccountsView() {
     pushToast({
       tone: 'success',
       title: editing ? 'EB account updated' : 'EB account created',
-      description: password ? 'The account is ready for password sign-in.' : 'An account invitation was requested.',
+      description: editing ? (password ? 'The account is ready for password sign-in.' : 'The EB account details were updated.') : 'Added to the approved EB roster. They can now create an account at /eb-signup.',
     });
     resetForm();
     await load();
@@ -327,13 +327,14 @@ export function ExecutiveBoardAccountsView() {
             </select>
           </label>
           <label className="text-xs text-[color:var(--wm-ink-secondary)]">
-            {editing ? 'Set a new password (optional)' : 'Initial password (optional)'}
+            {editing ? 'Set a new password (optional)' : 'Password is created by the member during signup'}
             <input
               type="password"
+              disabled={!editing}
               minLength={10}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder={editing ? 'Leave blank to keep current password' : 'Leave blank to send invitation'}
+              placeholder={editing ? 'Leave blank to keep current password' : 'Member sets this on /eb-signup'}
               className="mt-1 block h-10 w-full rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-canvas)] px-3 text-sm text-[color:var(--wm-ink)]"
             />
           </label>
