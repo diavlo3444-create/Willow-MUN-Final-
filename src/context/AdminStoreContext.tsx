@@ -766,12 +766,31 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
     (applicationId: string, status: ApplicationStatus, decisionNotes?: string) => {
       if (!currentUser) return false;
       const actingActor = testModeHeadUser ?? currentUser;
-      return handleResult(
-        conferenceDataService.updateApplicationStatus(actingActor, applicationId, status, decisionNotes),
+      const result = conferenceDataService.updateApplicationStatus(actingActor, applicationId, status, decisionNotes);
+      const saved = handleResult(
+        result,
         status === 'accepted' ? 'Application accepted' : status === 'rejected' ? 'Application declined' : 'Decision recorded',
       );
+      if (saved && (status === 'accepted' || status === 'rejected')) {
+        void supabase.functions.invoke('willow-application-email', {
+          body: { application_id: applicationId, decision: status },
+        }).then(({ data, error }) => {
+          if (error || !data?.success || data?.skipped) {
+            pushToast({
+              tone: 'warning',
+              title: 'Decision saved — email not confirmed',
+              description: data?.error || error?.message || data?.message || 'Email delivery is pending or failed. Check delivery history and retry.',
+            });
+          } else {
+            pushToast({ tone: 'success', title: 'Applicant email sent', description: 'The decision email was delivered successfully.' });
+          }
+        }).catch((error) => {
+          pushToast({ tone: 'warning', title: 'Decision saved — email not confirmed', description: error instanceof Error ? error.message : 'Email delivery failed.' });
+        });
+      }
+      return saved;
     },
-    [currentUser, testModeHeadUser, handleResult],
+    [currentUser, testModeHeadUser, handleResult, pushToast],
   );
 
   const submitHeadRecommendation = useCallback(
