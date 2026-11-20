@@ -3,6 +3,7 @@ import { ArrowLeft, ShieldAlert } from 'lucide-react';
 import { useAdminStore } from '../../../context/AdminStoreContext';
 import type { ApplicationStatus } from '../../../types/admin';
 import {
+  canAccessEmailsDashboard,
   canAccessPortal,
   canManageAccountsOrRoles,
   hasPermission,
@@ -486,7 +487,11 @@ export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePorta
         section === 'versions' ? (
         <WebsiteCmsView mode={section} />
       ) : section === 'emails' ? (
-        hasPermission(currentUser, 'email.view') ? <EmailsDashboardView /> : renderDenied('Email management is restricted to Admin and HR accounts.')
+        canAccessEmailsDashboard(currentUser) ? (
+          <EmailsDashboardView />
+        ) : (
+          renderDenied('Email management is restricted to Admin and HR accounts.')
+        )
       ) : section === 'email' ? (
         <EmailManagementView preselectedApplicationIds={preselectedEmailIds} />
       ) : section === 'notifications' ? (

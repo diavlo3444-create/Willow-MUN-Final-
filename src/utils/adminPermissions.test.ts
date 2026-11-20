@@ -5,7 +5,9 @@ import {
   ADMIN_DEFAULT_PERMISSIONS,
   canAccessApplication,
   canAccessDepartment,
+  canAccessEmailsDashboard,
   canAccessPortal,
+  canDispatchEmails,
   canManageAccountsOrRoles,
   canReviewFinalDecision,
   canSubmitRecommendation,
@@ -544,5 +546,96 @@ test('Security, Volunteer, Media, and Press staff accounts route to exact portal
   assert.equal(getPortalHomeRouteForUser(securityStaffNoDepts, []), '/security');
   assert.equal(canAccessPortal(securityStaffNoDepts, 'security', []), true);
 });
+
+test('Email dashboard & Failed to Send recovery strictly allow Admin and HR only', () => {
+  const departments: Department[] = [
+    {
+      id: 'dept-hr',
+      slug: 'hr',
+      name: 'Human Resources',
+      cluster: 'Delegate Affairs & Operations',
+      description: '',
+      headUserIds: [],
+      registrationOpen: true,
+      capacity: 10,
+      positions: [],
+      instructions: '',
+      updatedAt: '',
+    },
+    {
+      id: 'dept-sec',
+      slug: 'security',
+      name: 'Security',
+      cluster: 'Logistics & Administration',
+      description: '',
+      headUserIds: [],
+      registrationOpen: true,
+      capacity: 20,
+      positions: [],
+      instructions: '',
+      updatedAt: '',
+    },
+  ];
+
+  const superAdmin = makeUser({ role: 'super_admin', permissions: { ...SUPER_ADMIN_PERMISSIONS } });
+  const admin = makeUser({ role: 'admin', permissions: { ...ADMIN_DEFAULT_PERMISSIONS } });
+  const readOnlyAdmin = makeUser({
+    role: 'admin',
+    permissions: { ...ADMIN_DEFAULT_PERMISSIONS, 'email.send': false },
+  });
+  const hrHead = makeUser({
+    role: 'department_head',
+    departmentId: 'dept-hr',
+    title: 'Head of HR',
+    permissions: { ...DEPARTMENT_HEAD_DEFAULT_PERMISSIONS },
+  });
+  const hrEbMember = makeUser({
+    role: 'executive_board',
+    departmentId: 'dept-hr',
+    title: 'HR Officer',
+    permissions: resolveUserPermissions('executive_board'),
+  });
+  const securityHead = makeUser({
+    role: 'department_head',
+    departmentId: 'dept-sec',
+    title: 'Head of Security',
+    permissions: { ...DEPARTMENT_HEAD_DEFAULT_PERMISSIONS, 'email.view': true, 'email.send': true },
+  });
+  const volunteerStaff = makeUser({
+    role: 'staff',
+    departmentId: 'volunteers',
+    title: 'Volunteer',
+    permissions: resolveUserPermissions('staff'),
+  });
+  const suspendedHr = makeUser({
+    role: 'department_head',
+    departmentId: 'dept-hr',
+    status: 'suspended',
+  });
+
+  assert.equal(canAccessEmailsDashboard(superAdmin, departments), true);
+  assert.equal(canDispatchEmails(superAdmin, departments), true);
+
+  assert.equal(canAccessEmailsDashboard(admin, departments), true);
+  assert.equal(canDispatchEmails(admin, departments), true);
+
+  assert.equal(canAccessEmailsDashboard(readOnlyAdmin, departments), true);
+  assert.equal(canDispatchEmails(readOnlyAdmin, departments), false);
+
+  assert.equal(canAccessEmailsDashboard(hrHead, departments), true);
+  assert.equal(canDispatchEmails(hrHead, departments), true);
+
+  assert.equal(canAccessEmailsDashboard(hrEbMember, departments), true);
+  assert.equal(canDispatchEmails(hrEbMember, departments), true);
+
+  // Other departments & staff MUST be blocked even if permissions were tampered
+  assert.equal(canAccessEmailsDashboard(securityHead, departments), false);
+  assert.equal(canDispatchEmails(securityHead, departments), false);
+  assert.equal(canAccessEmailsDashboard(volunteerStaff, departments), false);
+  assert.equal(canDispatchEmails(volunteerStaff, departments), false);
+  assert.equal(canAccessEmailsDashboard(suspendedHr, departments), false);
+  assert.equal(canAccessEmailsDashboard(null, departments), false);
+});
+
 
 

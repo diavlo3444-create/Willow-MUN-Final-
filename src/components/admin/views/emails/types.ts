@@ -30,11 +30,33 @@ export interface EmailHistoryRecord {
   department: string;
   emailType: EmailDecisionType;
   subject: string;
+  bodyText?: string | null;
   status: HistoryDeliveryStatus;
   attemptCount: number;
   sentAt: string | null;
   lastAttemptAt: string;
   errorDetails: string | null;
+}
+
+export interface FailedEmailRecord {
+  key: string;
+  id: string;
+  serverDeliveryId: string | null;
+  applicantId: string;
+  recipientName: string;
+  recipientEmail: string;
+  department: string;
+  appliedPosition: string;
+  emailType: EmailDecisionType;
+  subject: string;
+  bodyText: string;
+  status: 'failed';
+  errorDetails: string;
+  attemptCount: number;
+  lastAttemptAt: string;
+  manualDraftOpenedAt: string | null;
+  source: 'server' | 'local';
+  signupLink?: string | null;
 }
 
 export interface EmailQueueItem {
@@ -45,6 +67,7 @@ export interface EmailQueueItem {
   department: string;
   emailType: EmailDecisionType;
   subject: string;
+  bodyText?: string;
   status: QueueItemStatus;
   errorDetails?: string | null;
   queuedAt: string;

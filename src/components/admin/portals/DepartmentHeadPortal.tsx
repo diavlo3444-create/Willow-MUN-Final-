@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { ArrowLeft, ShieldAlert } from 'lucide-react';
 import { useAdminStore } from '../../../context/AdminStoreContext';
 import {
+  canAccessEmailsDashboard,
   getActorGenderScope,
   getRoleLabel,
   hasPermission,
@@ -60,7 +61,7 @@ export function DepartmentHeadPortal({ pathname, onNavigate }: DepartmentHeadPor
   const canViewApps = hasPermission(effectiveHead, 'applications.view', data.departments);
   const canScanQr = hasPermission(effectiveHead, 'qr.scan', data.departments);
   const isHrHead = isHrActor(effectiveHead, data.departments);
-  const canManageEmails = isHrHead;
+  const canManageEmails = canAccessEmailsDashboard(effectiveHead, data.departments);
   const isDccHead = isDccActor(effectiveHead, data.departments);
   const canViewQr = hasPermission(effectiveHead, 'qr.view_pass', data.departments);
 
@@ -234,7 +235,7 @@ export function DepartmentHeadPortal({ pathname, onNavigate }: DepartmentHeadPor
           <QrAttendanceView mode="qr" actingUserOverride={effectiveHead} />
         </div>
       ) : activeNavId === 'emails' ? (
-        <EmailsDashboardView />
+        <EmailsDashboardView actingUserOverride={effectiveHead} />
       ) : activeNavId === 'hr-accepted' ? (
         <HrAcceptedApplicantsView actingUserOverride={effectiveHead} />
       ) : activeNavId === 'committees' ? (

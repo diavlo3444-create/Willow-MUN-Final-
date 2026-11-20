@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clock3,
+  ExternalLink,
   RefreshCw,
   Search,
   XCircle,
@@ -12,6 +13,7 @@ import type { EmailHistoryRecord, HistoryDeliveryStatus } from './types';
 interface EmailHistoryTabProps {
   history: EmailHistoryRecord[];
   onRetryHistoryItem: (historyId: string) => void;
+  onOpenFailedInGmail?: (item: EmailHistoryRecord) => void;
 }
 
 const HISTORY_STATUS_META: Record<
@@ -35,7 +37,11 @@ const HISTORY_STATUS_META: Record<
   },
 };
 
-export function EmailHistoryTab({ history, onRetryHistoryItem }: EmailHistoryTabProps) {
+export function EmailHistoryTab({
+  history,
+  onRetryHistoryItem,
+  onOpenFailedInGmail,
+}: EmailHistoryTabProps) {
   const [statusFilter, setStatusFilter] = useState<'all' | HistoryDeliveryStatus>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -191,14 +197,26 @@ export function EmailHistoryTab({ history, onRetryHistoryItem }: EmailHistoryTab
                         </td>
                         <td className="px-4 py-3.5 align-top text-right whitespace-nowrap">
                           {row.status === 'failed' ? (
-                            <button
-                              type="button"
-                              onClick={() => onRetryHistoryItem(row.id)}
-                              className="inline-flex h-7 items-center gap-1 rounded border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-inset)] px-2.5 text-[11px] font-medium text-[color:var(--wm-ink)] hover:bg-[color:var(--wm-overlay)] cursor-pointer"
-                            >
-                              <RefreshCw className="h-3 w-3" aria-hidden="true" />
-                              <span>Retry</span>
-                            </button>
+                            <div className="inline-flex items-center gap-1.5">
+                              {onOpenFailedInGmail && (
+                                <button
+                                  type="button"
+                                  onClick={() => onOpenFailedInGmail(row)}
+                                  className="inline-flex h-7 items-center gap-1 rounded border border-emerald-400/30 bg-[color:var(--wm-emerald)]/85 px-2.5 text-[11px] font-medium text-[#eef4ef] hover:bg-[#357a5b] cursor-pointer"
+                                >
+                                  <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                                  <span>Open in Gmail</span>
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => onRetryHistoryItem(row.id)}
+                                className="inline-flex h-7 items-center gap-1 rounded border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-inset)] px-2.5 text-[11px] font-medium text-[color:var(--wm-ink)] hover:bg-[color:var(--wm-overlay)] cursor-pointer"
+                              >
+                                <RefreshCw className="h-3 w-3" aria-hidden="true" />
+                                <span>Retry</span>
+                              </button>
+                            </div>
                           ) : (
                             <span className="text-[11px] text-[color:var(--wm-ink-muted)]">—</span>
                           )}
@@ -245,14 +263,26 @@ export function EmailHistoryTab({ history, onRetryHistoryItem }: EmailHistoryTab
                       </p>
                     )}
                     {row.status === 'failed' && (
-                      <button
-                        type="button"
-                        onClick={() => onRetryHistoryItem(row.id)}
-                        className="inline-flex h-8 items-center gap-1.5 rounded border border-[color:var(--wm-hairline-strong)] px-3 text-[11px] font-medium text-[color:var(--wm-ink)] hover:bg-[color:var(--wm-overlay)] cursor-pointer"
-                      >
-                        <RefreshCw className="h-3 w-3" aria-hidden="true" />
-                        <span>Retry Email</span>
-                      </button>
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        {onOpenFailedInGmail && (
+                          <button
+                            type="button"
+                            onClick={() => onOpenFailedInGmail(row)}
+                            className="inline-flex h-8 items-center gap-1.5 rounded bg-[color:var(--wm-emerald)] px-3 text-[11px] font-semibold text-[#eef4ef] hover:bg-[#357a5b] cursor-pointer"
+                          >
+                            <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                            <span>Open in Gmail</span>
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => onRetryHistoryItem(row.id)}
+                          className="inline-flex h-8 items-center gap-1.5 rounded border border-[color:var(--wm-hairline-strong)] px-3 text-[11px] font-medium text-[color:var(--wm-ink)] hover:bg-[color:var(--wm-overlay)] cursor-pointer"
+                        >
+                          <RefreshCw className="h-3 w-3" aria-hidden="true" />
+                          <span>Retry Email</span>
+                        </button>
+                      </div>
                     )}
                   </article>
                 );

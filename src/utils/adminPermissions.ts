@@ -696,6 +696,30 @@ export function canManageAccountsOrRoles(user: AdminUser | null | undefined): bo
   return Boolean(user && user.isActive && user.status === 'active' && user.role === 'super_admin');
 }
 
+export function canAccessEmailsDashboard(
+  user: AdminUser | null | undefined,
+  departments?: Department[],
+): boolean {
+  if (!user || !user.isActive || user.status !== 'active') return false;
+  if (user.role === 'super_admin') return true;
+  if (user.role === 'admin') return hasPermission(user, 'email.view', departments);
+  if (user.role === 'department_head' || user.role === 'executive_board') {
+    return isHrActor(user, departments);
+  }
+  return false;
+}
+
+export function canDispatchEmails(
+  user: AdminUser | null | undefined,
+  departments?: Department[],
+): boolean {
+  if (!canAccessEmailsDashboard(user, departments)) return false;
+  if (!user) return false;
+  if (user.role === 'super_admin') return true;
+  if (user.role === 'admin') return hasPermission(user, 'email.send', departments);
+  return isHrActor(user, departments);
+}
+
 export function canAccessPortal(
   user: AdminUser | null | undefined,
   portal: PortalKey,
