@@ -156,7 +156,7 @@ export function QrAttendanceView({
       try {
         const res = isAdmin
           ? await verifyQrPassAttendance(cleanToken, gateLocation, attendanceAction)
-          : await commitQrPassAttendance(cleanToken, gateLocation, attendanceAction, false);
+          : await commitQrPassAttendance(cleanToken, undefined, attendanceAction, false);
 
         if (!res.ok || !res.validation) {
           setScanError(res.error || 'Verification failed.');
@@ -172,7 +172,9 @@ export function QrAttendanceView({
           pushToast({
             tone: 'success',
             title: attendanceAction === 'checkout' ? 'Check-out recorded' : 'Check-in recorded',
-            description: `${v.holder_name || 'Attendee'} · ${gateLocation}`,
+            description: isAdmin
+              ? `${v.holder_name || 'Attendee'} · ${gateLocation}`
+              : v.holder_name || 'Attendee',
           });
         } else if (v.status === 'checkout_warning' || v.status === 'not_checked_in') {
           pushToast({
@@ -216,7 +218,7 @@ export function QrAttendanceView({
     try {
       const res = await commitQrPassAttendance(
         pendingToken,
-        gateLocation,
+        isAdmin ? gateLocation : undefined,
         attendanceAction,
         validation?.status === 'checkout_warning',
       );
@@ -232,7 +234,9 @@ export function QrAttendanceView({
         pushToast({
           tone: 'success',
           title: attendanceAction === 'checkout' ? 'Check-out recorded' : 'Check-in recorded',
-          description: `${v.holder_name || 'Attendee'} · ${gateLocation}`,
+          description: isAdmin
+            ? `${v.holder_name || 'Attendee'} · ${gateLocation}`
+            : v.holder_name || 'Attendee',
         });
       } else if (v.status === 'already_checked_in' || v.status === 'not_checked_in') {
         pushToast({ tone: 'warning', title: 'Attendance status warning', description: v.message });
@@ -633,20 +637,22 @@ export function QrAttendanceView({
                 </p>
               </div>
             </div>
-            <label className="flex items-center gap-2 text-[11px] text-[color:var(--wm-ink-secondary)]">
-              <span>Gate:</span>
-              <select
-                value={gateLocation}
-                onChange={(e) => setGateLocation(e.target.value)}
-                className="h-8 rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-canvas)] px-2.5 text-xs text-[color:var(--wm-ink)]"
-              >
-                {GATES.map((g) => (
-                  <option key={g} value={g}>
-                    {g}
-                  </option>
-                ))}
-              </select>
-            </label>
+            {isAdmin && (
+              <label className="flex items-center gap-2 text-[11px] text-[color:var(--wm-ink-secondary)]">
+                <span>Gate:</span>
+                <select
+                  value={gateLocation}
+                  onChange={(e) => setGateLocation(e.target.value)}
+                  className="h-8 rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-canvas)] px-2.5 text-xs text-[color:var(--wm-ink)]"
+                >
+                  {GATES.map((g) => (
+                    <option key={g} value={g}>
+                      {g}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
           </div>
 
           <div className="grid gap-5 p-4 lg:grid-cols-2">
@@ -657,6 +663,7 @@ export function QrAttendanceView({
               </div>
               <QrCameraScanner
                 size="panel"
+                autoStart={!isAdmin}
                 busy={busy}
                 pauseWhenLocked={isAdmin ? awaitingConfirmation : validation?.status === 'checkout_warning'}
                 onDetectToken={handleScanOrManual}

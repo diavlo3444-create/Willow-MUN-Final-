@@ -200,14 +200,28 @@ export function QrValidationResultCard({
 
           <div className="rounded-md border border-white/10 bg-black/25 px-3.5 py-2.5">
             <p className="text-[10px] font-mono uppercase tracking-[0.14em] text-[color:var(--wm-ink-muted)]">
-              {isCheckedOut ? 'Checked Out At' : isAlready ? 'Previous Check-In Time' : isValidConfirmed ? 'Checked In At' : 'Checkpoint'}
+              {isCheckedOut
+                ? 'Checked Out At'
+                : isAlready
+                  ? 'Previous Check-In Time'
+                  : isValidConfirmed
+                    ? 'Checked In At'
+                    : variant === 'admin'
+                      ? 'Checkpoint'
+                      : 'Scanned At'}
             </p>
             <p className="mt-0.5 text-xs font-medium text-[color:var(--wm-ink)]">
-              {isCheckedOut
-                ? `${formatDate(validation.checked_out_at)} · ${validation.checked_out_gate || validation.gate_location}`
-                : isAlready || (isValidConfirmed && attendanceAction === 'checkin')
-                  ? `${formatDate(validation.checked_in_at)} · ${validation.checked_in_gate || validation.gate_location}`
-                  : validation.gate_location}
+              {variant === 'admin'
+                ? isCheckedOut
+                  ? `${formatDate(validation.checked_out_at)} · ${validation.checked_out_gate || validation.gate_location}`
+                  : isAlready || (isValidConfirmed && attendanceAction === 'checkin')
+                    ? `${formatDate(validation.checked_in_at)} · ${validation.checked_in_gate || validation.gate_location}`
+                    : validation.gate_location
+                : isCheckedOut
+                  ? formatDate(validation.checked_out_at)
+                  : isAlready || (isValidConfirmed && attendanceAction === 'checkin')
+                    ? formatDate(validation.checked_in_at)
+                    : formatDate(validation.scanned_at)}
             </p>
           </div>
 

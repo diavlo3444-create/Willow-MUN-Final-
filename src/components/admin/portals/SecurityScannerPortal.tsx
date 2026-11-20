@@ -35,14 +35,6 @@ interface SecurityScannerPortalProps {
   onNavigate: (path: string) => void;
 }
 
-const GATES = [
-  'Main Entrance',
-  'VIP Entrance',
-  'Committee Hall',
-  'Registration Desk',
-  'Staff Entrance',
-];
-
 export function SecurityScannerPortal({
   pathname,
   onNavigate,
@@ -64,7 +56,6 @@ export function SecurityScannerPortal({
         ? 'qr'
         : 'scanner';
 
-  const [gateLocation, setGateLocation] = useState<string>('Main Entrance');
   const [attendanceAction, setAttendanceAction] = useState<'checkin' | 'checkout'>('checkin');
   const [manualToken, setManualToken] = useState<string>('');
   const [pendingToken, setPendingToken] = useState<string>('');
@@ -102,7 +93,7 @@ export function SecurityScannerPortal({
       try {
         const response = await commitQrPassAttendance(
           cleanToken,
-          gateLocation,
+          undefined,
           attendanceAction,
           false,
         );
@@ -120,7 +111,7 @@ export function SecurityScannerPortal({
           pushToast({
             tone: 'success',
             title: attendanceAction === 'checkout' ? 'Check-Out Recorded' : 'Entry Approved',
-            description: `${v.holder_name || 'Attendee'} ${attendanceAction === 'checkout' ? 'checked out' : 'checked in'} at ${gateLocation}.`,
+            description: `${v.holder_name || 'Attendee'} ${attendanceAction === 'checkout' ? 'checked out' : 'checked in'}.`,
           });
         } else if (v.status === 'checkout_warning' || v.status === 'not_checked_in') {
           pushToast({
@@ -153,7 +144,7 @@ export function SecurityScannerPortal({
         setBusy(false);
       }
     },
-    [attendanceAction, gateLocation, loadRecentScans, pushToast],
+    [attendanceAction, loadRecentScans, pushToast],
   );
 
   const handleConfirmRepeatCheckout = useCallback(async () => {
@@ -164,7 +155,7 @@ export function SecurityScannerPortal({
     try {
       const res = await commitQrPassAttendance(
         pendingToken,
-        gateLocation,
+        undefined,
         attendanceAction,
         validation?.status === 'checkout_warning',
       );
@@ -181,7 +172,7 @@ export function SecurityScannerPortal({
         pushToast({
           tone: 'success',
           title: attendanceAction === 'checkout' ? 'Check-Out Recorded' : 'Check-In Recorded',
-          description: `${v.holder_name || 'Attendee'} · ${gateLocation}`,
+          description: v.holder_name || 'Attendee',
         });
       } else if (v.status === 'already_checked_in' || v.status === 'not_checked_in') {
         pushToast({ tone: 'warning', title: 'Attendance Status Warning', description: v.message });
@@ -198,7 +189,7 @@ export function SecurityScannerPortal({
       scanInFlightRef.current = false;
       setBusy(false);
     }
-  }, [attendanceAction, gateLocation, loadRecentScans, pendingToken, pushToast, validation?.status]);
+  }, [attendanceAction, loadRecentScans, pendingToken, pushToast, validation?.status]);
 
   const handleManualSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -259,7 +250,7 @@ export function SecurityScannerPortal({
                 WILLOW MUN <span className="text-[color:var(--wm-accent)]">SECURITY</span>
               </p>
               <p className="text-[10px] font-mono uppercase tracking-[0.16em] text-[color:var(--wm-ink-muted)]">
-                Entrance Pass Scanner · {currentUser.fullName}
+                QR Pass Scanner · {currentUser.fullName}
               </p>
             </div>
           </div>
@@ -345,7 +336,7 @@ export function SecurityScannerPortal({
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[color:var(--wm-hairline)] px-4 py-3.5">
               <div>
                 <h1 className="wm-serif text-xl font-semibold text-[color:var(--wm-ink)]">
-                  My Recent Entrance Scans
+                  My Recent Scans
                 </h1>
                 <p className="mt-0.5 text-[11px] text-[color:var(--wm-ink-muted)]">
                   Latest 50 QR verifications recorded by your Security terminal
@@ -396,7 +387,7 @@ export function SecurityScannerPortal({
                             {scan.application_code ? `${scan.application_code} · ` : ''}
                             {scan.committee_name || scan.department_name || ''}
                             {(scan.committee_name || scan.department_name) ? ' · ' : ''}
-                            {scan.gate_location} · {new Date(scan.scanned_at).toLocaleString()}
+                            {new Date(scan.scanned_at).toLocaleString()}
                           </p>
                         </div>
                       </div>
@@ -425,7 +416,7 @@ export function SecurityScannerPortal({
                 <div className="flex items-center gap-2">
                   <ShieldCheck className="h-4 w-4 text-[color:var(--wm-accent)]" aria-hidden="true" />
                   <h1 className="wm-serif text-lg font-semibold text-[color:var(--wm-ink)]">
-                    Gate Checkpoint Camera
+                    QR Pass Camera
                   </h1>
                 </div>
 
@@ -434,25 +425,12 @@ export function SecurityScannerPortal({
                     <button type="button" onClick={() => { setAttendanceAction('checkin'); setValidation(null); }} className={`rounded px-3 py-1.5 text-[11px] font-semibold transition ${attendanceAction === 'checkin' ? 'bg-emerald-600 text-white shadow' : 'text-[color:var(--wm-ink-secondary)] hover:text-[color:var(--wm-ink)]'}`}>Check In</button>
                     <button type="button" onClick={() => { setAttendanceAction('checkout'); setValidation(null); }} className={`rounded px-3 py-1.5 text-[11px] font-semibold transition ${attendanceAction === 'checkout' ? 'bg-amber-600 text-white shadow' : 'text-[color:var(--wm-ink-secondary)] hover:text-[color:var(--wm-ink)]'}`}>Check Out</button>
                   </div>
-                  <label className="flex items-center gap-2 text-[11px] text-[color:var(--wm-ink-secondary)]">
-                    <span>Gate:</span>
-                    <select
-                      value={gateLocation}
-                      onChange={(e) => setGateLocation(e.target.value)}
-                      className="h-8 rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-canvas)] px-2.5 text-xs text-[color:var(--wm-ink)]"
-                    >
-                      {GATES.map((g) => (
-                        <option key={g} value={g}>
-                          {g}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
                 </div>
               </div>
 
               <QrCameraScanner
                 size="hero"
+                autoStart
                 busy={busy}
                 pauseWhenLocked={awaitingRepeatCheckout}
                 onDetectToken={handleScanOrManual}
@@ -510,7 +488,7 @@ export function SecurityScannerPortal({
               <section className="wm-surface-panel overflow-hidden">
                 <div className="flex items-center justify-between border-b border-[color:var(--wm-hairline)] px-4 py-3">
                   <h2 className="text-xs font-semibold text-[color:var(--wm-ink)]">
-                    Recent Scans at Gate
+                    Recent Scans
                   </h2>
                   <button
                     type="button"
@@ -540,7 +518,7 @@ export function SecurityScannerPortal({
                               {scan.holder_name || 'Unrecognized Code'}
                             </p>
                             <p className="truncate text-[10px] text-[color:var(--wm-ink-muted)]">
-                              {scan.gate_location} · {new Date(scan.scanned_at).toLocaleTimeString()}
+                              {new Date(scan.scanned_at).toLocaleTimeString()}
                             </p>
                           </div>
                           <span

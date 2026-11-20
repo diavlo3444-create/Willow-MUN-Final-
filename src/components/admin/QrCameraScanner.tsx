@@ -180,10 +180,11 @@ export function QrCameraScanner({
         });
 
         streamRef.current = stream;
+        setCameraState('active');
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           videoRef.current.setAttribute('playsinline', 'true');
-          await videoRef.current.play();
+          await videoRef.current.play().catch(() => undefined);
         }
 
         const activeTrack = stream.getVideoTracks()[0];
@@ -193,7 +194,6 @@ export function QrCameraScanner({
         }
 
         await refreshCameraList();
-        setCameraState('active');
       } catch (err: any) {
         const name = String(err?.name || '');
         const msg = String(err?.message || '').toLowerCase();
@@ -433,6 +433,7 @@ export function QrCameraScanner({
       >
         <video
           ref={videoRef}
+          autoPlay
           muted
           playsInline
           className={`h-full w-full object-cover ${cameraState === 'active' ? 'block' : 'hidden'}`}

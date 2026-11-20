@@ -909,27 +909,40 @@ export async function commitQrPassCheckin(
 
 export async function verifyQrPassAttendance(
   token: string,
-  gateLocation: string,
-  attendanceAction: 'checkin' | 'checkout',
+  gateLocation?: string,
+  attendanceAction: 'checkin' | 'checkout' = 'checkin',
 ): Promise<{ ok: boolean; validation?: LiveQrValidationResponse; error?: string }> {
+  const trimmedGate = gateLocation?.trim();
   const { data, error } = await supabase.functions.invoke('willow-qr', {
-    body: { action: 'verify', token: token.trim(), gate_location: gateLocation, attendance_action: attendanceAction },
+    body: {
+      action: 'verify',
+      token: token.trim(),
+      ...(trimmedGate ? { gate_location: trimmedGate } : {}),
+      attendance_action: attendanceAction,
+    },
   });
   if (error || data?.error) return { ok: false, error: data?.error || error?.message || 'Verification failed.' };
-  return { ok: true, validation: normalizeValidationResponse(data as Record<string, any>, gateLocation, false) };
+  return { ok: true, validation: normalizeValidationResponse(data as Record<string, any>, trimmedGate || '', false) };
 }
 
 export async function commitQrPassAttendance(
   token: string,
-  gateLocation: string,
-  attendanceAction: 'checkin' | 'checkout',
+  gateLocation?: string,
+  attendanceAction: 'checkin' | 'checkout' = 'checkin',
   confirmRepeatCheckout = false,
 ): Promise<{ ok: boolean; validation?: LiveQrValidationResponse; error?: string }> {
+  const trimmedGate = gateLocation?.trim();
   const { data, error } = await supabase.functions.invoke('willow-qr', {
-    body: { action: 'checkin', token: token.trim(), gate_location: gateLocation, attendance_action: attendanceAction, confirm_repeat: confirmRepeatCheckout },
+    body: {
+      action: 'checkin',
+      token: token.trim(),
+      ...(trimmedGate ? { gate_location: trimmedGate } : {}),
+      attendance_action: attendanceAction,
+      confirm_repeat: confirmRepeatCheckout,
+    },
   });
   if (error || data?.error) return { ok: false, error: data?.error || error?.message || 'Attendance update failed.' };
-  return { ok: true, validation: normalizeValidationResponse(data as Record<string, any>, gateLocation, true) };
+  return { ok: true, validation: normalizeValidationResponse(data as Record<string, any>, trimmedGate || '', true) };
 }
 
 export async function resetAllQrAttendance(): Promise<{ ok: boolean; result?: { passes_reset: number; checkins_cleared: number; checkouts_cleared: number }; error?: string }> {
