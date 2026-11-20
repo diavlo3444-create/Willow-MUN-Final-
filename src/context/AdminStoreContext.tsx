@@ -584,6 +584,10 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
         await supabase.auth.signOut();
         return { ok: false, error: 'This account does not have access to the Executive Board sign-in.' };
       }
+      if (expectedPortal === 'staff' && (user.role !== 'staff' || isSecurityAccount(user, departments))) {
+        await supabase.auth.signOut();
+        return { ok: false, error: 'This account does not have access to the Department Staff portal.' };
+      }
       if (expectedPortal === 'security' && !isSecurityAccount(user, departments)) {
         await supabase.auth.signOut();
         return {
