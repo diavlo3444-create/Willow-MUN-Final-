@@ -119,6 +119,8 @@ export function PortalAuthView({ portal, onNavigate }: PortalAuthViewProps) {
         onNavigate(getPortalHomeRouteForUser(result.data, data.departments));
       } else if (portal === 'security') {
         onNavigate('/security');
+      } else if (portal === 'staff') {
+        onNavigate('/staff');
       }
     } catch {
       setErrorMsg('Sign-in failed. Check your connection and try again.');
