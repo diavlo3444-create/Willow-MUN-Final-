@@ -55,7 +55,7 @@ Deno.serve(async (req: Request) => {
   let body: any;
   try { body = await req.json(); } catch { return json({ error: "Invalid JSON body." }, 400); }
   const action = String(body?.action || "");
-  const allowedRoles = new Set(["admin", "department_head", "executive_board"]);
+  const allowedRoles = new Set(["admin", "department_head", "executive_board", "staff"]);
   const cleanEmail = (value: unknown) => String(value || "").trim().toLowerCase();
   const originHeader = req.headers.get("origin");
   const redirectBase = String(body?.redirect_origin || originHeader || "https://willow-mun.vercel.app").replace(/\/$/, "");
