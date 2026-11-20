@@ -25,6 +25,7 @@ import { ToastViewport } from './components/admin/ToastViewport';
 import { AdminPortal } from './components/admin/portals/AdminPortal';
 import { DepartmentHeadPortal } from './components/admin/portals/DepartmentHeadPortal';
 import { SecurityScannerPortal } from './components/admin/portals/SecurityScannerPortal';
+import { StaffPortal } from './components/admin/portals/StaffPortal';
 import { SuperAdminPortal } from './components/admin/portals/SuperAdminPortal';
 import { AdminStoreProvider, useAdminStore } from './context/AdminStoreContext';
 import { canAccessPortal, getPortalHomeRouteForUser } from './utils/adminPermissions';
@@ -92,13 +93,15 @@ function AdminRouter({ pathname, navigate }: { pathname: string; navigate: (path
     pathname === '/super-admin' || pathname.startsWith('/super-admin/') ? 'super_admin' :
     pathname === '/admin' || pathname.startsWith('/admin/') ? 'admin' :
     pathname === '/security' || pathname.startsWith('/security/') ? 'security' :
+    pathname === '/staff' || pathname.startsWith('/staff/') ? 'staff' :
     pathname === '/head' || pathname.startsWith('/head/') || isLegacyEbRoute ? 'department_head' : null;
   const loginPortal: PortalKey | undefined =
     pathname === '/admin-login' ? 'admin' :
     pathname === '/eb-login' ? 'executive_board' :
     pathname === '/head-login' ? 'department_head' :
     pathname === '/super-admin-login' ? 'super_admin' :
-    pathname === '/security-login' ? 'security' : undefined;
+    pathname === '/security-login' ? 'security' :
+    pathname === '/staff-login' ? 'staff' : undefined;
   const isEbSignup = pathname === '/eb-signup';
   const isHrSignup = pathname === '/team-signup';
   const isHeadSetup = pathname === '/head-setup';
@@ -111,6 +114,7 @@ function AdminRouter({ pathname, navigate }: { pathname: string; navigate: (path
         requestedPortal === 'department_head' ? '/head-login' :
         requestedPortal === 'super_admin' ? '/super-admin-login' :
         requestedPortal === 'security' ? '/security-login' :
+        requestedPortal === 'staff' ? '/staff-login' :
         '/admin-login'
       );
       return;
@@ -172,6 +176,8 @@ function AdminRouter({ pathname, navigate }: { pathname: string; navigate: (path
         <AdminPortal pathname={pathname} onNavigate={navigate} />
       ) : requestedPortal === 'security' ? (
         <SecurityScannerPortal pathname={pathname} onNavigate={navigate} />
+      ) : requestedPortal === 'staff' ? (
+        <StaffPortal pathname={pathname} onNavigate={navigate} />
       ) : requestedPortal === 'department_head' ? (
         <DepartmentHeadPortal
           pathname={isLegacyEbRoute ? pathname.replace(/^\/eb(?=\/|$)/, '/head') : pathname}
