@@ -147,7 +147,21 @@ function AdminRouter({ pathname, navigate }: { pathname: string; navigate: (path
     );
   }
 
-  if (requestedPortal && (!currentUser || !canAccessPortal(currentUser, requestedPortal, data.departments))) return null;
+  if (requestedPortal && !currentUser) {
+    const portalForLogin: PortalKey = requestedPortal === 'department_head' ? 'department_head' : requestedPortal;
+    return <PortalAuthView portal={portalForLogin} onNavigate={navigate} />;
+  }
+  if (requestedPortal && currentUser && !canAccessPortal(currentUser, requestedPortal, data.departments)) {
+    return (
+      <div className="wm-admin min-h-[100dvh] grid place-items-center bg-[color:var(--wm-canvas)] p-6 text-[color:var(--wm-ink)]">
+        <div className="wm-surface-panel max-w-md p-6 text-center">
+          <h1 className="wm-serif text-xl font-semibold">Opening your assigned portal</h1>
+          <p className="mt-2 text-xs text-[color:var(--wm-ink-secondary)]">Your account does not have access to this section. Redirecting you to the correct workspace.</p>
+          <button type="button" onClick={() => navigate(getPortalHomeRouteForUser(currentUser, data.departments))} className="mt-5 rounded-md bg-[color:var(--wm-emerald)] px-4 py-2 text-xs font-semibold text-white">Open my portal</button>
+        </div>
+      </div>
+    );
+  }
   if (!requestedPortal && currentUser && !isHeadSetup && !isHrSignup && !isEbSignup) return null;
 
   return (
