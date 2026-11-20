@@ -92,6 +92,7 @@ export function QrAttendanceView({
   const [attendanceAction, setAttendanceAction] = useState<'checkin' | 'checkout'>('checkin');
   const [validation, setValidation] = useState<LiveQrValidationResponse | null>(null);
   const [scanError, setScanError] = useState('');
+  const scanInFlightRef = useRef<boolean>(false);
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -145,85 +146,105 @@ export function QrAttendanceView({
         return;
       }
       const cleanToken = rawToken.trim();
-      if (!cleanToken) return;
+      if (!cleanToken || scanInFlightRef.current) return;
 
+      scanInFlightRef.current = true;
       setScanError('');
       setBusy(true);
       setPendingToken(cleanToken);
 
-      const res = await verifyQrPassAttendance(cleanToken, gateLocation, attendanceAction);
+      try {
+        const res = isAdmin
+          ? await verifyQrPassAttendance(cleanToken, gateLocation, attendanceAction)
+          : await commitQrPassAttendance(cleanToken, gateLocation, attendanceAction, false);
 
-      setBusy(false);
+        if (!res.ok || !res.validation) {
+          setScanError(res.error || 'Verification failed.');
+          setValidation(null);
+          return;
+        }
+
+        const v = res.validation;
+        setValidation(v);
+        setScanInput('');
+
+        if ((v.status === 'valid' || v.status === 'checked_out') && v.committed) {
+          pushToast({
+            tone: 'success',
+            title: attendanceAction === 'checkout' ? 'Check-out recorded' : 'Check-in recorded',
+            description: `${v.holder_name || 'Attendee'} · ${gateLocation}`,
+          });
+        } else if (v.status === 'checkout_warning' || v.status === 'not_checked_in') {
+          pushToast({
+            tone: 'warning',
+            title: v.status === 'checkout_warning' ? 'Repeat check-out warning' : 'Not checked in',
+            description: v.message,
+          });
+        } else if (v.status === 'already_checked_in') {
+          pushToast({
+            tone: 'warning',
+            title: 'Already checked in',
+            description: v.holder_name || 'Pass has already been used.',
+          });
+        } else if (v.status !== 'valid' && v.status !== 'checked_out') {
+          pushToast({
+            tone: 'error',
+            title:
+              v.status === 'revoked'
+                ? 'Pass revoked'
+                : v.status === 'not_eligible'
+                  ? 'Applicant not eligible'
+                  : 'Invalid QR pass',
+            description: v.message,
+          });
+        }
+
+        void load();
+      } finally {
+        scanInFlightRef.current = false;
+        setBusy(false);
+      }
+    },
+    [attendanceAction, canScan, gateLocation, isAdmin, load, pushToast],
+  );
+
+  const handleConfirmPendingCheckin = async () => {
+    if (!pendingToken || scanInFlightRef.current) return;
+    scanInFlightRef.current = true;
+    setBusy(true);
+    setScanError('');
+    try {
+      const res = await commitQrPassAttendance(
+        pendingToken,
+        gateLocation,
+        attendanceAction,
+        validation?.status === 'checkout_warning',
+      );
 
       if (!res.ok || !res.validation) {
-        setScanError(res.error || 'Verification failed.');
-        setValidation(null);
+        setScanError(res.error || 'Could not record check-in.');
         return;
       }
 
       const v = res.validation;
       setValidation(v);
-      setScanInput('');
-
       if ((v.status === 'valid' || v.status === 'checked_out') && v.committed) {
         pushToast({
           tone: 'success',
           title: attendanceAction === 'checkout' ? 'Check-out recorded' : 'Check-in recorded',
           description: `${v.holder_name || 'Attendee'} · ${gateLocation}`,
         });
-      } else if (v.status === 'checkout_warning' || v.status === 'not_checked_in') {
-        pushToast({ tone: 'warning', title: v.status === 'checkout_warning' ? 'Repeat check-out warning' : 'Not checked in', description: v.message });
-      } else if (v.status === 'already_checked_in') {
-        pushToast({
-          tone: 'warning',
-          title: 'Already checked in',
-          description: v.holder_name || 'Pass has already been used.',
-        });
-      } else if (v.status !== 'valid' && v.status !== 'checked_out') {
-        pushToast({
-          tone: 'error',
-          title:
-            v.status === 'revoked'
-              ? 'Pass revoked'
-              : v.status === 'not_eligible'
-                ? 'Applicant not eligible'
-                : 'Invalid QR pass',
-          description: v.message,
-        });
+      } else if (v.status === 'already_checked_in' || v.status === 'not_checked_in') {
+        pushToast({ tone: 'warning', title: 'Attendance status warning', description: v.message });
+      } else {
+        pushToast({ tone: 'error', title: 'Check-in blocked', description: v.message });
       }
 
-      await load();
-    },
-    [attendanceAction, canScan, gateLocation, load, pushToast],
-  );
-
-  const handleConfirmPendingCheckin = async () => {
-    if (!pendingToken) return;
-    setBusy(true);
-    setScanError('');
-    const res = await commitQrPassAttendance(pendingToken, gateLocation, attendanceAction, validation?.status === 'checkout_warning');
-    setBusy(false);
-
-    if (!res.ok || !res.validation) {
-      setScanError(res.error || 'Could not record check-in.');
-      return;
+      void load();
+    } finally {
+      scanInFlightRef.current = false;
+      setBusy(false);
     }
-
-    const v = res.validation;
-    setValidation(v);
-    if ((v.status === 'valid' || v.status === 'checked_out') && v.committed) {
-      pushToast({
-        tone: 'success',
-        title: attendanceAction === 'checkout' ? 'Check-out recorded' : 'Check-in recorded',
-        description: `${v.holder_name || 'Attendee'} · ${gateLocation}`,
-      });
-    } else if (v.status === 'already_checked_in' || v.status === 'not_checked_in') {
-      pushToast({ tone: 'warning', title: 'Attendance status warning', description: v.message });
-    } else {
-      pushToast({ tone: 'error', title: 'Check-in blocked', description: v.message });
-    }
-
-    await load();
   };
 
   const issueGuestPass = async (event: FormEvent) => {
@@ -637,7 +658,7 @@ export function QrAttendanceView({
               <QrCameraScanner
                 size="panel"
                 busy={busy}
-                pauseWhenLocked={awaitingConfirmation}
+                pauseWhenLocked={isAdmin ? awaitingConfirmation : validation?.status === 'checkout_warning'}
                 onDetectToken={handleScanOrManual}
               />
 
@@ -658,7 +679,13 @@ export function QrAttendanceView({
                   disabled={busy || !scanInput.trim()}
                   className="h-10 rounded-md bg-[color:var(--wm-emerald)] px-4 text-xs font-semibold text-[#eef4ef] hover:bg-[#357a5b] disabled:opacity-50"
                 >
-                  {busy ? 'Checking…' : 'Verify Pass'}
+                  {busy
+                    ? 'Processing…'
+                    : isAdmin
+                      ? 'Verify Pass'
+                      : attendanceAction === 'checkout'
+                        ? 'Check Out Pass'
+                        : 'Check In Pass'}
                 </button>
               </form>
 
@@ -673,9 +700,13 @@ export function QrAttendanceView({
               <QrValidationResultCard
                 validation={validation}
                 busy={busy}
-                variant="admin"
+                variant={isAdmin ? 'admin' : 'security'}
                 attendanceAction={attendanceAction}
-                onConfirmCheckin={() => void handleConfirmPendingCheckin()}
+                onConfirmCheckin={
+                  isAdmin || validation?.status === 'checkout_warning'
+                    ? () => void handleConfirmPendingCheckin()
+                    : undefined
+                }
                 onResetResult={() => {
                   setValidation(null);
                   setPendingToken('');

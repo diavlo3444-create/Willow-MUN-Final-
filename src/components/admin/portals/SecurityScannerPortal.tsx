@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import {
   ArrowLeft,
   CheckCircle2,
@@ -16,7 +16,6 @@ import { useAdminStore } from '../../../context/AdminStoreContext';
 import {
   commitQrPassAttendance,
   fetchMySecurityScans,
-  verifyQrPassAttendance,
   type LiveQrScanEvent,
   type LiveQrValidationResponse,
 } from '../../../services/liveBackendService';
@@ -74,7 +73,7 @@ export function SecurityScannerPortal({
   const [scanError, setScanError] = useState<string>('');
   const [recentScans, setRecentScans] = useState<LiveQrScanEvent[]>([]);
   const [loadingHistory, setLoadingHistory] = useState<boolean>(true);
-  const [confirmBeforeCheckin, setConfirmBeforeCheckin] = useState<boolean>(true);
+  const scanInFlightRef = useRef<boolean>(false);
 
   const loadRecentScans = useCallback(async () => {
     if (!authorized) {
@@ -94,96 +93,111 @@ export function SecurityScannerPortal({
   const handleScanOrManual = useCallback(
     async (rawToken: string) => {
       const cleanToken = rawToken.trim();
-      if (!cleanToken) return;
+      if (!cleanToken || scanInFlightRef.current) return;
+      scanInFlightRef.current = true;
       setScanError('');
       setBusy(true);
       setPendingToken(cleanToken);
 
-      const response = confirmBeforeCheckin
-        ? await verifyQrPassAttendance(cleanToken, gateLocation, attendanceAction)
-        : await commitQrPassAttendance(cleanToken, gateLocation, attendanceAction, false);
+      try {
+        const response = await commitQrPassAttendance(
+          cleanToken,
+          gateLocation,
+          attendanceAction,
+          false,
+        );
 
-      setBusy(false);
+        if (!response.ok || !response.validation) {
+          setScanError(response.error || 'Could not validate QR pass.');
+          return;
+        }
 
-      if (!response.ok || !response.validation) {
-        setScanError(response.error || 'Could not validate QR pass.');
+        const v = response.validation;
+        setValidation(v);
+        setManualToken('');
+
+        if ((v.status === 'valid' || v.status === 'checked_out') && v.committed) {
+          pushToast({
+            tone: 'success',
+            title: attendanceAction === 'checkout' ? 'Check-Out Recorded' : 'Entry Approved',
+            description: `${v.holder_name || 'Attendee'} ${attendanceAction === 'checkout' ? 'checked out' : 'checked in'} at ${gateLocation}.`,
+          });
+        } else if (v.status === 'checkout_warning' || v.status === 'not_checked_in') {
+          pushToast({
+            tone: 'warning',
+            title: v.status === 'checkout_warning' ? 'Repeat Check-Out Warning' : 'Not Checked In',
+            description: v.message,
+          });
+        } else if (v.status === 'already_checked_in') {
+          pushToast({
+            tone: 'warning',
+            title: 'Already Checked In',
+            description: v.holder_name || 'Pass has already been used.',
+          });
+        } else if (v.status !== 'valid') {
+          pushToast({
+            tone: 'error',
+            title:
+              v.status === 'revoked'
+                ? 'Pass Revoked'
+                : v.status === 'not_eligible'
+                  ? 'Not Eligible'
+                  : 'Invalid QR Pass',
+            description: v.message,
+          });
+        }
+
+        void loadRecentScans();
+      } finally {
+        scanInFlightRef.current = false;
+        setBusy(false);
+      }
+    },
+    [attendanceAction, gateLocation, loadRecentScans, pushToast],
+  );
+
+  const handleConfirmRepeatCheckout = useCallback(async () => {
+    if (!pendingToken || scanInFlightRef.current) return;
+    scanInFlightRef.current = true;
+    setScanError('');
+    setBusy(true);
+    try {
+      const res = await commitQrPassAttendance(
+        pendingToken,
+        gateLocation,
+        attendanceAction,
+        validation?.status === 'checkout_warning',
+      );
+
+      if (!res.ok || !res.validation) {
+        setScanError(res.error || 'Could not complete check-out.');
         return;
       }
 
-      const v = response.validation;
+      const v = res.validation;
       setValidation(v);
-      setManualToken('');
 
       if ((v.status === 'valid' || v.status === 'checked_out') && v.committed) {
         pushToast({
           tone: 'success',
-          title: attendanceAction === 'checkout' ? 'Check-Out Recorded' : 'Entry Approved',
-          description: `${v.holder_name || 'Attendee'} ${attendanceAction === 'checkout' ? 'checked out' : 'checked in'} at ${gateLocation}.`,
+          title: attendanceAction === 'checkout' ? 'Check-Out Recorded' : 'Check-In Recorded',
+          description: `${v.holder_name || 'Attendee'} · ${gateLocation}`,
         });
-      } else if (v.status === 'checkout_warning' || v.status === 'not_checked_in') {
-        pushToast({ tone: 'warning', title: v.status === 'checkout_warning' ? 'Repeat Check-Out Warning' : 'Not Checked In', description: v.message });
-      } else if (v.status === 'already_checked_in') {
-        pushToast({
-          tone: 'warning',
-          title: 'Already Checked In',
-          description: v.holder_name || 'Pass has already been used.',
-        });
-      } else if (v.status === 'checked_out') {
-        pushToast({
-          tone: 'success',
-          title: 'Check-Out Recorded',
-          description: `${v.holder_name || 'Attendee'} checked out at ${gateLocation}.`,
-        });
-      } else if (v.status !== 'valid') {
+      } else if (v.status === 'already_checked_in' || v.status === 'not_checked_in') {
+        pushToast({ tone: 'warning', title: 'Attendance Status Warning', description: v.message });
+      } else {
         pushToast({
           tone: 'error',
-          title:
-            v.status === 'revoked'
-              ? 'Pass Revoked'
-              : v.status === 'not_eligible'
-                ? 'Not Eligible'
-                : 'Invalid QR Pass',
+          title: 'Entry Blocked',
           description: v.message,
         });
       }
 
-      await loadRecentScans();
-    },
-    [attendanceAction, confirmBeforeCheckin, gateLocation, loadRecentScans, pushToast],
-  );
-
-  const handleConfirmPendingCheckin = useCallback(async () => {
-    if (!pendingToken) return;
-    setScanError('');
-    setBusy(true);
-    const res = await commitQrPassAttendance(pendingToken, gateLocation, attendanceAction, validation?.status === 'checkout_warning');
-    setBusy(false);
-
-    if (!res.ok || !res.validation) {
-      setScanError(res.error || 'Could not complete check-in.');
-      return;
+      void loadRecentScans();
+    } finally {
+      scanInFlightRef.current = false;
+      setBusy(false);
     }
-
-    const v = res.validation;
-    setValidation(v);
-
-    if ((v.status === 'valid' || v.status === 'checked_out') && v.committed) {
-      pushToast({
-        tone: 'success',
-        title: attendanceAction === 'checkout' ? 'Check-Out Recorded' : 'Check-In Recorded',
-        description: `${v.holder_name || 'Attendee'} · ${gateLocation}`,
-      });
-    } else if (v.status === 'already_checked_in' || v.status === 'not_checked_in') {
-      pushToast({ tone: 'warning', title: 'Attendance Status Warning', description: v.message });
-    } else {
-      pushToast({
-        tone: 'error',
-        title: 'Entry Blocked',
-        description: v.message,
-      });
-    }
-
-    await loadRecentScans();
   }, [attendanceAction, gateLocation, loadRecentScans, pendingToken, pushToast, validation?.status]);
 
   const handleManualSubmit = (e: FormEvent) => {
@@ -229,9 +243,7 @@ export function SecurityScannerPortal({
     );
   }
 
-  const awaitingConfirmation = Boolean(
-    validation && ((validation.status === 'valid' && !validation.committed) || validation.status === 'checkout_warning'),
-  );
+  const awaitingRepeatCheckout = validation?.status === 'checkout_warning';
 
   return (
     <div className="wm-admin min-h-[100dvh] bg-[color:var(--wm-canvas)] text-[color:var(--wm-ink)]">
@@ -442,24 +454,12 @@ export function SecurityScannerPortal({
               <QrCameraScanner
                 size="hero"
                 busy={busy}
-                pauseWhenLocked={awaitingConfirmation}
+                pauseWhenLocked={awaitingRepeatCheckout}
                 onDetectToken={handleScanOrManual}
               />
 
-              {/* Mode toggle + Manual Token Fallback */}
+              {/* Manual Token Fallback */}
               <div className="space-y-3 border-t border-[color:var(--wm-hairline)] pt-3.5">
-                <label className="flex cursor-pointer items-center justify-between gap-3 rounded-md border border-[color:var(--wm-hairline)] bg-[color:var(--wm-inset)] px-3 py-2 text-xs">
-                  <span className="text-[color:var(--wm-ink-secondary)]">
-                    Review pass details before recording {attendanceAction === 'checkout' ? 'check-out' : 'check-in'}
-                  </span>
-                  <input
-                    type="checkbox"
-                    checked={confirmBeforeCheckin}
-                    onChange={(e) => setConfirmBeforeCheckin(e.target.checked)}
-                    className="h-4 w-4 accent-[#2d6a4f]"
-                  />
-                </label>
-
                 <form onSubmit={handleManualSubmit} className="flex flex-col gap-2 sm:flex-row">
                   <input
                     value={manualToken}
@@ -472,7 +472,11 @@ export function SecurityScannerPortal({
                     disabled={busy || !manualToken.trim()}
                     className="h-11 rounded-md bg-[color:var(--wm-emerald)] px-5 text-xs font-semibold text-[#eef4ef] transition-colors hover:bg-[#357a5b] disabled:opacity-50"
                   >
-                    {busy ? 'Checking…' : 'Verify Pass'}
+                    {busy
+                      ? 'Processing…'
+                      : attendanceAction === 'checkout'
+                        ? 'Check Out Pass'
+                        : 'Check In Pass'}
                   </button>
                 </form>
 
@@ -491,7 +495,11 @@ export function SecurityScannerPortal({
                 busy={busy}
                 variant="security"
                 attendanceAction={attendanceAction}
-                onConfirmCheckin={() => void handleConfirmPendingCheckin()}
+                onConfirmCheckin={
+                  awaitingRepeatCheckout
+                    ? () => void handleConfirmRepeatCheckout()
+                    : undefined
+                }
                 onResetResult={() => {
                   setValidation(null);
                   setPendingToken('');
