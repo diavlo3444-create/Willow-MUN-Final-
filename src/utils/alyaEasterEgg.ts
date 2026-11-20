@@ -108,6 +108,13 @@ export function isAlyaAccount(
     return true;
   }
 
+  // Alya's live account is identified by her exact roster name. Keep this
+  // identity check ahead of department-scope fallbacks so profile mapping
+  // differences cannot suppress her login welcome.
+  if (normalizeName(user.fullName) === 'alya ismail') {
+    return true;
+  }
+
   const configuredEmails = new Set<string>([
     ...LEGACY_ALYA_EMAILS,
     ...parseCsvSet(readViteEnvValue('VITE_ALYA_EMAIL'), normalizeEmail),
@@ -240,6 +247,7 @@ export function shouldShowAlyaLoginEasterEgg(params: {
   const targetUser = testModeHeadUser ?? user;
   if (!targetUser || !isAlyaAccount(targetUser, departments, overrides)) return false;
   if (dismissedUserId && dismissedUserId === targetUser.id) return false;
-  if (hasSeenAlyaIntroInSession(targetUser.id, storage)) return false;
+  // Intentionally replay on every fresh page load / refresh. Dismissal only
+  // applies to the current mounted login session, not the browser session.
   return true;
 }
