@@ -23,6 +23,14 @@ const MOOD_MOTION: Record<
   shy: { rotate: [0, -1.5, 1.5, 0], y: [0, -4, 0], scale: [1, 1.015, 1] },
 };
 
+const ALYA_LEAF_PARTICLES = [
+  { x: -116, y: -36, rotate: -34, delay: 0.08 },
+  { x: 108, y: -62, rotate: 48, delay: 0.22 },
+  { x: -140, y: 58, rotate: 22, delay: 0.36 },
+  { x: 134, y: 38, rotate: -52, delay: 0.5 },
+  { x: 4, y: -142, rotate: 16, delay: 0.64 },
+];
+
 export function AlyaLoginEasterEgg({ user, onComplete }: AlyaLoginEasterEggProps) {
   const prefersReducedMotion = useReducedMotion();
   const [beatIndex, setBeatIndex] = useState(0);
@@ -179,11 +187,21 @@ export function AlyaLoginEasterEgg({ user, onComplete }: AlyaLoginEasterEggProps
 
       {/* Centerpiece character + progressive dialogue */}
       <main className="relative z-10 mx-auto flex w-full max-w-xl flex-1 flex-col items-center justify-center py-6">
+        {!prefersReducedMotion && ALYA_LEAF_PARTICLES.map((leaf, index) => (
+          <motion.span
+            key={index}
+            aria-hidden="true"
+            className="pointer-events-none absolute h-2.5 w-5 rounded-full bg-[#a6bd86]/70 shadow-[0_0_16px_rgba(166,189,134,0.22)]"
+            initial={{ opacity: 0, x: 0, y: 12, scale: 0.3, rotate: leaf.rotate }}
+            animate={{ opacity: [0, 0.85, 0.45], x: leaf.x, y: leaf.y, scale: [0.3, 1, 0.7], rotate: leaf.rotate + 26 }}
+            transition={{ duration: 1.15, delay: leaf.delay, ease: [0.16, 1, 0.3, 1] }}
+          />
+        ))}
         <motion.div
           initial={prefersReducedMotion ? false : { opacity: 0, y: 20, scale: 0.9 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
-          className="relative flex flex-col items-center"
+          transition={{ type: 'spring', stiffness: 150, damping: 16, mass: 0.8, delay: 0.12 }}
+          className="relative z-10 flex flex-col items-center"
         >
           {/* Editorial cream medallion keeping uploaded character pristine */}
           <motion.div
@@ -203,12 +221,15 @@ export function AlyaLoginEasterEgg({ user, onComplete }: AlyaLoginEasterEggProps
             className="relative rounded-full border border-[#ede6ca]/35 bg-[#f4efe0] p-2.5 shadow-[0_24px_60px_-20px_rgba(0,0,0,0.8)]"
           >
             <div className="relative h-44 w-44 overflow-hidden rounded-full border border-[#393f24]/15 bg-[#f4efe0] sm:h-56 sm:w-56">
-              <img
+              <motion.img
                 src={ALYA_EASTER_EGG_IMAGE_URL}
-                alt="Shy blushing chibi character peeking through hands to greet Alya"
+                alt="Alya's welcome character"
+                initial={prefersReducedMotion ? false : { opacity: 0, scale: 0.72 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.45, duration: 0.55 }}
                 className="h-full w-full select-none object-contain p-2 mix-blend-multiply"
                 draggable={false}
-              />
+/>
             </div>
           </motion.div>
         </motion.div>
@@ -218,6 +239,9 @@ export function AlyaLoginEasterEgg({ user, onComplete }: AlyaLoginEasterEggProps
           initial={prefersReducedMotion ? false : { opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
+          initial={prefersReducedMotion ? false : { opacity: 0, y: 18 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, delay: 0.52 }}
           className="mt-7 w-full rounded-xl border border-[#ede6ca]/25 bg-[color:var(--wm-surface)]/95 p-5 shadow-[0_24px_56px_-24px_rgba(0,0,0,0.75)] sm:p-7"
         >
           <div className="flex items-center justify-between gap-3 border-b border-[color:var(--wm-hairline)] pb-3">
