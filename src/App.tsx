@@ -123,7 +123,7 @@ function AdminRouter({ pathname, navigate }: { pathname: string; navigate: (path
       }
       return;
     }
-    if (currentUser && !requestedPortal && !loginPortal) {
+    if (currentUser && !requestedPortal && !loginPortal && !isHrSignup && !isEbSignup) {
       navigate(getPortalHomeRouteForUser(currentUser, data.departments));
       return;
     }
@@ -134,7 +134,7 @@ function AdminRouter({ pathname, navigate }: { pathname: string; navigate: (path
     if (currentUser && requestedPortal && !canAccessPortal(currentUser, requestedPortal, data.departments)) {
       navigate(getPortalHomeRouteForUser(currentUser, data.departments));
     }
-  }, [authReady, currentUser, data.departments, requestedPortal, loginPortal, navigate, isHeadSetup, isLegacyEbRoute, pathname]);
+  }, [authReady, currentUser, data.departments, requestedPortal, loginPortal, navigate, isHeadSetup, isLegacyEbRoute, isHrSignup, isEbSignup, pathname]);
 
   if (!authReady) {
     return (
@@ -148,7 +148,7 @@ function AdminRouter({ pathname, navigate }: { pathname: string; navigate: (path
   }
 
   if (requestedPortal && (!currentUser || !canAccessPortal(currentUser, requestedPortal, data.departments))) return null;
-  if (!requestedPortal && currentUser && !isHeadSetup) return null;
+  if (!requestedPortal && currentUser && !isHeadSetup && !isHrSignup && !isEbSignup) return null;
 
   return (
     <>
