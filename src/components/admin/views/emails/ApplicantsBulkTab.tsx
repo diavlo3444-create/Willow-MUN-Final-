@@ -442,9 +442,9 @@ export function ApplicantsBulkTab({
                 const appBadge = APP_STATUS_BADGE[row.applicationStatus];
                 const emailBadge = EMAIL_STATUS_BADGE[row.emailStatus];
                 return (
-                  <label
+                  <div
                     key={row.id}
-                    className={`flex items-start gap-3 p-4 text-xs cursor-pointer ${
+                    className={`flex items-start gap-3 p-4 text-xs ${
                       checked ? 'bg-[#2d6a4f]/16' : ''
                     }`}
                   >
@@ -452,9 +452,10 @@ export function ApplicantsBulkTab({
                       type="checkbox"
                       checked={checked}
                       onChange={() => onToggleOne(row.id)}
+                      aria-label={`Select ${row.applicantName}`}
                       className="mt-1 h-4 w-4 accent-[#74c69d]"
                     />
-                    <div className="min-w-0 flex-1 space-y-1.5">
+                    <div className="min-w-0 flex-1 space-y-2">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <p className="font-semibold text-[color:var(--wm-ink)] truncate">
@@ -483,8 +484,18 @@ export function ApplicantsBulkTab({
                           Email: {emailBadge.label}
                         </span>
                       </div>
+                      {row.applicationStatus !== 'pending' && (
+                        <button
+                          type="button"
+                          onClick={() => onResend(row)}
+                          className="inline-flex h-8 items-center gap-1.5 rounded border border-[color:var(--wm-hairline-strong)] px-3 text-[11px] font-medium text-[color:var(--wm-ink)] hover:bg-[color:var(--wm-overlay)]"
+                        >
+                          <Send className="h-3 w-3" aria-hidden="true" />
+                          Resend email
+                        </button>
+                      )}
                     </div>
-                  </label>
+                  </div>
                 );
               })}
             </div>
