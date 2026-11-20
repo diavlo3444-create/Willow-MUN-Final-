@@ -160,9 +160,12 @@ Deno.serve(async (req: Request) => {
     actor.role === "staff" &&
     actorDeptSlug === "security";
 
-  const canAdminScan = isAdmin;
+  const canAdminScan =
+    isSuperAdmin || (actor.role === "admin" && actorPermissions["qr.scan"] !== false);
   const canAdminManage = isSuperAdmin || (actor.role === "admin" && actorPermissions["qr.manage"] !== false);
-  const canScan = canAdminScan || isSecurityHead || isSecurityEb || isSecurityStaff;
+  const canScan =
+    canAdminScan ||
+    ((isSecurityHead || isSecurityEb || isSecurityStaff) && actorPermissions["qr.scan"] !== false);
 
   let body: any;
   try {
@@ -259,7 +262,10 @@ Deno.serve(async (req: Request) => {
         prior_checkout_count: rawPayload.prior_checkout_count ?? 0,
         gate_location: rawPayload.gate_location ?? gateLocation,
         scanned_at: rawPayload.scanned_at ?? new Date().toISOString(),
-        committed: typeof rawPayload.committed === "boolean" ? rawPayload.committed : shouldCommit,
+        committed:
+          typeof rawPayload.committed === "boolean"
+            ? rawPayload.committed
+            : (rawPayload.status === "valid" && shouldCommit) || rawPayload.status === "checked_out",
       };
       if (!isAdmin) {
         // Security receives strictly the minimum fields needed for entrance verification.
@@ -307,7 +313,7 @@ Deno.serve(async (req: Request) => {
     // Fallback path when migration 20261118170000 has not yet been pushed to remote Postgres
     const { data: passRow, error: passFetchErr } = await admin
       .from("wm_qr_passes")
-      .select("id,user_id,application_id,holder_name,role_label,category,department_id,active,checked_in_at,checked_in_gate,token_value")
+      .select("id,user_id,application_id,holder_name,role_label,category,department_id,active,checked_in_at,checked_in_gate,checked_in_by_name,token_value")
       .ilike("token_value", scannedToken)
       .maybeSingle();
 
@@ -525,8 +531,10 @@ Deno.serve(async (req: Request) => {
           pass_active: true,
           checked_in_at: passRow.checked_in_at,
           checked_in_gate: passRow.checked_in_gate,
+          checked_in_by_name: passRow.checked_in_by_name ?? null,
           gate_location: gateLocation,
           scanned_at: nowIso,
+          committed: false,
         }),
       );
     }
@@ -631,6 +639,7 @@ Deno.serve(async (req: Request) => {
           checked_in_gate: latestPass?.checked_in_gate ?? null,
           gate_location: gateLocation,
           scanned_at: nowIso,
+          committed: false,
         }),
       );
     }
@@ -713,6 +722,117 @@ Deno.serve(async (req: Request) => {
     return json({ scans: rows });
   }
 
+  // --------------------------------------------------------------------------
+  // 3b. Live Attendance Roster (All Authorized Scanners: Security & Admins)
+  //     Returns Checked In & Not Checked In lists without exposing raw tokens/emails.
+  // --------------------------------------------------------------------------
+  if (action === "attendance_roster") {
+    if (!canScan) {
+      return json({ error: "Scanner permission required." }, 403);
+    }
+
+    let rawPasses: any[] = [];
+    const { data: extPasses, error: extErr } = await admin
+      .from("wm_qr_passes")
+      .select(
+        "id,user_id,application_id,holder_name,role_label,category,department_id,active,checked_in_at,checked_in_gate,checked_in_by_name,created_at",
+      )
+      .eq("active", true)
+      .order("holder_name", { ascending: true });
+
+    if (extErr && isColumnOrTableMissingError(extErr)) {
+      const { data: basePasses, error: baseErr } = await admin
+        .from("wm_qr_passes")
+        .select(
+          "id,user_id,application_id,holder_name,role_label,category,department_id,active,checked_in_at,checked_in_gate,created_at",
+        )
+        .eq("active", true)
+        .order("holder_name", { ascending: true });
+      if (baseErr) return json({ error: baseErr.message }, 400);
+      rawPasses = basePasses || [];
+    } else if (extErr) {
+      return json({ error: extErr.message }, 400);
+    } else {
+      rawPasses = extPasses || [];
+    }
+
+    const appIds = Array.from(
+      new Set(rawPasses.map((p) => p.application_id).filter((id): id is string => Boolean(id))),
+    );
+    const appById = new Map<string, any>();
+    if (appIds.length > 0) {
+      const { data: apps } = await admin
+        .from("wm_applications")
+        .select("id,application_code,application_type,department_id,position,answers,status")
+        .in("id", appIds);
+      for (const a of apps || []) {
+        appById.set(String(a.id), a);
+      }
+    }
+
+    const userIds = Array.from(
+      new Set(rawPasses.map((p) => p.user_id).filter((id): id is string => Boolean(id))),
+    );
+    const profileActiveById = new Map<string, boolean>();
+    if (userIds.length > 0) {
+      const { data: profs } = await admin
+        .from("wm_profiles")
+        .select("user_id,is_active")
+        .in("user_id", userIds);
+      for (const prof of profs || []) {
+        profileActiveById.set(String(prof.user_id), prof.is_active === true);
+      }
+    }
+
+    const eligiblePasses = rawPasses
+      .filter((p) => {
+        if (p.active !== true) return false;
+        if (p.application_id) {
+          const app = appById.get(String(p.application_id));
+          if (!app || String(app.status || "").toLowerCase() !== "accepted") return false;
+        }
+        if (p.user_id) {
+          if (profileActiveById.get(String(p.user_id)) !== true) return false;
+        }
+        return true;
+      })
+      .map((p) => {
+        const app = p.application_id ? appById.get(String(p.application_id)) : null;
+        const deptName =
+          (p.department_id && deptByKey.get(String(p.department_id))?.name) ||
+          (app?.department_id && deptByKey.get(String(app.department_id))?.name) ||
+          (app?.application_type && deptByKey.get(normalizeDeptSlug(String(app.application_type)))?.name) ||
+          null;
+        return {
+          id: String(p.id),
+          holder_name: String(p.holder_name || "Conference Attendee"),
+          role_label: String(p.role_label || p.category || "Participant"),
+          category: String(p.category || "Delegate"),
+          department_name: deptName,
+          committee_name: extractCommitteeName(app),
+          application_code: app?.application_code ?? null,
+          checked_in_at: p.checked_in_at ?? null,
+          checked_in_gate: p.checked_in_gate ?? null,
+          checked_in_by_name: p.checked_in_by_name ?? null,
+        };
+      });
+
+    const checkedIn = eligiblePasses
+      .filter((item) => Boolean(item.checked_in_at))
+      .sort((a, b) => new Date(b.checked_in_at!).getTime() - new Date(a.checked_in_at!).getTime());
+
+    const notCheckedIn = eligiblePasses
+      .filter((item) => !item.checked_in_at)
+      .sort((a, b) => a.holder_name.localeCompare(b.holder_name));
+
+    return json({
+      checked_in: checkedIn,
+      not_checked_in: notCheckedIn,
+      can_reset: isSuperAdmin,
+      synced_at: new Date().toISOString(),
+    });
+  }
+
   if (action === "reset_all_attendance") {
     if (!isSuperAdmin) return json({ error: "Only the Super Admin can reset all attendance records." }, 403);
     const actorName = actor.full_name || authData.user.email || "Super Admin";
@@ -721,8 +841,44 @@ Deno.serve(async (req: Request) => {
       p_reset_by_name: actorName,
       p_reset_by_role: actor.role,
     });
-    if (resetError) return json({ error: resetError.message || "Attendance reset failed." }, 400);
-    return json(resetResult || { success: true });
+    if (!resetError && resetResult) {
+      return json(resetResult);
+    }
+
+    if (resetError && !isRpcMissingError(resetError) && !String(resetError.message || "").toLowerCase().includes("wm_reset_all_qr_attendance")) {
+      return json({ error: resetError.message || "Attendance reset failed." }, 400);
+    }
+
+    // Fallback when RPC migration has not yet been pushed
+    const { data: clearedRows, error: clearErr } = await admin
+      .from("wm_qr_passes")
+      .update({
+        checked_in_at: null,
+        checked_in_gate: null,
+        checked_in_by: null,
+        checked_in_by_name: null,
+        checked_out_at: null,
+        checked_out_gate: null,
+        checked_out_by: null,
+        checked_out_by_name: null,
+      })
+      .neq("id", "00000000-0000-0000-0000-000000000000")
+      .select("id");
+
+    if (clearErr && isColumnOrTableMissingError(clearErr)) {
+      const { data: baseRows, error: baseClearErr } = await admin
+        .from("wm_qr_passes")
+        .update({ checked_in_at: null, checked_in_gate: null })
+        .neq("id", "00000000-0000-0000-0000-000000000000")
+        .select("id");
+      if (baseClearErr) return json({ error: baseClearErr.message }, 400);
+      await admin.from("wm_qr_scans").delete().in("result", ["valid_checkin", "valid_checkout", "already_checked_in", "duplicate_recent"]);
+      return json({ success: true, passes_reset: (baseRows || []).length, checkins_cleared: 0, checkouts_cleared: 0 });
+    }
+    if (clearErr) return json({ error: clearErr.message }, 400);
+
+    await admin.from("wm_qr_scans").delete().in("result", ["valid_checkin", "valid_checkout", "already_checked_in", "duplicate_recent"]);
+    return json({ success: true, passes_reset: (clearedRows || []).length, checkins_cleared: 0, checkouts_cleared: 0 });
   }
 
   // Strictly block Security, Department Heads, and non-Admin roles from administrative registry & corrections

@@ -9,6 +9,7 @@ import {
   SwitchCamera,
   VideoOff,
 } from 'lucide-react';
+import { shouldIgnoreRapidCameraFrame } from '../../utils/qrAttendance';
 
 
 function getCameraPermissionHelp(): string[] {
@@ -274,8 +275,13 @@ export function QrCameraScanner({
       const now = Date.now();
       // Prevent repeated duplicate triggers while a QR stays in front of the lens
       if (
-        lastReadRef.current.token.toUpperCase() === cleaned.toUpperCase() &&
-        now - lastReadRef.current.at < 3000
+        shouldIgnoreRapidCameraFrame(
+          lastReadRef.current.token,
+          lastReadRef.current.at,
+          cleaned,
+          now,
+          3000,
+        )
       ) {
         return;
       }
@@ -369,7 +375,7 @@ export function QrCameraScanner({
             <button
               type="button"
               onClick={stopCamera}
-              className="inline-flex h-9 items-center gap-2 rounded-md border border-rose-400/35 bg-rose-950/35 px-3 text-xs font-medium text-rose-200 transition-colors hover:bg-rose-950/55"
+              className="inline-flex min-h-[44px] items-center gap-2 rounded-md border border-rose-400/35 bg-rose-950/35 px-3.5 text-xs font-medium text-rose-200 transition-colors hover:bg-rose-950/55"
             >
               <CameraOff className="h-3.5 w-3.5" aria-hidden="true" />
               Stop Camera
@@ -379,7 +385,7 @@ export function QrCameraScanner({
               type="button"
               disabled={cameraState === 'requesting'}
               onClick={() => void startCamera()}
-              className="inline-flex h-9 items-center gap-2 rounded-md bg-[color:var(--wm-emerald)] px-3.5 text-xs font-semibold text-[#eef4ef] transition-colors hover:bg-[#357a5b] disabled:opacity-60"
+              className="inline-flex min-h-[44px] items-center gap-2 rounded-md bg-[color:var(--wm-emerald)] px-4 text-xs font-semibold text-[#eef4ef] transition-colors hover:bg-[#357a5b] disabled:opacity-60"
             >
               {cameraState === 'requesting' ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
@@ -398,7 +404,7 @@ export function QrCameraScanner({
             <button
               type="button"
               onClick={handleSwitchCamera}
-              className="inline-flex h-9 items-center gap-1.5 rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-inset)] px-3 text-xs font-medium text-[color:var(--wm-focal)] transition-colors hover:bg-[color:var(--wm-overlay)]"
+              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-inset)] px-3.5 text-xs font-medium text-[color:var(--wm-focal)] transition-colors hover:bg-[color:var(--wm-overlay)]"
             >
               <SwitchCamera className="h-3.5 w-3.5" aria-hidden="true" />
               Switch Camera
@@ -415,7 +421,7 @@ export function QrCameraScanner({
               setSelectedDeviceId(id);
               if (cameraState === 'active') void startCamera(id);
             }}
-            className="h-9 max-w-[220px] rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-canvas)] px-2.5 text-[11px] text-[color:var(--wm-ink)]"
+            className="min-h-[44px] max-w-[220px] rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-canvas)] px-2.5 text-[11px] text-[color:var(--wm-ink)]"
           >
             <option value="">Auto camera ({facingMode === 'environment' ? 'Rear' : 'Front'})</option>
             {cameras.map((cam, idx) => (
@@ -451,14 +457,12 @@ export function QrCameraScanner({
                 <div className="willow-scanline absolute inset-x-3 top-1/2 h-[2px] bg-gradient-to-r from-transparent via-[#a7f3c6] to-transparent shadow-[0_0_12px_rgba(116,198,157,0.9)]" />
               )}
             </div>
-            <div className="mt-4 rounded-md border border-white/15 bg-black/70 px-3 py-1 text-[10px] font-mono uppercase tracking-[0.16em] text-[#ede6ca]">
+            <div className="mt-4 rounded-md border border-white/15 bg-black/75 px-3 py-1.5 text-[10px] font-mono uppercase tracking-[0.16em] text-[#ede6ca]">
               {busy
-                ? 'Validating pass with server…'
-                : pauseWhenLocked
-                  ? 'Confirm or clear current pass before next scan'
-                  : lastScannedHint
-                    ? 'QR detected — verifying…'
-                    : 'Align Willow MUN QR pass inside frame'}
+                ? 'Checking in pass…'
+                : lastScannedHint
+                  ? 'QR detected — checking in…'
+                  : 'Align Willow MUN QR pass inside frame'}
             </div>
           </div>
         )}

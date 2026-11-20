@@ -10,7 +10,6 @@ import {
   History,
   QrCode,
   RefreshCw,
-  ScanLine,
   Search,
   ShieldAlert,
   UserCheck,
@@ -22,26 +21,24 @@ import {
 import { useAdminStore } from '../../../context/AdminStoreContext';
 import {
   backfillStaffQrPasses,
-  commitQrPassAttendance,
   correctQrCheckinRecord,
   fetchAdminQrDashboard,
   issueConferenceQrPass,
   resetAllQrAttendance,
   setQrPassActiveState,
-  verifyQrPassAttendance,
   type AdminQrRegistryMetrics,
   type LiveQrCorrectionLog,
   type LiveQrPassExtended,
   type LiveQrScanEvent,
-  type LiveQrValidationResponse,
 } from '../../../services/liveBackendService';
 import { hasPermission } from '../../../utils/adminPermissions';
+import { canResetAllAttendance } from '../../../utils/qrAttendance';
+import { ConfirmDialog } from '../ConfirmDialog';
+import { LiveQrScannerWorkspace } from '../LiveQrScannerWorkspace';
 import { MyQrCard } from '../MyQrModal';
-import { QrCameraScanner } from '../QrCameraScanner';
-import { QrValidationResultCard } from '../QrValidationResultCard';
 import { WmSkeleton } from '../WmSkeleton';
 
-type AdminQrTab = 'scanner' | 'registry' | 'scans' | 'audit' | 'my_qr';
+type AdminQrTab = 'registry' | 'scans' | 'audit' | 'my_qr';
 
 const GATES = [
   'Main Entrance',
@@ -64,13 +61,14 @@ export function QrAttendanceView({
   const isAdmin = actor?.role === 'admin' || actor?.role === 'super_admin';
   const canScan = isAdmin || hasPermission(actor, 'qr.scan', data.departments);
   const canManage = isAdmin || hasPermission(actor, 'qr.manage', data.departments);
+  const isSuperAdmin = canResetAllAttendance(actor);
 
   const [activeTab, setActiveTab] = useState<AdminQrTab>(() =>
-    mode === 'attendance' ? 'registry' : canScan ? 'scanner' : 'my_qr',
+    canManage ? 'registry' : 'my_qr',
   );
   useEffect(() => {
-    setActiveTab(mode === 'attendance' ? 'registry' : canScan ? 'scanner' : 'my_qr');
-  }, [mode, canScan]);
+    setActiveTab(canManage ? 'registry' : 'my_qr');
+  }, [canManage]);
 
   const [passes, setPasses] = useState<LiveQrPassExtended[]>([]);
   const [scans, setScans] = useState<LiveQrScanEvent[]>([]);
@@ -84,15 +82,7 @@ export function QrAttendanceView({
   });
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-
-  // Scanner state
-  const [scanInput, setScanInput] = useState('');
-  const [pendingToken, setPendingToken] = useState('');
-  const [gateLocation, setGateLocation] = useState('Main Entrance');
-  const [attendanceAction, setAttendanceAction] = useState<'checkin' | 'checkout'>('checkin');
-  const [validation, setValidation] = useState<LiveQrValidationResponse | null>(null);
-  const [scanError, setScanError] = useState('');
-  const scanInFlightRef = useRef<boolean>(false);
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -119,7 +109,7 @@ export function QrAttendanceView({
   const [toggleReason, setToggleReason] = useState('');
 
   const load = useCallback(async () => {
-    if (!canManage) {
+    if (mode !== 'attendance' || !canManage) {
       setLoading(false);
       return;
     }
@@ -133,123 +123,11 @@ export function QrAttendanceView({
     setCorrectionLogs(res.correctionLogs);
     setMetrics(res.metrics);
     setLoading(false);
-  }, [canManage, pushToast]);
+  }, [canManage, mode, pushToast]);
 
   useEffect(() => {
     void load();
   }, [load]);
-
-  const handleScanOrManual = useCallback(
-    async (rawToken: string) => {
-      if (!canScan) {
-        setScanError('Scanner authorization required.');
-        return;
-      }
-      const cleanToken = rawToken.trim();
-      if (!cleanToken || scanInFlightRef.current) return;
-
-      scanInFlightRef.current = true;
-      setScanError('');
-      setBusy(true);
-      setPendingToken(cleanToken);
-
-      try {
-        const res = isAdmin
-          ? await verifyQrPassAttendance(cleanToken, gateLocation, attendanceAction)
-          : await commitQrPassAttendance(cleanToken, undefined, attendanceAction, false);
-
-        if (!res.ok || !res.validation) {
-          setScanError(res.error || 'Verification failed.');
-          setValidation(null);
-          return;
-        }
-
-        const v = res.validation;
-        setValidation(v);
-        setScanInput('');
-
-        if ((v.status === 'valid' || v.status === 'checked_out') && v.committed) {
-          pushToast({
-            tone: 'success',
-            title: attendanceAction === 'checkout' ? 'Check-out recorded' : 'Check-in recorded',
-            description: isAdmin
-              ? `${v.holder_name || 'Attendee'} · ${gateLocation}`
-              : v.holder_name || 'Attendee',
-          });
-        } else if (v.status === 'checkout_warning' || v.status === 'not_checked_in') {
-          pushToast({
-            tone: 'warning',
-            title: v.status === 'checkout_warning' ? 'Repeat check-out warning' : 'Not checked in',
-            description: v.message,
-          });
-        } else if (v.status === 'already_checked_in') {
-          pushToast({
-            tone: 'warning',
-            title: 'Already checked in',
-            description: v.holder_name || 'Pass has already been used.',
-          });
-        } else if (v.status !== 'valid' && v.status !== 'checked_out') {
-          pushToast({
-            tone: 'error',
-            title:
-              v.status === 'revoked'
-                ? 'Pass revoked'
-                : v.status === 'not_eligible'
-                  ? 'Applicant not eligible'
-                  : 'Invalid QR pass',
-            description: v.message,
-          });
-        }
-
-        void load();
-      } finally {
-        scanInFlightRef.current = false;
-        setBusy(false);
-      }
-    },
-    [attendanceAction, canScan, gateLocation, isAdmin, load, pushToast],
-  );
-
-  const handleConfirmPendingCheckin = async () => {
-    if (!pendingToken || scanInFlightRef.current) return;
-    scanInFlightRef.current = true;
-    setBusy(true);
-    setScanError('');
-    try {
-      const res = await commitQrPassAttendance(
-        pendingToken,
-        isAdmin ? gateLocation : undefined,
-        attendanceAction,
-        validation?.status === 'checkout_warning',
-      );
-
-      if (!res.ok || !res.validation) {
-        setScanError(res.error || 'Could not record check-in.');
-        return;
-      }
-
-      const v = res.validation;
-      setValidation(v);
-      if ((v.status === 'valid' || v.status === 'checked_out') && v.committed) {
-        pushToast({
-          tone: 'success',
-          title: attendanceAction === 'checkout' ? 'Check-out recorded' : 'Check-in recorded',
-          description: isAdmin
-            ? `${v.holder_name || 'Attendee'} · ${gateLocation}`
-            : v.holder_name || 'Attendee',
-        });
-      } else if (v.status === 'already_checked_in' || v.status === 'not_checked_in') {
-        pushToast({ tone: 'warning', title: 'Attendance status warning', description: v.message });
-      } else {
-        pushToast({ tone: 'error', title: 'Check-in blocked', description: v.message });
-      }
-
-      void load();
-    } finally {
-      scanInFlightRef.current = false;
-      setBusy(false);
-    }
-  };
 
   const issueGuestPass = async (event: FormEvent) => {
     event.preventDefault();
@@ -274,9 +152,8 @@ export function QrAttendanceView({
   };
 
   const handleResetAllAttendance = async () => {
-    if (actor?.role !== 'super_admin') return;
-    const confirmed = window.confirm('Reset all conference attendance? This clears every pass check-in/check-out status and removes successful attendance events from scan history. Invalid/denied scan records and the reset audit record are retained. This cannot be undone.');
-    if (!confirmed) return;
+    if (!isSuperAdmin) return;
+    setResetDialogOpen(false);
     setBusy(true);
     const res = await resetAllQrAttendance();
     setBusy(false);
@@ -284,7 +161,11 @@ export function QrAttendanceView({
       pushToast({ tone: 'error', title: 'Attendance reset failed', description: res.error });
       return;
     }
-    pushToast({ tone: 'success', title: 'All attendance reset', description: `${res.result.passes_reset} passes reset · ${res.result.checkins_cleared} check-ins and ${res.result.checkouts_cleared} check-outs cleared` });
+    pushToast({
+      tone: 'success',
+      title: 'All attendance reset',
+      description: `${res.result.passes_reset} passes reset · all attendees moved back to Not Checked In`,
+    });
     await load();
   };
 
@@ -451,9 +332,13 @@ export function QrAttendanceView({
     [scans],
   );
 
-  const awaitingConfirmation = Boolean(
-    validation && ((validation.status === 'valid' && !validation.committed) || validation.status === 'checkout_warning'),
-  );
+  if (mode === 'qr') {
+    return canScan ? (
+      <LiveQrScannerWorkspace actor={actor} autoStartCamera />
+    ) : (
+      <MyQrCard actorOverride={actor} />
+    );
+  }
 
   return (
     <div className="space-y-5">
@@ -467,7 +352,7 @@ export function QrAttendanceView({
               </span>
               <QrCode className="h-4 w-4 text-[color:var(--wm-accent)]" aria-hidden="true" />
             </div>
-            <p className="wm-serif mt-2 text-2xl font-semibold text-[color:var(--wm-ink)]">
+            <p className="wm-serif mt-2 text-2xl font-semibold tabular-nums text-[color:var(--wm-ink)]">
               {metrics.total_issued}
             </p>
             <p className="mt-1 text-[11px] text-[color:var(--wm-ink-muted)]">
@@ -482,7 +367,7 @@ export function QrAttendanceView({
               </span>
               <UserCheck className="h-4 w-4 text-emerald-400" aria-hidden="true" />
             </div>
-            <p className="wm-serif mt-2 text-2xl font-semibold text-emerald-300">
+            <p className="wm-serif mt-2 text-2xl font-semibold tabular-nums text-emerald-300">
               {metrics.checked_in}
             </p>
             <p className="mt-1 text-[11px] text-[color:var(--wm-ink-muted)]">
@@ -499,7 +384,7 @@ export function QrAttendanceView({
               </span>
               <Users className="h-4 w-4 text-[#ede6ca]" aria-hidden="true" />
             </div>
-            <p className="wm-serif mt-2 text-2xl font-semibold text-[#ede6ca]">
+            <p className="wm-serif mt-2 text-2xl font-semibold tabular-nums text-[#ede6ca]">
               {metrics.remaining}
             </p>
             <p className="mt-1 text-[11px] text-[color:var(--wm-ink-muted)]">
@@ -514,7 +399,7 @@ export function QrAttendanceView({
               </span>
               <AlertTriangle className="h-4 w-4 text-amber-300" aria-hidden="true" />
             </div>
-            <p className="wm-serif mt-2 text-2xl font-semibold text-amber-200">
+            <p className="wm-serif mt-2 text-2xl font-semibold tabular-nums text-amber-200">
               {failedAndDuplicateCount}
             </p>
             <p className="mt-1 text-[11px] text-[color:var(--wm-ink-muted)]">
@@ -526,24 +411,7 @@ export function QrAttendanceView({
 
       {/* Workspace Navigation Tabs */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="QR Scanner Views">
-          {canScan && (
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeTab === 'scanner'}
-              onClick={() => setActiveTab('scanner')}
-              className={`inline-flex h-9 items-center gap-2 rounded-md border px-3.5 text-xs font-medium transition-colors ${
-                activeTab === 'scanner'
-                  ? 'border-[color:var(--wm-accent)] bg-[#2d6a4f]/35 text-[color:var(--wm-ink)]'
-                  : 'border-[color:var(--wm-hairline)] bg-[color:var(--wm-surface)] text-[color:var(--wm-ink-secondary)] hover:text-[color:var(--wm-ink)]'
-              }`}
-            >
-              <ScanLine className="h-3.5 w-3.5" aria-hidden="true" />
-              Live Scanner
-            </button>
-          )}
-
+        <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Attendance Views">
           {canManage && (
             <>
               <button
@@ -622,117 +490,6 @@ export function QrAttendanceView({
         )}
       </div>
 
-      {/* TAB 1: LIVE ADMIN SCANNER */}
-      {activeTab === 'scanner' && canScan && (
-        <section className="wm-surface-panel overflow-hidden">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[color:var(--wm-hairline)] px-4 py-3.5">
-            <div className="flex items-center gap-2.5">
-              <ScanLine className="h-4 w-4 text-[color:var(--wm-accent)]" aria-hidden="true" />
-              <div>
-                <h2 className="text-xs font-semibold text-[color:var(--wm-ink)]">
-                  Admin Pass Scanner & Verification Desk
-                </h2>
-                <p className="mt-0.5 text-[10px] text-[color:var(--wm-ink-muted)]">
-                  Validate delegate and staff QR credentials against live conference eligibility
-                </p>
-              </div>
-            </div>
-            {isAdmin && (
-              <label className="flex items-center gap-2 text-[11px] text-[color:var(--wm-ink-secondary)]">
-                <span>Gate:</span>
-                <select
-                  value={gateLocation}
-                  onChange={(e) => setGateLocation(e.target.value)}
-                  className="h-8 rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-canvas)] px-2.5 text-xs text-[color:var(--wm-ink)]"
-                >
-                  {GATES.map((g) => (
-                    <option key={g} value={g}>
-                      {g}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-          </div>
-
-          <div className="grid gap-5 p-4 lg:grid-cols-2">
-            <div className="space-y-4">
-              <div className="mb-3 inline-flex rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-inset)] p-1" aria-label="Attendance action">
-                <button type="button" onClick={() => { setAttendanceAction('checkin'); setValidation(null); }} className={`rounded px-3.5 py-2 text-xs font-semibold transition ${attendanceAction === 'checkin' ? 'bg-emerald-600 text-white shadow' : 'text-[color:var(--wm-ink-secondary)] hover:text-[color:var(--wm-ink)]'}`}>Check In</button>
-                <button type="button" onClick={() => { setAttendanceAction('checkout'); setValidation(null); }} className={`rounded px-3.5 py-2 text-xs font-semibold transition ${attendanceAction === 'checkout' ? 'bg-amber-600 text-white shadow' : 'text-[color:var(--wm-ink-secondary)] hover:text-[color:var(--wm-ink)]'}`}>Check Out</button>
-              </div>
-              <QrCameraScanner
-                size="panel"
-                autoStart={!isAdmin}
-                busy={busy}
-                pauseWhenLocked={isAdmin ? awaitingConfirmation : validation?.status === 'checkout_warning'}
-                onDetectToken={handleScanOrManual}
-              />
-
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (scanInput.trim()) void handleScanOrManual(scanInput);
-                }}
-                className="flex flex-col gap-2 sm:flex-row"
-              >
-                <input
-                  value={scanInput}
-                  onChange={(e) => setScanInput(e.target.value)}
-                  placeholder="Manual fallback: enter WMQR-… token"
-                  className="h-10 flex-1 rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-canvas)] px-3 font-mono text-xs text-[color:var(--wm-ink)]"
-                />
-                <button
-                  disabled={busy || !scanInput.trim()}
-                  className="h-10 rounded-md bg-[color:var(--wm-emerald)] px-4 text-xs font-semibold text-[#eef4ef] hover:bg-[#357a5b] disabled:opacity-50"
-                >
-                  {busy
-                    ? 'Processing…'
-                    : isAdmin
-                      ? 'Verify Pass'
-                      : attendanceAction === 'checkout'
-                        ? 'Check Out Pass'
-                        : 'Check In Pass'}
-                </button>
-              </form>
-
-              {scanError && (
-                <p role="alert" className="text-[11px] text-rose-300">
-                  {scanError}
-                </p>
-              )}
-            </div>
-
-            <div>
-              <QrValidationResultCard
-                validation={validation}
-                busy={busy}
-                variant={isAdmin ? 'admin' : 'security'}
-                attendanceAction={attendanceAction}
-                onConfirmCheckin={
-                  isAdmin || validation?.status === 'checkout_warning'
-                    ? () => void handleConfirmPendingCheckin()
-                    : undefined
-                }
-                onResetResult={() => {
-                  setValidation(null);
-                  setPendingToken('');
-                  setScanError('');
-                }}
-                onOpenCorrection={(passId) => {
-                  const found = passes.find((p) => p.id === passId);
-                  if (found) {
-                    openCorrectionModal(found);
-                  } else {
-                    setActiveTab('registry');
-                  }
-                }}
-              />
-            </div>
-          </div>
-        </section>
-      )}
-
       {/* TAB 2: PASS & CHECK-IN REGISTRY */}
       {activeTab === 'registry' && canManage && (
         <section className="wm-surface-panel overflow-hidden">
@@ -745,20 +502,27 @@ export function QrAttendanceView({
                 Search attendees, filter attendance status, and record audited corrections
               </p>
             </div>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => void handleBackfill()}
-              className="inline-flex h-8 items-center gap-2 rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-inset)] px-3 text-[11px] text-[color:var(--wm-focal)] hover:bg-[color:var(--wm-overlay)] disabled:opacity-50"
-            >
-              <RefreshCw className="h-3 w-3" aria-hidden="true" />
-              Backfill Missing Staff Passes
-            </button>
-            {actor?.role === 'super_admin' && (
-              <button type="button" disabled={busy} onClick={() => void handleResetAllAttendance()} className="inline-flex h-8 items-center gap-2 rounded-md border border-rose-400/40 bg-rose-950/25 px-3 text-[11px] font-semibold text-rose-200 hover:bg-rose-950/45 disabled:opacity-50">
-                <RefreshCw className="h-3 w-3" aria-hidden="true" /> Reset All Attendance
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void handleBackfill()}
+                className="inline-flex h-8 items-center gap-2 rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-inset)] px-3 text-[11px] text-[color:var(--wm-focal)] hover:bg-[color:var(--wm-overlay)] disabled:opacity-50"
+              >
+                <RefreshCw className="h-3 w-3" aria-hidden="true" />
+                Backfill Missing Staff Passes
               </button>
-            )}
+              {isSuperAdmin && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => setResetDialogOpen(true)}
+                  className="inline-flex h-8 items-center gap-2 rounded-md border border-rose-400/40 bg-rose-950/25 px-3 text-[11px] font-semibold text-rose-200 hover:bg-rose-950/45 disabled:opacity-50"
+                >
+                  <RefreshCw className="h-3 w-3" aria-hidden="true" /> Reset All Attendance
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Search & Filter Toolbar */}
@@ -1311,6 +1075,19 @@ export function QrAttendanceView({
             </button>
           </div>
         </div>
+      )}
+
+      {isSuperAdmin && (
+        <ConfirmDialog
+          open={resetDialogOpen}
+          title="Reset All Conference Attendance?"
+          description="This clears every pass check-in status and returns all attendees to Not Checked In across every scanner. This cannot be undone."
+          confirmLabel="Reset All Attendance"
+          cancelLabel="Cancel"
+          tone="danger"
+          onConfirm={() => void handleResetAllAttendance()}
+          onCancel={() => setResetDialogOpen(false)}
+        />
       )}
     </div>
   );

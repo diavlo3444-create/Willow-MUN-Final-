@@ -951,6 +951,99 @@ export async function resetAllQrAttendance(): Promise<{ ok: boolean; result?: { 
   return { ok: true, result: data };
 }
 
+export interface LiveAttendanceAttendee {
+  id: string;
+  holder_name: string;
+  role_label: string;
+  category: string;
+  department_name: string | null;
+  committee_name: string | null;
+  application_code: string | null;
+  checked_in_at: string | null;
+  checked_in_gate: string | null;
+  checked_in_by_name?: string | null;
+}
+
+export async function fetchQrAttendanceRoster(
+  actorRole?: AdminUser['role'] | null,
+): Promise<{
+  ok: boolean;
+  checkedIn: LiveAttendanceAttendee[];
+  notCheckedIn: LiveAttendanceAttendee[];
+  canReset: boolean;
+  syncedAt: string;
+  error?: string;
+}> {
+  try {
+    const { data, error } = await supabase.functions.invoke('willow-qr', {
+      body: { action: 'attendance_roster' },
+    });
+
+    if (!error && data && !data.error) {
+      return {
+        ok: true,
+        checkedIn: (data.checked_in ?? []) as LiveAttendanceAttendee[],
+        notCheckedIn: (data.not_checked_in ?? []) as LiveAttendanceAttendee[],
+        canReset: Boolean(data.can_reset),
+        syncedAt: String(data.synced_at || new Date().toISOString()),
+      };
+    }
+
+    const msg = String(data?.error || error?.message || 'Unable to load attendance roster.');
+    // Graceful compatibility fallback if an admin hits an older deployed edge function
+    if (
+      (actorRole === 'super_admin' || actorRole === 'admin') &&
+      msg.toLowerCase().includes('unsupported')
+    ) {
+      const listRes = await supabase.functions.invoke('willow-qr', {
+        body: { action: 'list' },
+      });
+      if (!listRes.error && listRes.data && !listRes.data.error) {
+        const passes = (listRes.data.passes ?? []) as LiveQrPassExtended[];
+        const active = passes
+          .filter((p) => p.active !== false)
+          .map<LiveAttendanceAttendee>((p) => ({
+            id: p.id,
+            holder_name: p.holder_name,
+            role_label: p.role_label,
+            category: p.category,
+            department_name: p.department_name ?? null,
+            committee_name: p.committee_name ?? null,
+            application_code: p.application_code ?? null,
+            checked_in_at: p.checked_in_at ?? null,
+            checked_in_gate: p.checked_in_gate ?? null,
+            checked_in_by_name: p.checked_in_by_name ?? null,
+          }));
+        return {
+          ok: true,
+          checkedIn: active.filter((p) => Boolean(p.checked_in_at)),
+          notCheckedIn: active.filter((p) => !p.checked_in_at),
+          canReset: actorRole === 'super_admin',
+          syncedAt: new Date().toISOString(),
+        };
+      }
+    }
+
+    return {
+      ok: false,
+      checkedIn: [],
+      notCheckedIn: [],
+      canReset: false,
+      syncedAt: new Date().toISOString(),
+      error: msg,
+    };
+  } catch (err: any) {
+    return {
+      ok: false,
+      checkedIn: [],
+      notCheckedIn: [],
+      canReset: false,
+      syncedAt: new Date().toISOString(),
+      error: err?.message || 'Network error while loading attendance lists.',
+    };
+  }
+}
+
 export async function fetchMySecurityScans(): Promise<{
   scans: LiveQrScanEvent[];
   error?: string;

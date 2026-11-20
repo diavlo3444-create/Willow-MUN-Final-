@@ -214,26 +214,7 @@ export function DepartmentHeadPortal({ pathname, onNavigate }: DepartmentHeadPor
           </button>
         </div>
       ) : activeNavId === 'scanner' ? (
-        <div className="space-y-4">
-          <div className="wm-surface-panel flex flex-wrap items-center justify-between gap-3 p-4">
-            <div>
-              <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[color:var(--wm-accent)]">
-                Security Entrance Operations
-              </p>
-              <p className="mt-1 text-xs text-[color:var(--wm-ink-secondary)]">
-                Validate delegate and staff QR passes below or open the dedicated full-screen Security terminal.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => onNavigate('/security')}
-              className="inline-flex h-9 items-center gap-2 rounded-md bg-[color:var(--wm-emerald)] px-4 text-xs font-semibold text-[#eef4ef] hover:bg-[#357a5b]"
-            >
-              Open Full-Screen Security Scanner
-            </button>
-          </div>
-          <QrAttendanceView mode="qr" actingUserOverride={effectiveHead} />
-        </div>
+        <QrAttendanceView mode="qr" actingUserOverride={effectiveHead} />
       ) : activeNavId === 'emails' ? (
         <EmailsDashboardView actingUserOverride={effectiveHead} />
       ) : activeNavId === 'hr-accepted' ? (

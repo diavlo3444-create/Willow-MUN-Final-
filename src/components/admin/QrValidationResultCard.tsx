@@ -1,268 +1,136 @@
 import {
-  AlertOctagon,
-  Ban,
+  AlertTriangle,
   CheckCircle2,
-  Clock,
-  RefreshCw,
-  ShieldAlert,
-  UserCheck,
+  ScanLine,
+  X,
   XCircle,
 } from 'lucide-react';
 import type { LiveQrValidationResponse } from '../../services/liveBackendService';
+import {
+  classifyQrScanOutcome,
+  formatAttendanceDateTime,
+} from '../../utils/qrAttendance';
 
 interface QrValidationResultCardProps {
   validation: LiveQrValidationResponse | null;
-  busy?: boolean;
-  variant?: 'security' | 'admin';
-  onConfirmCheckin?: () => void;
-  attendanceAction?: 'checkin' | 'checkout';
-  onResetResult?: () => void;
-  onOpenCorrection?: (passId: string) => void;
+  requestError?: string;
+  onDismiss?: () => void;
 }
 
 export function QrValidationResultCard({
   validation,
-  busy = false,
-  variant = 'security',
-  onConfirmCheckin,
-  attendanceAction = 'checkin',
-  onResetResult,
-  onOpenCorrection,
+  requestError = '',
+  onDismiss,
 }: QrValidationResultCardProps) {
-  if (!validation) {
+  const feedback = classifyQrScanOutcome(validation, requestError);
+
+  if (feedback.kind === 'idle') {
     return (
-      <div className="wm-surface-inset flex min-h-[260px] flex-col items-center justify-center p-6 text-center">
-        <ShieldAlert className="h-9 w-9 text-[color:var(--wm-ink-muted)]" aria-hidden="true" />
-        <p className="mt-3 text-sm font-medium text-[color:var(--wm-ink)]">
-          Ready for Next Pass
+      <div
+        role="status"
+        aria-live="polite"
+        className="flex min-h-[156px] flex-col items-center justify-center rounded-lg border border-[color:var(--wm-hairline)] bg-[color:var(--wm-inset)] px-5 py-6 text-center"
+      >
+        <ScanLine className="h-7 w-7 text-[color:var(--wm-accent)]" aria-hidden="true" />
+        <p className="mt-2.5 text-sm font-semibold text-[color:var(--wm-ink)]">
+          Ready to Scan
         </p>
-        <p className="mt-1 max-w-xs text-xs text-[color:var(--wm-ink-muted)]">
-          Point the camera at a Willow MUN QR credential or enter the pass code to validate entry.
+        <p className="mt-1 max-w-xs text-xs leading-relaxed text-[color:var(--wm-ink-muted)]">
+          Scan a Willow MUN QR pass — valid attendees are checked in automatically.
         </p>
       </div>
     );
   }
 
-  const isCheckedOut = validation.status === 'checked_out';
-  const isCheckoutWarning = validation.status === 'checkout_warning';
-  const isNotCheckedIn = validation.status === 'not_checked_in';
-  const isValidConfirmed = (validation.status === 'valid' && validation.committed) || isCheckedOut;
-  const isValidAwaitingConfirm = (validation.status === 'valid' && !validation.committed) || isCheckoutWarning;
-  const isAlready = validation.status === 'already_checked_in';
-  const isRevoked = validation.status === 'revoked';
-  const isNotEligible = validation.status === 'not_eligible';
+  const isSuccess = feedback.kind === 'checked_in';
+  const isDuplicate = feedback.kind === 'already_checked_in';
 
-  const frameClass =
-    isValidConfirmed || (isValidAwaitingConfirm && !isCheckoutWarning)
-      ? 'border-emerald-400/50 bg-emerald-950/35'
-      : isAlready || isCheckoutWarning || isNotCheckedIn
-        ? 'border-amber-400/55 bg-amber-950/35'
-        : 'border-rose-400/55 bg-rose-950/40';
+  const containerStyle = isSuccess
+    ? 'border-emerald-400/55 bg-emerald-950/45'
+    : isDuplicate
+      ? 'border-amber-400/75 bg-amber-950/55'
+      : 'border-rose-400/60 bg-rose-950/45';
 
-  const badgeClass =
-    isValidConfirmed || (isValidAwaitingConfirm && !isCheckoutWarning)
-      ? 'border-emerald-400/40 bg-emerald-500/15 text-emerald-200'
-      : isAlready || isCheckoutWarning || isNotCheckedIn
-        ? 'border-amber-400/45 bg-amber-500/15 text-amber-200'
-        : 'border-rose-400/45 bg-rose-500/15 text-rose-200';
-
-  const headline = isCheckedOut
-    ? 'CHECK-OUT RECORDED'
-    : isCheckoutWarning
-      ? 'REPEAT CHECK-OUT WARNING'
-      : isNotCheckedIn
-        ? 'NOT CURRENTLY CHECKED IN'
-        : isValidConfirmed
-          ? attendanceAction === 'checkout' ? 'CHECK-OUT RECORDED' : 'VALID · CHECKED IN'
-          : isValidAwaitingConfirm
-            ? attendanceAction === 'checkout' ? 'CONFIRM CHECK-OUT' : 'VALID PASS · CONFIRM ENTRY'
-            : isAlready
-              ? 'ALREADY CHECKED IN'
-        : isRevoked
-          ? 'REVOKED PASS'
-          : isNotEligible
-            ? 'NOT ELIGIBLE'
-            : 'INVALID QR PASS';
-
-  const subHeadline =
-    validation.message ||
-    (isCheckedOut
-      ? 'Delegate has been checked out. Their pass remains valid for future entry.'
-      : isCheckoutWarning
-        ? validation.message
-        : isNotCheckedIn
-          ? validation.message
-          : isValidConfirmed
-            ? 'Attendance action recorded successfully.'
-            : isValidAwaitingConfirm
-              ? attendanceAction === 'checkout' ? 'Verified. Confirm to complete check-out.' : 'Verified against conference records. Confirm to complete check-in.'
-              : isAlready
-          ? 'This pass has already been used. Do not create another check-in.'
-          : isRevoked
-            ? 'This credential has been deactivated by an administrator.'
-            : isNotEligible
-              ? 'Applicant does not hold an accepted or active conference credential.'
-              : 'Code does not match any issued Willow MUN pass.');
-
-  const formatDate = (iso?: string | null) => {
-    if (!iso) return '—';
-    const d = new Date(iso);
-    return Number.isNaN(d.getTime()) ? iso : d.toLocaleString();
-  };
+  const labelColor = isSuccess
+    ? 'text-emerald-200'
+    : isDuplicate
+      ? 'text-amber-200'
+      : 'text-rose-200';
 
   return (
     <div
-      role="status"
-      aria-live="polite"
-      className={`rounded-lg border p-5 transition-colors ${frameClass}`}
+      role={isSuccess ? 'status' : 'alert'}
+      aria-live={isDuplicate || !isSuccess ? 'assertive' : 'polite'}
+      data-scan-outcome={feedback.kind}
+      className={`rounded-lg border p-4 sm:p-5 transition-colors ${containerStyle}`}
     >
-      {/* Large, unmistakable banner */}
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-white/10 pb-4">
-        <div className="flex items-center gap-3">
-          {isCheckoutWarning || isNotCheckedIn || isAlready ? (
-            <Clock className="h-9 w-9 shrink-0 text-amber-300" aria-hidden="true" />
-          ) : isValidConfirmed || isValidAwaitingConfirm ? (
-            <CheckCircle2 className="h-9 w-9 shrink-0 text-emerald-300" aria-hidden="true" />
-          ) : isAlready ? (
-            <Clock className="h-9 w-9 shrink-0 text-amber-300" aria-hidden="true" />
-          ) : isRevoked ? (
-            <Ban className="h-9 w-9 shrink-0 text-rose-300" aria-hidden="true" />
-          ) : isNotEligible ? (
-            <AlertOctagon className="h-9 w-9 shrink-0 text-rose-300" aria-hidden="true" />
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          {isSuccess ? (
+            <CheckCircle2 className="mt-0.5 h-7 w-7 shrink-0 text-emerald-300" aria-hidden="true" />
+          ) : isDuplicate ? (
+            <AlertTriangle className="mt-0.5 h-7 w-7 shrink-0 text-amber-300" aria-hidden="true" />
           ) : (
-            <XCircle className="h-9 w-9 shrink-0 text-rose-300" aria-hidden="true" />
+            <XCircle className="mt-0.5 h-7 w-7 shrink-0 text-rose-300" aria-hidden="true" />
           )}
+
           <div>
-            <span
-              className={`inline-block rounded border px-2 py-0.5 text-[10px] font-mono font-semibold uppercase tracking-[0.16em] ${badgeClass}`}
-            >
-              {headline}
-            </span>
-            <p className="mt-1.5 text-xs leading-relaxed text-[color:var(--wm-ink-secondary)]">
-              {subHeadline}
+            <p className={`font-mono text-xs font-bold uppercase tracking-[0.16em] ${labelColor}`}>
+              {feedback.headline}
+            </p>
+            <p className="mt-1 text-xs leading-relaxed text-[color:var(--wm-ink-secondary)]">
+              {feedback.message}
             </p>
           </div>
         </div>
 
-        {onResetResult && (
+        {onDismiss && (
           <button
             type="button"
-            onClick={onResetResult}
-            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-white/15 bg-black/25 px-2.5 text-[11px] text-[color:var(--wm-ink-secondary)] hover:text-[color:var(--wm-ink)]"
+            onClick={onDismiss}
+            aria-label="Clear scan result"
+            className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-md border border-white/15 bg-black/25 text-[color:var(--wm-ink-secondary)] hover:text-[color:var(--wm-ink)]"
           >
-            <RefreshCw className="h-3 w-3" aria-hidden="true" />
-            Next Scan
+            <X className="h-4 w-4" aria-hidden="true" />
           </button>
         )}
       </div>
 
-      {/* Verification Fields */}
-      {validation.status !== 'invalid' && (
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+      {feedback.fullName && (
+        <div className="mt-4 grid gap-2.5 border-t border-white/10 pt-3.5 sm:grid-cols-2">
           <div className="rounded-md border border-white/10 bg-black/25 px-3.5 py-2.5 sm:col-span-2">
-            <p className="text-[10px] font-mono uppercase tracking-[0.14em] text-[color:var(--wm-ink-muted)]">
-              Attendee Name
+            <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--wm-ink-muted)]">
+              Full Name
             </p>
             <p className="wm-serif mt-0.5 text-xl font-semibold text-[color:var(--wm-ink)]">
-              {validation.holder_name || 'Unlisted Holder'}
+              {feedback.fullName}
             </p>
           </div>
 
           <div className="rounded-md border border-white/10 bg-black/25 px-3.5 py-2.5">
-            <p className="text-[10px] font-mono uppercase tracking-[0.14em] text-[color:var(--wm-ink-muted)]">
-              Registration / ID
-            </p>
-            <p className="mt-0.5 font-mono text-xs font-semibold text-[#ede6ca]">
-              {validation.application_code || (validation.pass_id ? `PASS-${validation.pass_id.slice(0, 8).toUpperCase()}` : 'Staff Pass')}
-            </p>
-          </div>
-
-          <div className="rounded-md border border-white/10 bg-black/25 px-3.5 py-2.5">
-            <p className="text-[10px] font-mono uppercase tracking-[0.14em] text-[color:var(--wm-ink-muted)]">
-              Role & Category
+            <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--wm-ink-muted)]">
+              Role
             </p>
             <p className="mt-0.5 text-xs font-medium text-[color:var(--wm-ink)]">
-              {validation.role_label || 'Participant'}
-              {validation.category ? ` · ${validation.category}` : ''}
+              {feedback.roleLabel || 'Participant'}
+              {feedback.departmentOrCommittee ? ` · ${feedback.departmentOrCommittee}` : ''}
             </p>
           </div>
-
-          {(validation.committee_name || validation.department_name) && (
-            <div className="rounded-md border border-white/10 bg-black/25 px-3.5 py-2.5">
-              <p className="text-[10px] font-mono uppercase tracking-[0.14em] text-[color:var(--wm-ink-muted)]">
-                {validation.committee_name ? 'Committee' : 'Department'}
-              </p>
-              <p className="mt-0.5 text-xs font-medium text-[color:var(--wm-ink)]">
-                {validation.committee_name || validation.department_name}
-              </p>
-            </div>
-          )}
 
           <div className="rounded-md border border-white/10 bg-black/25 px-3.5 py-2.5">
-            <p className="text-[10px] font-mono uppercase tracking-[0.14em] text-[color:var(--wm-ink-muted)]">
-              {isCheckedOut
-                ? 'Checked Out At'
-                : isAlready
-                  ? 'Previous Check-In Time'
-                  : isValidConfirmed
-                    ? 'Checked In At'
-                    : variant === 'admin'
-                      ? 'Checkpoint'
-                      : 'Scanned At'}
+            <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--wm-ink-muted)]">
+              {isDuplicate ? 'Original Check-In Time' : 'Checked In At'}
             </p>
-            <p className="mt-0.5 text-xs font-medium text-[color:var(--wm-ink)]">
-              {variant === 'admin'
-                ? isCheckedOut
-                  ? `${formatDate(validation.checked_out_at)} · ${validation.checked_out_gate || validation.gate_location}`
-                  : isAlready || (isValidConfirmed && attendanceAction === 'checkin')
-                    ? `${formatDate(validation.checked_in_at)} · ${validation.checked_in_gate || validation.gate_location}`
-                    : validation.gate_location
-                : isCheckedOut
-                  ? formatDate(validation.checked_out_at)
-                  : isAlready || (isValidConfirmed && attendanceAction === 'checkin')
-                    ? formatDate(validation.checked_in_at)
-                    : formatDate(validation.scanned_at)}
+            <p
+              className={`mt-0.5 font-mono text-xs font-semibold tabular-nums ${
+                isDuplicate ? 'text-amber-200' : 'text-[color:var(--wm-ink)]'
+              }`}
+            >
+              {isDuplicate
+                ? formatAttendanceDateTime(feedback.originalCheckedInAt)
+                : formatAttendanceDateTime(feedback.checkedInAt)}
             </p>
           </div>
-
-          {variant === 'admin' && validation.application_status && (
-            <div className="rounded-md border border-white/10 bg-black/25 px-3.5 py-2.5">
-              <p className="text-[10px] font-mono uppercase tracking-[0.14em] text-[color:var(--wm-ink-muted)]">
-                Application Status
-              </p>
-              <p className="mt-0.5 font-mono text-xs uppercase text-[color:var(--wm-focal)]">
-                {validation.application_status}
-              </p>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Confirmation CTA when in verify-first mode */}
-      {isValidAwaitingConfirm && onConfirmCheckin && (
-        <div className="mt-4 flex flex-wrap items-center gap-2.5 border-t border-white/10 pt-4">
-          <button
-            type="button"
-            disabled={busy}
-            onClick={onConfirmCheckin}
-            className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-md bg-emerald-600 px-5 text-sm font-semibold text-white transition-colors hover:bg-emerald-500 disabled:opacity-60"
-          >
-            <UserCheck className="h-4 w-4" aria-hidden="true" />
-            {busy ? (attendanceAction === 'checkout' ? 'Recording Check-Out…' : 'Recording Check-In…') : isCheckoutWarning ? 'Yes, Check Out Again' : attendanceAction === 'checkout' ? 'Confirm Check-Out' : 'Confirm Entry & Check In'}
-          </button>
-        </div>
-      )}
-
-      {/* Admin quick correction action */}
-      {variant === 'admin' && validation.pass_id && onOpenCorrection && (
-        <div className="mt-4 flex flex-wrap justify-end border-t border-white/10 pt-3">
-          <button
-            type="button"
-            onClick={() => onOpenCorrection(validation.pass_id as string)}
-            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-white/20 bg-black/25 px-3 text-[11px] font-medium text-[#ede6ca] hover:bg-black/45"
-          >
-            Manage / Correct Check-In Record
-          </button>
         </div>
       )}
     </div>
