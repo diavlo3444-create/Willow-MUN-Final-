@@ -4,9 +4,9 @@
  * Structured so Supabase PostgreSQL tables, RLS policies, and Edge Functions map 1:1 later.
  */
 
-export type RoleType = 'super_admin' | 'admin' | 'department_head' | 'executive_board';
+export type RoleType = 'super_admin' | 'admin' | 'department_head' | 'executive_board' | 'staff';
 
-export type PortalKey = 'super_admin' | 'admin' | 'department_head' | 'executive_board' | 'security';
+export type PortalKey = 'super_admin' | 'admin' | 'department_head' | 'executive_board' | 'security' | 'staff';
 
 export type PermissionKey =
   | 'applications.view'
