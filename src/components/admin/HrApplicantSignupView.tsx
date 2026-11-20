@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { CheckCircle2, Loader2, LockKeyhole, ShieldCheck } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { claimHrApplicantSignup } from '../../services/liveBackendService';
+import { normalizeDepartmentSlug } from '../../utils/adminPermissions';
 
 export function HrApplicantSignupView({ onNavigate }: { onNavigate: (path: string) => void }) {
   const rawToken = new URLSearchParams(window.location.search).get('token') || '';
@@ -31,11 +32,20 @@ export function HrApplicantSignupView({ onNavigate }: { onNavigate: (path: strin
     setBusy(false);
     if (signedIn.error) {
       setDone(true);
-      setError('Account created, but automatic sign-in did not complete. Please go to Head Login and sign in with your email and password.');
+      setError('Account created, but automatic sign-in did not complete. Please go to Staff Portal Login and sign in with your email and password.');
       return;
     }
     setDone(true);
-    onNavigate('/head');
+    const deptSlug = normalizeDepartmentSlug(result.departmentSlug || '');
+    const targetRoute =
+      result.role === 'department_head' || result.role === 'executive_board'
+        ? '/head'
+        : deptSlug === 'security'
+          ? '/security'
+          : deptSlug
+            ? `/staff/${deptSlug}`
+            : '/staff';
+    onNavigate(targetRoute);
   };
 
   return (
@@ -69,7 +79,7 @@ export function HrApplicantSignupView({ onNavigate }: { onNavigate: (path: strin
             </button>
           </form>
         )}
-        {done && <button type="button" onClick={() => onNavigate('/head-login')} className="mt-5 h-10 w-full rounded-md bg-[color:var(--wm-emerald)] px-4 text-xs font-semibold text-white">Go to Head Login</button>}
+        {done && <button type="button" onClick={() => onNavigate('/portal')} className="mt-5 h-10 w-full rounded-md bg-[color:var(--wm-emerald)] px-4 text-xs font-semibold text-white">Go to Staff Portal Login</button>}
       </section>
     </div>
   );

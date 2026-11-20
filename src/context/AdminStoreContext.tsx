@@ -21,6 +21,7 @@ import { conferenceDataService } from '../services/mockDataService';
 import { supabase } from '../lib/supabase';
 import {
   DEPARTMENT_HEAD_DEFAULT_PERMISSIONS,
+  getActorDepartmentSlug,
   hasPermission,
   isSecurityAccount,
   ROLE_DEFAULT_PERMISSIONS,
@@ -431,11 +432,22 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const loadLiveDepartments = useCallback(async (): Promise<Department[]> => {
-    const { data: rows, error } = await supabase.from('wm_departments')
+    const { data: rows, error } = await supabase
+      .from('wm_departments')
       .select('id,slug,name,description,cluster,registration_open,capacity,positions,instructions,updated_at')
       .order('name');
-    if (error) throw error;
-    return (rows ?? []).map((row: any) => ({
+    let resolvedRows = rows ?? [];
+    if (error || resolvedRows.length === 0) {
+      const { data: ctxData, error: ctxError } = await supabase.functions.invoke('willow-qr', {
+        body: { action: 'my_context' },
+      });
+      if (!ctxError && Array.isArray(ctxData?.departments) && ctxData.departments.length > 0) {
+        resolvedRows = ctxData.departments;
+      } else if (error) {
+        throw error;
+      }
+    }
+    return resolvedRows.map((row: any) => ({
       id: row.id,
       slug: row.slug,
       name: row.name,
@@ -458,14 +470,18 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
       const matchedDept = departments.find(
         (d) => d.id === profile.department_id || d.slug === profile.department_id,
       );
-      const departmentSlug = matchedDept
-        ? normalizeDepartmentSlug(matchedDept.slug)
-        : profile.department_id &&
-            !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(profile.department_id))
-          ? normalizeDepartmentSlug(profile.department_id)
-          : null;
-
-      return {
+      const resolvedTitle =
+        profile.title ||
+        (role === 'super_admin'
+          ? 'Super Admin'
+          : role === 'admin'
+            ? 'Administrator'
+            : role === 'executive_board'
+              ? 'Executive Board'
+              : role === 'staff'
+                ? 'Department Staff'
+                : 'Department Head');
+      const partialUser = {
         ...template,
         id: authUser.id,
         fullName: profile.full_name || authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'Willow Staff',
@@ -473,17 +489,9 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
         password: undefined,
         role,
         roleDefinitionId: role,
-        title:
-          profile.title ||
-          (role === 'super_admin'
-            ? 'Super Admin'
-            : role === 'admin'
-              ? 'Administrator'
-              : role === 'executive_board'
-                ? 'Executive Board'
-                : 'Department Head'),
+        title: resolvedTitle,
         departmentId: profile.department_id ?? null,
-        departmentSlug,
+        departmentSlug: matchedDept ? normalizeDepartmentSlug(matchedDept.slug) : null,
         division: profile.division ?? null,
         avatarUrl: profile.avatar_url ?? null,
         isActive: profile.is_active === true,
@@ -502,6 +510,14 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
         ebRank: profile.eb_rank ?? 'member',
         createdAt: authUser.created_at ?? new Date().toISOString(),
         lastActiveAt: new Date().toISOString(),
+      } satisfies AdminUser;
+      const departmentSlug = matchedDept
+        ? normalizeDepartmentSlug(matchedDept.slug)
+        : getActorDepartmentSlug(partialUser, departments);
+
+      return {
+        ...partialUser,
+        departmentSlug,
       };
     },
     [],
@@ -576,17 +592,13 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
         await supabase.auth.signOut();
         return { ok: false, error: 'This account does not have access to the Admin portal.' };
       }
-      if (expectedPortal === 'department_head' && user.role !== 'department_head' && user.role !== 'executive_board') {
+      if (expectedPortal === 'department_head' && user.role !== 'department_head' && user.role !== 'executive_board' && user.role !== 'super_admin') {
         await supabase.auth.signOut();
         return { ok: false, error: 'This account does not have access to the Department Head portal.' };
       }
-      if (expectedPortal === 'executive_board' && user.role !== 'executive_board') {
+      if (expectedPortal === 'executive_board' && user.role !== 'executive_board' && user.role !== 'super_admin') {
         await supabase.auth.signOut();
         return { ok: false, error: 'This account does not have access to the Executive Board sign-in.' };
-      }
-      if (expectedPortal === 'staff' && (user.role !== 'staff' || isSecurityAccount(user, departments))) {
-        await supabase.auth.signOut();
-        return { ok: false, error: 'This account does not have access to the Department Staff portal.' };
       }
       if (expectedPortal === 'security' && !isSecurityAccount(user, departments)) {
         await supabase.auth.signOut();

@@ -43,7 +43,7 @@ export function EmailsDashboardView(){
    logs.forEach(l=>{const k=l.applicantId+'|'+l.emailType,old=latest.get(k);if(!old||l.lastAttemptAt>old.lastAttemptAt)latest.set(k,l)});
    setApplicants(apps.map(x=>{const accepted=latest.get(x.id+'|accepted'),rejected=latest.get(x.id+'|rejected'),record=x.applicationStatus==='accepted'?accepted:x.applicationStatus==='rejected'?rejected:accepted||rejected;return {...x,emailStatus:record?.status==='sent'?'sent':record?.status==='failed'?'failed':'not_sent'}}));
    setHistory(logs);
-   const t=(d.data?.templates||[]).map(templateMap);setTemplates(prev=>{const n={...prev};t.forEach(x=>{if(x.key==='accepted'||x.key==='rejected')n[x.key]=x});return n});
+   const t=(d.data?.templates||[]).map(templateMap) as EmailTemplateRecord[];setTemplates(prev=>{const n={...prev};t.forEach(x=>{if(x.key==='accepted'||x.key==='rejected')n[x.key]=x});return n});
   }catch(err){pushToast({tone:'error',title:'Email dashboard load failed',description:err instanceof Error?err.message:'Verify your HR/Admin login.'})}
   finally{setLoading(false)}
  },[pushToast]);

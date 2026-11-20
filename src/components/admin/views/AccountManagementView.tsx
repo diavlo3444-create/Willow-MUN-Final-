@@ -26,6 +26,7 @@ import {
   DEPARTMENT_HEAD_DEFAULT_PERMISSIONS,
   EXECUTIVE_BOARD_DEFAULT_PERMISSIONS,
   PERMISSION_DEFINITIONS,
+  STAFF_DEFAULT_PERMISSIONS,
   SUPER_ADMIN_ONLY_KEYS,
   canManageAccountsOrRoles,
   normalizeDepartmentSlug,
@@ -54,7 +55,7 @@ type ServerStaffAccount = {
   created_at?: string | null;
 };
 
-type AccountTab = 'admins' | 'heads';
+type AccountTab = 'admins' | 'heads' | 'staff';
 
 const ASSIGNABLE_PERMISSIONS = PERMISSION_DEFINITIONS.filter(
   (def) => !def.superAdminOnly && !SUPER_ADMIN_ONLY_KEYS.has(def.key),
@@ -66,6 +67,14 @@ const HEAD_RELEVANT_PERMISSION_KEYS = new Set<PermissionKey>([
   'applications.review',
   'committees.manage',
   'qr.view_pass',
+  'qr.scan',
+]);
+
+const STAFF_RELEVANT_PERMISSION_KEYS = new Set<PermissionKey>([
+  'qr.view_pass',
+  'departments.workspace',
+  'operations.teams',
+  'operations.shifts',
   'qr.scan',
 ]);
 
@@ -95,7 +104,7 @@ export function AccountManagementView({
   const [editingAccount, setEditingAccount] = useState<ServerStaffAccount | null>(null);
   const [formFullName, setFormFullName] = useState('');
   const [formEmail, setFormEmail] = useState('');
-  const [formRole, setFormRole] = useState<'admin' | 'department_head' | 'executive_board'>('admin');
+  const [formRole, setFormRole] = useState<'admin' | 'department_head' | 'executive_board' | 'staff'>('admin');
   const [formDepartmentId, setFormDepartmentId] = useState('');
   const [formDivision, setFormDivision] = useState<'female' | 'male' | ''>('');
   const [formTitle, setFormTitle] = useState('');
@@ -168,8 +177,18 @@ export function AccountManagementView({
     [accounts],
   );
 
+  const staffAccounts = useMemo(
+    () => accounts.filter((a) => a.role === 'staff'),
+    [accounts],
+  );
+
   const displayedAccounts = useMemo(() => {
-    const source = activeTab === 'admins' ? adminAccounts : headAndEbAccounts;
+    const source =
+      activeTab === 'admins'
+        ? adminAccounts
+        : activeTab === 'heads'
+          ? headAndEbAccounts
+          : staffAccounts;
     const q = search.trim().toLowerCase();
     return source
       .filter((acc) => {
@@ -189,17 +208,19 @@ export function AccountManagementView({
           .includes(q);
       })
       .sort((a, b) => a.full_name.localeCompare(b.full_name));
-  }, [activeTab, adminAccounts, headAndEbAccounts, search, statusFilter, deptByIdOrSlug]);
+  }, [activeTab, adminAccounts, headAndEbAccounts, staffAccounts, search, statusFilter, deptByIdOrSlug]);
 
-  const defaultPermissionsForRole = (role: 'admin' | 'department_head' | 'executive_board', rank = 'head') => {
+  const defaultPermissionsForRole = (role: 'admin' | 'department_head' | 'executive_board' | 'staff', rank = 'head') => {
     const template =
       role === 'admin'
         ? ADMIN_DEFAULT_PERMISSIONS
         : role === 'department_head'
           ? DEPARTMENT_HEAD_DEFAULT_PERMISSIONS
-          : rank === 'head' || rank === 'co_head'
-            ? DEPARTMENT_HEAD_DEFAULT_PERMISSIONS
-            : EXECUTIVE_BOARD_DEFAULT_PERMISSIONS;
+          : role === 'staff'
+            ? STAFF_DEFAULT_PERMISSIONS
+            : rank === 'head' || rank === 'co_head'
+              ? DEPARTMENT_HEAD_DEFAULT_PERMISSIONS
+              : EXECUTIVE_BOARD_DEFAULT_PERMISSIONS;
     const clean: Record<string, boolean> = {};
     for (const def of ASSIGNABLE_PERMISSIONS) {
       clean[def.key] = Boolean(template[def.key]);
@@ -208,14 +229,21 @@ export function AccountManagementView({
   };
 
   const openCreateModal = (tab: AccountTab) => {
-    const initialRole: 'admin' | 'department_head' = tab === 'admins' ? 'admin' : 'department_head';
+    const initialRole: 'admin' | 'department_head' | 'staff' =
+      tab === 'admins' ? 'admin' : tab === 'heads' ? 'department_head' : 'staff';
     setEditingAccount(null);
     setFormFullName('');
     setFormEmail('');
     setFormRole(initialRole);
     setFormDepartmentId('');
     setFormDivision('');
-    setFormTitle(initialRole === 'admin' ? 'Administrator' : 'Department Head');
+    setFormTitle(
+      initialRole === 'admin'
+        ? 'Administrator'
+        : initialRole === 'staff'
+          ? 'Department Staff'
+          : 'Department Head',
+    );
     setFormEbRank('head');
     setFormPassword('');
     setFormIsActive(true);
@@ -233,12 +261,14 @@ export function AccountManagementView({
       });
       return;
     }
-    const role: 'admin' | 'department_head' | 'executive_board' =
+    const role: 'admin' | 'department_head' | 'executive_board' | 'staff' =
       account.role === 'executive_board'
         ? 'executive_board'
         : account.role === 'department_head'
           ? 'department_head'
-          : 'admin';
+          : account.role === 'staff'
+            ? 'staff'
+            : 'admin';
 
     const resolved = resolveUserPermissions(
       role as RoleType,
@@ -269,7 +299,7 @@ export function AccountManagementView({
     setModalOpen(true);
   };
 
-  const handleRoleSwitchInForm = (nextRole: 'admin' | 'department_head' | 'executive_board') => {
+  const handleRoleSwitchInForm = (nextRole: 'admin' | 'department_head' | 'executive_board' | 'staff') => {
     setFormRole(nextRole);
     if (!editingAccount) {
       setFormTitle(
@@ -277,7 +307,9 @@ export function AccountManagementView({
           ? 'Administrator'
           : nextRole === 'executive_board'
             ? 'Executive Board Head'
-            : 'Department Head',
+            : nextRole === 'staff'
+              ? 'Department Staff'
+              : 'Department Head',
       );
       setFormPermissions(defaultPermissionsForRole(nextRole, formEbRank));
     }
@@ -293,8 +325,8 @@ export function AccountManagementView({
       setFormError('Enter a valid full name and email address.');
       return;
     }
-    if ((formRole === 'department_head' || formRole === 'executive_board') && !formDepartmentId) {
-      setFormError('Assign a department for Head and Executive Board accounts.');
+    if ((formRole === 'department_head' || formRole === 'executive_board' || formRole === 'staff') && !formDepartmentId) {
+      setFormError('Assign a department for Head, Executive Board, and Department Staff accounts.');
       return;
     }
     if (formPassword.trim() && formPassword.trim().length < 10) {
@@ -318,7 +350,8 @@ export function AccountManagementView({
 
     const sanitizedPerms: Record<string, boolean> = {};
     for (const def of ASSIGNABLE_PERMISSIONS) {
-      if (formRole !== 'admin' && !HEAD_RELEVANT_PERMISSION_KEYS.has(def.key)) continue;
+      if (formRole === 'staff' && !STAFF_RELEVANT_PERMISSION_KEYS.has(def.key)) continue;
+      if ((formRole === 'department_head' || formRole === 'executive_board') && !HEAD_RELEVANT_PERMISSION_KEYS.has(def.key)) continue;
       sanitizedPerms[def.key] = Boolean(formPermissions[def.key]);
     }
 
@@ -349,7 +382,13 @@ export function AccountManagementView({
       role: formRole,
       department_id: formRole === 'admin' ? formDepartmentId || null : formDepartmentId,
       division: formDivision || null,
-      title: formTitle.trim() || (formRole === 'admin' ? 'Administrator' : 'Department Head'),
+      title:
+        formTitle.trim() ||
+        (formRole === 'admin'
+          ? 'Administrator'
+          : formRole === 'staff'
+            ? 'Department Staff'
+            : 'Department Head'),
       is_active: formIsActive,
       permissions: sanitizedPerms,
       redirect_origin: window.location.origin,
@@ -594,7 +633,9 @@ export function AccountManagementView({
   const visiblePermissionDefs =
     formRole === 'admin'
       ? ASSIGNABLE_PERMISSIONS
-      : ASSIGNABLE_PERMISSIONS.filter((p) => HEAD_RELEVANT_PERMISSION_KEYS.has(p.key));
+      : formRole === 'staff'
+        ? ASSIGNABLE_PERMISSIONS.filter((p) => STAFF_RELEVANT_PERMISSION_KEYS.has(p.key))
+        : ASSIGNABLE_PERMISSIONS.filter((p) => HEAD_RELEVANT_PERMISSION_KEYS.has(p.key));
 
   return (
     <div className="space-y-5">
@@ -628,17 +669,21 @@ export function AccountManagementView({
               className="inline-flex h-9 items-center gap-1.5 rounded-md bg-[color:var(--wm-emerald)] px-4 text-xs font-semibold text-[#eef4ef] hover:bg-[#357a5b]"
             >
               <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-              {activeTab === 'admins' ? 'Create Admin Account' : 'Create Head / EB Account'}
+              {activeTab === 'admins'
+                ? 'Create Admin Account'
+                : activeTab === 'heads'
+                  ? 'Create Head / EB Account'
+                  : 'Create Staff Account'}
             </button>
           </div>
         </div>
 
-        <div className="mt-5 grid gap-3 sm:grid-cols-3">
+        <div className="mt-5 grid gap-3 sm:grid-cols-4">
           <div className="wm-surface-inset px-4 py-3">
             <p className="text-[10px] font-mono uppercase tracking-wider text-[color:var(--wm-ink-muted)]">
               Admin Accounts
             </p>
-            <p className="wm-serif mt-1 text-xl font-semibold text-[color:var(--wm-ink)]">
+            <p className="wm-serif mt-1 text-xl font-semibold tabular-nums text-[color:var(--wm-ink)]">
               {adminAccounts.filter((a) => a.role === 'admin').length} Admins
               <span className="ml-2 text-xs font-normal text-[color:var(--wm-ink-muted)]">
                 (+{adminAccounts.filter((a) => a.role === 'super_admin').length} Super IT)
@@ -649,15 +694,23 @@ export function AccountManagementView({
             <p className="text-[10px] font-mono uppercase tracking-wider text-[color:var(--wm-ink-muted)]">
               Head & EB Accounts
             </p>
-            <p className="wm-serif mt-1 text-xl font-semibold text-[color:var(--wm-ink)]">
+            <p className="wm-serif mt-1 text-xl font-semibold tabular-nums text-[color:var(--wm-ink)]">
               {headAndEbAccounts.length} Total
+            </p>
+          </div>
+          <div className="wm-surface-inset px-4 py-3">
+            <p className="text-[10px] font-mono uppercase tracking-wider text-[color:var(--wm-ink-muted)]">
+              Department Staff
+            </p>
+            <p className="wm-serif mt-1 text-xl font-semibold tabular-nums text-[color:var(--wm-ink)]">
+              {staffAccounts.length} Total
             </p>
           </div>
           <div className="wm-surface-inset px-4 py-3">
             <p className="text-[10px] font-mono uppercase tracking-wider text-[color:var(--wm-ink-muted)]">
               Active / Inactive
             </p>
-            <p className="wm-serif mt-1 text-xl font-semibold text-[color:var(--wm-ink)]">
+            <p className="wm-serif mt-1 text-xl font-semibold tabular-nums text-[color:var(--wm-ink)]">
               {accounts.filter((a) => a.is_active && a.signup_status !== 'awaiting_signup').length} Active ·{' '}
               {accounts.filter((a) => !a.is_active).length} Suspended
             </p>
@@ -694,6 +747,20 @@ export function AccountManagementView({
             >
               <UserCog className="h-3.5 w-3.5" aria-hidden="true" />
               Head & EB Accounts ({headAndEbAccounts.length})
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === 'staff'}
+              onClick={() => setActiveTab('staff')}
+              className={`inline-flex h-9 items-center gap-2 rounded-md border px-3.5 text-xs font-medium transition-colors ${
+                activeTab === 'staff'
+                  ? 'border-[color:var(--wm-accent)] bg-[#2d6a4f]/35 text-[color:var(--wm-ink)]'
+                  : 'border-[color:var(--wm-hairline)] bg-[color:var(--wm-inset)] text-[color:var(--wm-ink-secondary)] hover:text-[color:var(--wm-ink)]'
+              }`}
+            >
+              <UserPlus className="h-3.5 w-3.5" aria-hidden="true" />
+              Department Staff ({staffAccounts.length})
             </button>
           </div>
 
@@ -739,7 +806,7 @@ export function AccountManagementView({
           </div>
         ) : displayedAccounts.length === 0 ? (
           <div className="p-10 text-center text-xs text-[color:var(--wm-ink-muted)]">
-            No {activeTab === 'admins' ? 'administrator' : 'head or Executive Board'} accounts match the current filter.
+            No {activeTab === 'admins' ? 'administrator' : activeTab === 'heads' ? 'head or Executive Board' : 'department staff'} accounts match the current filter.
           </div>
         ) : (
           <div className="divide-y divide-[color:var(--wm-hairline)]">
@@ -979,13 +1046,14 @@ export function AccountManagementView({
                 <select
                   value={formRole}
                   onChange={(e) =>
-                    handleRoleSwitchInForm(e.target.value as 'admin' | 'department_head' | 'executive_board')
+                    handleRoleSwitchInForm(e.target.value as 'admin' | 'department_head' | 'executive_board' | 'staff')
                   }
                   className="mt-1.5 h-10 w-full rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-canvas)] px-3 text-sm text-[color:var(--wm-ink)]"
                 >
                   <option value="admin">Admin</option>
                   <option value="department_head">Department Head</option>
                   <option value="executive_board">Executive Board (Head Portal)</option>
+                  <option value="staff">Department Staff (Volunteers / Media / Press / Security)</option>
                 </select>
               </label>
 
@@ -994,12 +1062,12 @@ export function AccountManagementView({
                 <input
                   value={formTitle}
                   onChange={(e) => setFormTitle(e.target.value)}
-                  placeholder="e.g. Head of HR (Female)"
+                  placeholder="e.g. Security Guard or Head of HR (Female)"
                   className="mt-1.5 h-10 w-full rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-canvas)] px-3 text-sm text-[color:var(--wm-ink)]"
                 />
               </label>
 
-              {(formRole === 'department_head' || formRole === 'executive_board') && (
+              {(formRole === 'department_head' || formRole === 'executive_board' || formRole === 'staff') && (
                 <>
                   <label className="text-xs text-[color:var(--wm-ink-secondary)]">
                     Assigned Department

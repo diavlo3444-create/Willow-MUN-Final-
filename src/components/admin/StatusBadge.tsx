@@ -89,6 +89,7 @@ export function RoleBadge({ role }: { role: RoleType }) {
     admin: 'border-emerald-400/30 bg-emerald-500/[0.12] text-emerald-200',
     department_head: 'border-teal-400/30 bg-teal-500/[0.1] text-teal-200',
     executive_board: 'border-sky-400/30 bg-sky-500/[0.1] text-sky-200',
+    staff: 'border-emerald-300/25 bg-emerald-500/[0.08] text-emerald-100',
   };
   return (
     <span

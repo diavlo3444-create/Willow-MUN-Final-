@@ -169,7 +169,8 @@ test('Department Head is strictly isolated to department + gender and only has a
   assert.equal(canAccessDepartment(femaleMediaHead, 'security'), false);
 
   assert.equal(canAccessApplication(femaleMediaHead, mediaFemaleApp), true);
-  assert.equal(canReviewFinalDecision(femaleMediaHead, mediaFemaleApp), true);
+  assert.equal(canReviewFinalDecision(femaleMediaHead, mediaFemaleApp), false);
+  assert.equal(hasPermission(femaleMediaHead, 'applications.recommend'), true);
   assert.equal(canAccessApplication(femaleMediaHead, mediaMaleApp), false);
   assert.equal(canReviewFinalDecision(femaleMediaHead, mediaMaleApp), false);
   assert.equal(canAccessApplication(femaleMediaHead, mediaUnknownGenderApp), false);
@@ -215,7 +216,7 @@ test('HR actor gains cross-department & cross-gender Accepted Applicants access 
   const nav = getNavigationGroups(hrHead, 'department_head');
   assert.deepEqual(
     nav[0].items.map((i) => i.id),
-    ['applications', 'hr-accepted', 'qr'],
+    ['hr-accepted', 'emails', 'qr'],
   );
 });
 
@@ -243,7 +244,7 @@ test('DCC actor can manage committees without gaining Admin/Super Admin permissi
   const nav = getNavigationGroups(dccHead, 'department_head');
   assert.deepEqual(
     nav[0].items.map((i) => i.id),
-    ['applications', 'committees', 'qr'],
+    ['committees', 'qr'],
   );
 });
 
@@ -305,7 +306,7 @@ test('Executive Board Head uses the unified /head portal, Media/Press isolation,
   const nav = getNavigationGroups(ebHrHead, 'department_head', departments);
   assert.deepEqual(
     nav[0].items.map((i) => i.id),
-    ['applications', 'hr-accepted', 'qr'],
+    ['hr-accepted', 'emails', 'qr'],
   );
 
   // Non-head EB member lacking applications.view cannot view/review apps
@@ -416,4 +417,132 @@ test('Security accounts get dedicated /security scanner portal without admin pri
   assert.ok(saOps);
   assert.equal(saOps.items.some((i) => i.id === 'application-management'), true);
 });
+
+test('Security, Volunteer, Media, and Press staff accounts route to exact portals without EB or Admin privilege escalation', () => {
+  const departments: Department[] = [
+    {
+      id: '33333333-3333-3333-3333-333333333333',
+      slug: 'security',
+      name: 'Security',
+      cluster: 'Logistics & Administration',
+      description: '',
+      headUserIds: [],
+      registrationOpen: true,
+      capacity: 15,
+      positions: [],
+      instructions: '',
+      updatedAt: '',
+    },
+    {
+      id: '44444444-4444-4444-4444-444444444444',
+      slug: 'volunteers',
+      name: 'Volunteers',
+      cluster: 'Logistics & Administration',
+      description: '',
+      headUserIds: [],
+      registrationOpen: true,
+      capacity: 30,
+      positions: [],
+      instructions: '',
+      updatedAt: '',
+    },
+    {
+      id: '55555555-5555-5555-5555-555555555555',
+      slug: 'media',
+      name: 'Media',
+      cluster: 'Communications & Creative',
+      description: '',
+      headUserIds: [],
+      registrationOpen: true,
+      capacity: 15,
+      positions: [],
+      instructions: '',
+      updatedAt: '',
+    },
+    {
+      id: '66666666-6666-6666-6666-666666666666',
+      slug: 'press',
+      name: 'Press',
+      cluster: 'Communications & Creative',
+      description: '',
+      headUserIds: [],
+      registrationOpen: true,
+      capacity: 15,
+      positions: [],
+      instructions: '',
+      updatedAt: '',
+    },
+  ];
+
+  const securityStaff = makeUser({
+    role: 'staff',
+    departmentId: '33333333-3333-3333-3333-333333333333',
+    departmentSlug: null,
+    title: 'Security Gate Officer',
+    permissions: resolveUserPermissions('staff', null, null, null, 'Security Gate Officer'),
+  });
+  assert.equal(isSecurityAccount(securityStaff, departments), true);
+  assert.equal(canAccessPortal(securityStaff, 'security', departments), true);
+  assert.equal(canAccessPortal(securityStaff, 'staff', departments), false);
+  assert.equal(canAccessPortal(securityStaff, 'department_head', departments), false);
+  assert.equal(canAccessPortal(securityStaff, 'admin', departments), false);
+  assert.equal(hasPermission(securityStaff, 'qr.scan', departments), true);
+  assert.equal(hasPermission(securityStaff, 'qr.view_pass', departments), true);
+  assert.equal(hasPermission(securityStaff, 'applications.view', departments), false);
+  assert.equal(getPortalHomeRouteForUser(securityStaff, departments), '/security');
+
+  const volunteerStaff = makeUser({
+    role: 'staff',
+    departmentId: '44444444-4444-4444-4444-444444444444',
+    departmentSlug: null,
+    title: 'Floor Volunteer',
+    permissions: resolveUserPermissions('staff', null, null, null, 'Floor Volunteer'),
+  });
+  assert.equal(isSecurityAccount(volunteerStaff, departments), false);
+  assert.equal(canAccessPortal(volunteerStaff, 'staff', departments), true);
+  assert.equal(canAccessPortal(volunteerStaff, 'security', departments), false);
+  assert.equal(canAccessPortal(volunteerStaff, 'department_head', departments), false);
+  assert.equal(hasPermission(volunteerStaff, 'qr.scan', departments), false);
+  assert.equal(hasPermission(volunteerStaff, 'departments.workspace', departments), true);
+  assert.equal(hasPermission(volunteerStaff, 'operations.teams', departments), true);
+  assert.equal(hasPermission(volunteerStaff, 'operations.shifts', departments), true);
+  assert.equal(hasPermission(volunteerStaff, 'applications.view', departments), false);
+  assert.equal(getPortalHomeRouteForUser(volunteerStaff, departments), '/staff/volunteers');
+  assert.equal(canAccessDepartment(volunteerStaff, 'volunteers', departments), true);
+  assert.equal(canAccessDepartment(volunteerStaff, 'media', departments), false);
+
+  const volNav = getNavigationGroups(volunteerStaff, 'staff', departments);
+  assert.equal(volNav[0].items[0].path, '/staff/volunteers');
+  assert.equal(volNav[0].items[1].path, '/staff/volunteers/workspace');
+
+  const mediaStaff = makeUser({
+    role: 'staff',
+    departmentId: '55555555-5555-5555-5555-555555555555',
+    departmentSlug: null,
+    title: 'Event Photographer',
+    permissions: resolveUserPermissions('staff', null, null, null, 'Event Photographer'),
+  });
+  assert.equal(getPortalHomeRouteForUser(mediaStaff, departments), '/staff/media');
+
+  const pressStaff = makeUser({
+    role: 'staff',
+    departmentId: '66666666-6666-6666-6666-666666666666',
+    departmentSlug: null,
+    title: 'Committee Press Reporter',
+    permissions: resolveUserPermissions('staff', null, null, null, 'Committee Press Reporter'),
+  });
+  assert.equal(getPortalHomeRouteForUser(pressStaff, departments), '/staff/press');
+
+  // Even if departments failed to load and departmentId is UUID, title inference rescues routing
+  const securityStaffNoDepts = makeUser({
+    role: 'staff',
+    departmentId: '33333333-3333-3333-3333-333333333333',
+    departmentSlug: null,
+    title: 'Entrance Security Guard',
+    permissions: resolveUserPermissions('staff'),
+  });
+  assert.equal(getPortalHomeRouteForUser(securityStaffNoDepts, []), '/security');
+  assert.equal(canAccessPortal(securityStaffNoDepts, 'security', []), true);
+});
+
 

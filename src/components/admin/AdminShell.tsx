@@ -84,7 +84,9 @@ export function AdminShell({
   const displayName = actingUser?.fullName || actingUser?.email?.split('@')[0] || 'Organiser';
   const roleName = actingUser?.role === 'super_admin' ? 'Super Admin'
     : actingUser?.role === 'department_head' ? 'Department Head'
-    : actingUser?.role === 'executive_board' ? 'Executive Board' : 'Admin';
+    : actingUser?.role === 'executive_board' ? 'Executive Board'
+    : actingUser?.role === 'staff' ? 'Department Staff'
+    : 'Admin';
 
   const brand = (
     <div className="flex items-center gap-2.5">

@@ -125,7 +125,8 @@ Deno.serve(async (req: Request) => {
   // Load departments so UUID department_id values resolve to canonical slugs reliably
   const { data: deptRows } = await admin
     .from("wm_departments")
-    .select("id,slug,name");
+    .select("id,slug,name,description,cluster,registration_open,capacity,positions,instructions,updated_at")
+    .order("name");
 
   const deptByKey = new Map<string, { id: string; slug: string; name: string }>();
   for (const d of deptRows || []) {
@@ -155,9 +156,13 @@ Deno.serve(async (req: Request) => {
     actor.role === "executive_board" &&
     actorDeptSlug === "security";
 
+  const isSecurityStaff =
+    actor.role === "staff" &&
+    actorDeptSlug === "security";
+
   const canAdminScan = isAdmin;
   const canAdminManage = isSuperAdmin || (actor.role === "admin" && actorPermissions["qr.manage"] !== false);
-  const canScan = canAdminScan || isSecurityHead || isSecurityEb;
+  const canScan = canAdminScan || isSecurityHead || isSecurityEb || isSecurityStaff;
 
   let body: any;
   try {
@@ -168,6 +173,14 @@ Deno.serve(async (req: Request) => {
 
   const action = String(body?.action || "");
   const attendanceAction = String(body?.attendance_action || "checkin") === "checkout" ? "checkout" : "checkin";
+
+  if (action === "my_context") {
+    return json({
+      department: actorDeptRecord ?? null,
+      department_slug: actorDeptSlug || null,
+      departments: deptRows || [],
+    });
+  }
 
   // --------------------------------------------------------------------------
   // 1. Personal QR Credential (any active staff user; ignores client user_id)

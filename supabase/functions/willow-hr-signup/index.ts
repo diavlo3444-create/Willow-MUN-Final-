@@ -153,7 +153,7 @@ Deno.serve(async (req: Request) => {
         claimed_at: new Date().toISOString(), claimed_user_id: createdId, claim_started_at: null,
       }).eq("id", invite.id).is("claimed_at", null);
       if (claimErr) throw new Error("Invite claim update failed: " + claimErr.message);
-      return json({ success: true, email, role, message: "Account created. Sign in to your assigned portal." });
+      return json({ success: true, email, role, department_slug: dept?.slug || deptSlug, message: "Account created. Sign in to your assigned portal." });
     } catch (err) {
       if (createdId) await admin.auth.admin.deleteUser(createdId);
       await admin.from("wm_hr_signup_invites").update({ claim_started_at: null })

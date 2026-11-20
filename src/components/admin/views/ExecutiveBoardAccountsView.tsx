@@ -214,7 +214,7 @@ export function ExecutiveBoardAccountsView() {
     const dept = departments.find((d) => d.id === account.department_id || d.slug === account.department_id);
     const ok = enterDepartmentTestMode({
       id: account.user_id,
-      role: account.role,
+      role: account.role === 'department_head' ? 'department_head' : 'executive_board',
       fullName: account.full_name,
       email: account.email,
       title: account.title,

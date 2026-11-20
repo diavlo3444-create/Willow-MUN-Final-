@@ -1068,7 +1068,10 @@ export async function createHrApplicantSignupInvite(applicationId: string): Prom
   return { url: data.signup_url, email: data.email, fullName: data.full_name };
 }
 
-export async function claimHrApplicantSignup(token: string, password: string): Promise<{ success?: boolean; email?: string; error?: string }> {
+export async function claimHrApplicantSignup(
+  token: string,
+  password: string,
+): Promise<{ success?: boolean; email?: string; role?: string; departmentSlug?: string; error?: string }> {
   const { data, error } = await supabase.functions.invoke('willow-hr-signup', {
     body: { action: 'signup', token, password },
   });
@@ -1083,5 +1086,10 @@ export async function claimHrApplicantSignup(token: string, password: string): P
     }
     return { error: detail };
   }
-  return { success: true, email: data.email };
+  return {
+    success: true,
+    email: data.email,
+    role: data.role,
+    departmentSlug: data.department_slug,
+  };
 }

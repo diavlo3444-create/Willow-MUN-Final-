@@ -21,6 +21,7 @@ import { PortalAuthView } from './components/admin/PortalAuthView';
 import { ExecutiveBoardSignupView } from './components/admin/ExecutiveBoardSignupView';
 import { HrApplicantSignupView } from './components/admin/HrApplicantSignupView';
 import { HeadPasswordSetupView } from './components/admin/HeadPasswordSetupView';
+import { PortalErrorBoundary } from './components/admin/PortalErrorBoundary';
 import { ToastViewport } from './components/admin/ToastViewport';
 import { AdminPortal } from './components/admin/portals/AdminPortal';
 import { DepartmentHeadPortal } from './components/admin/portals/DepartmentHeadPortal';
@@ -87,7 +88,7 @@ function PublicWebsite() {
 }
 
 function AdminRouter({ pathname, navigate }: { pathname: string; navigate: (path: string) => void }) {
-  const { currentUser, authReady, data } = useAdminStore();
+  const { currentUser, authReady, data, signOut } = useAdminStore();
   const isLegacyEbRoute = pathname === '/eb' || pathname.startsWith('/eb/');
   const requestedPortal: PortalKey | null =
     pathname === '/super-admin' || pathname.startsWith('/super-admin/') ? 'super_admin' :
@@ -166,10 +167,30 @@ function AdminRouter({ pathname, navigate }: { pathname: string; navigate: (path
       </div>
     );
   }
-  if (!requestedPortal && currentUser && !isHeadSetup && !isHrSignup && !isEbSignup) return null;
+  if (!requestedPortal && currentUser && !isHeadSetup && !isHrSignup && !isEbSignup) {
+    const targetHome = getPortalHomeRouteForUser(currentUser, data.departments);
+    return (
+      <div className="wm-admin min-h-[100dvh] grid place-items-center bg-[color:var(--wm-canvas)] p-6 text-[color:var(--wm-ink)]">
+        <div className="wm-surface-panel max-w-md p-6 text-center">
+          <div className="mx-auto h-6 w-6 animate-spin rounded-full border-2 border-[color:var(--wm-hairline-strong)] border-t-[color:var(--wm-focal)]" />
+          <h1 className="wm-serif mt-4 text-xl font-semibold">Opening your Willow MUN portal</h1>
+          <p className="mt-2 text-xs text-[color:var(--wm-ink-secondary)]">
+            Signed in as {currentUser.fullName}. Redirecting to your assigned workspace.
+          </p>
+          <button
+            type="button"
+            onClick={() => navigate(targetHome)}
+            className="mt-5 rounded-md bg-[color:var(--wm-emerald)] px-4 py-2 text-xs font-semibold text-white hover:bg-[#357a5b]"
+          >
+            Open my portal
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <>
+    <PortalErrorBoundary onNavigate={navigate} onSignOut={signOut} resetKey={pathname}>
       {requestedPortal === 'super_admin' ? (
         <SuperAdminPortal pathname={pathname} onNavigate={navigate} />
       ) : requestedPortal === 'admin' ? (
@@ -193,7 +214,7 @@ function AdminRouter({ pathname, navigate }: { pathname: string; navigate: (path
         <PortalAuthView portal={loginPortal} onNavigate={navigate} />
       )}
       <ToastViewport />
-    </>
+    </PortalErrorBoundary>
   );
 }
 

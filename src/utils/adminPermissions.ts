@@ -474,10 +474,13 @@ export function getActorDepartmentSlug(
   const label = `${user.title || ''} ${user.division || ''}`.toLowerCase();
   if (/\b(hr|human\s+resources)\b/.test(label)) return 'hr';
   if (/\b(dcc|delegate\s+affairs|delegate\s+care)\b/.test(label)) return 'dcc';
-  if (/\bpress\b/.test(label)) return 'press';
-  if (/\bmedia\b/.test(label)) return 'media';
-  if (/\bsecurity\b/.test(label)) return 'security';
-  if (/\bvolunteers?\b/.test(label)) return 'volunteers';
+  if (/\b(press|journalis[tm]|reporter|correspondent|editorial)\b/.test(label)) return 'press';
+  if (/\b(media|photograph(y|er)|videograph(y|er)|broadcast|reel)\b/.test(label)) return 'media';
+  if (/\b(security|guard|checkpoint|entrance\s+control)\b/.test(label)) return 'security';
+  if (/\b(volunteers?|usher|floor\s+team)\b/.test(label)) return 'volunteers';
+  if (/\b(it|technical|systems)\b/.test(label)) return 'it';
+  if (/\b(design|creative|visual)\b/.test(label)) return 'design';
+  if (/\b(marketing|outreach|pr)\b/.test(label)) return 'marketing';
   return null;
 }
 
@@ -648,9 +651,9 @@ export function hasPermission(
   }
 
   if (user.role === 'staff') {
-    if (permission === 'qr.view_pass') return true;
+    if (permission === 'qr.view_pass') return user.permissions?.['qr.view_pass'] !== false;
     if (permission === 'departments.workspace' || permission === 'operations.teams' || permission === 'operations.shifts') {
-      return user.permissions?.[permission] === true;
+      return user.permissions?.[permission] !== false;
     }
     if (permission === 'qr.scan') return getActorDepartmentSlug(user, departments) === 'security';
     return false;
@@ -863,7 +866,11 @@ export function getPortalHomeRouteForUser(
   if (!user) return '/portal';
   if (user.role === 'super_admin') return '/super-admin';
   if (user.role === 'admin') return '/admin';
-  if (user.role === 'staff') return isSecurityAccount(user, departments) ? '/security' : '/staff';
+  if (user.role === 'staff') {
+    if (isSecurityAccount(user, departments)) return '/security';
+    const slug = getActorDepartmentSlug(user, departments);
+    return slug ? `/staff/${slug}` : '/staff';
+  }
   if (isSecurityAccount(user, departments) && !hasPermission(user, 'applications.view', departments)) {
     return '/security';
   }
@@ -922,12 +929,14 @@ export function getNavigationGroups(
   }
 
   if (portal === 'staff') {
+    const deptSlug = getActorDepartmentSlug(user, departments);
+    const staffBase = deptSlug ? `/staff/${deptSlug}` : base;
     const items: NavItemConfig[] = [
-      { id: 'overview', label: 'Department Overview', path: base },
-      { id: 'workspace', label: 'My Department', path: base + '/workspace', requiredPermission: 'departments.workspace' },
-      { id: 'teams', label: 'Team Roster', path: base + '/teams', requiredPermission: 'operations.teams' },
-      { id: 'shifts', label: 'My Shifts', path: base + '/shifts', requiredPermission: 'operations.shifts' },
-      { id: 'qr', label: 'My QR', path: base + '/qr', requiredPermission: 'qr.view_pass' },
+      { id: 'overview', label: 'Department Overview', path: staffBase },
+      { id: 'workspace', label: 'Assignments & Tasks', path: staffBase + '/workspace', requiredPermission: 'departments.workspace' },
+      { id: 'teams', label: 'Team Roster', path: staffBase + '/teams', requiredPermission: 'operations.teams' },
+      { id: 'shifts', label: 'My Shifts', path: staffBase + '/shifts', requiredPermission: 'operations.shifts' },
+      { id: 'qr', label: 'My QR', path: staffBase + '/qr', requiredPermission: 'qr.view_pass' },
     ];
     const visible = items.filter((item) => !item.requiredPermission || hasPermission(user, item.requiredPermission, departments));
     return visible.length ? [{ id: 'staff-workspace', label: 'My Department', items: visible }] : [];

@@ -74,6 +74,7 @@ export function SecurityScannerPortal({
   const [scanError, setScanError] = useState<string>('');
   const [recentScans, setRecentScans] = useState<LiveQrScanEvent[]>([]);
   const [loadingHistory, setLoadingHistory] = useState<boolean>(true);
+  const [confirmBeforeCheckin, setConfirmBeforeCheckin] = useState<boolean>(true);
 
   const loadRecentScans = useCallback(async () => {
     if (!authorized) {
@@ -98,7 +99,9 @@ export function SecurityScannerPortal({
       setBusy(true);
       setPendingToken(cleanToken);
 
-      const response = await verifyQrPassAttendance(cleanToken, gateLocation, attendanceAction);
+      const response = confirmBeforeCheckin
+        ? await verifyQrPassAttendance(cleanToken, gateLocation, attendanceAction)
+        : await commitQrPassAttendance(cleanToken, gateLocation, attendanceAction, false);
 
       setBusy(false);
 
@@ -125,7 +128,13 @@ export function SecurityScannerPortal({
           title: 'Already Checked In',
           description: v.holder_name || 'Pass has already been used.',
         });
-      } else if (v.status !== 'valid' && v.status !== 'checkout_warning') {
+      } else if (v.status === 'checked_out') {
+        pushToast({
+          tone: 'success',
+          title: 'Check-Out Recorded',
+          description: `${v.holder_name || 'Attendee'} checked out at ${gateLocation}.`,
+        });
+      } else if (v.status !== 'valid') {
         pushToast({
           tone: 'error',
           title:
@@ -140,7 +149,7 @@ export function SecurityScannerPortal({
 
       await loadRecentScans();
     },
-    [attendanceAction, gateLocation, loadRecentScans, pushToast],
+    [attendanceAction, confirmBeforeCheckin, gateLocation, loadRecentScans, pushToast],
   );
 
   const handleConfirmPendingCheckin = useCallback(async () => {

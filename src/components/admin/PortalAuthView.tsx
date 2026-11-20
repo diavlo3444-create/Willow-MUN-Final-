@@ -115,12 +115,12 @@ export function PortalAuthView({ portal, onNavigate }: PortalAuthViewProps) {
         setErrorMsg(result.error ?? 'Authentication failed. Check your details and try again.');
         return;
       }
-      if (!portal) {
+      if (!portal || portal === 'staff') {
         onNavigate(getPortalHomeRouteForUser(result.data, data.departments));
       } else if (portal === 'security') {
         onNavigate('/security');
-      } else if (portal === 'staff') {
-        onNavigate('/staff');
+      } else {
+        onNavigate(getPortalHomeRouteForUser(result.data, data.departments));
       }
     } catch {
       setErrorMsg('Sign-in failed. Check your connection and try again.');
@@ -130,10 +130,10 @@ export function PortalAuthView({ portal, onNavigate }: PortalAuthViewProps) {
   };
 
   const hasAccess = (role: string) => {
-    if (!portal) return true;
-    if (portal === 'admin') return role === 'admin' || role === 'super_admin';
+    if (!portal || portal === 'staff') return true;
+    if (role === 'super_admin') return true;
+    if (portal === 'admin') return role === 'admin';
     if (portal === 'department_head') return role === 'department_head' || role === 'executive_board';
-    if (portal === 'staff') return role === 'staff';
     if (portal === 'security') return isSecurityAccount(currentUser, data.departments);
     return role === portal;
   };

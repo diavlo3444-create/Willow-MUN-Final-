@@ -179,7 +179,7 @@ export function QrAttendanceView({
           title: 'Already checked in',
           description: v.holder_name || 'Pass has already been used.',
         });
-      } else if (v.status !== 'valid' && v.status !== 'checkout_warning') {
+      } else if (v.status !== 'valid' && v.status !== 'checked_out') {
         pushToast({
           tone: 'error',
           title:

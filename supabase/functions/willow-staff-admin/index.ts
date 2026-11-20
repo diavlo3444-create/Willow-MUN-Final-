@@ -201,10 +201,10 @@ Deno.serve(async (req: Request) => {
       }
       const fields = profileFields(body);
       if (!email || !fields.full_name || !allowedRoles.has(fields.role)) {
-        return json({ error: "Name, email, and a valid staff role (admin, department_head, or executive_board) are required." }, 400);
+        return json({ error: "Name, email, and a valid role (admin, department_head, executive_board, or staff) are required." }, 400);
       }
-      if ((fields.role === "department_head" || fields.role === "executive_board") && !fields.department_id) {
-        return json({ error: "Department assignment is required for Department Head and Executive Board accounts." }, 400);
+      if ((fields.role === "department_head" || fields.role === "executive_board" || fields.role === "staff") && !fields.department_id) {
+        return json({ error: "Department assignment is required for Department Head, Executive Board, and Department Staff accounts." }, 400);
       }
 
       // Executive Board entries must be added to the database-backed signup roster.
@@ -361,8 +361,8 @@ Deno.serve(async (req: Request) => {
       }
 
       const effectiveRole = patch.role ?? targetProfile?.role;
-      if ((effectiveRole === "department_head" || effectiveRole === "executive_board") && patch.department_id === null) {
-        return json({ error: "Department assignment is required for Head and Executive Board accounts." }, 400);
+      if ((effectiveRole === "department_head" || effectiveRole === "executive_board" || effectiveRole === "staff") && patch.department_id === null) {
+        return json({ error: "Department assignment is required for Head, Executive Board, and Department Staff accounts." }, 400);
       }
 
       const authPatch: any = {};
