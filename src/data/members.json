@@ -70,6 +70,12 @@
       "label": "Logistics",
       "side": "right",
       "cluster": "Operations"
+    },
+    {
+      "id": "ceremonies",
+      "label": "Ceremonies",
+      "side": "right",
+      "cluster": "Operations"
     }
   ],
   "members": [
@@ -97,6 +103,19 @@
       "focus": [
         48,
         42
+      ]
+    },
+    {
+      "id": "loor-almasri",
+      "name": "Loor Almasri",
+      "role": "Secretary-General",
+      "group": "secretariat",
+      "quote": "",
+      "quoteBy": null,
+      "photo": "photos/loor-almasri.jpg",
+      "focus": [
+        52,
+        44
       ]
     },
     {
@@ -295,16 +314,6 @@
       ]
     },
     {
-      "id": "abdalrahman-abdallah",
-      "name": "AbdalRahman AbdAllah",
-      "role": "Head of Security",
-      "group": "security",
-      "quote": "AlhamduAllah",
-      "quoteBy": null,
-      "photo": null,
-      "focus": null
-    },
-    {
       "id": "wed-abdulrhman-sidahmed",
       "name": "Wed Abdulrhman Sidahmed",
       "role": "Head of Security",
@@ -315,6 +324,32 @@
       "focus": [
         30,
         50
+      ]
+    },
+    {
+      "id": "ward-ajaj",
+      "name": "Ward Ajaj",
+      "role": "Head of Security",
+      "group": "security",
+      "quote": "",
+      "quoteBy": null,
+      "photo": "photos/ward-ajaj.jpg",
+      "focus": [
+        40,
+        26
+      ]
+    },
+    {
+      "id": "leila-krayani",
+      "name": "Leila Krayani",
+      "role": "Head of Security",
+      "group": "security",
+      "quote": "",
+      "quoteBy": null,
+      "photo": "photos/leila-krayani.jpg",
+      "focus": [
+        58,
+        36
       ]
     },
     {
@@ -429,6 +464,19 @@
       "focus": [
         44,
         18
+      ]
+    },
+    {
+      "id": "rayyan-sharshoh",
+      "name": "Rayyan Sharshoh",
+      "role": "Head of Ceremonies",
+      "group": "ceremonies",
+      "quote": "",
+      "quoteBy": null,
+      "photo": "photos/rayyan-sharshoh.jpg",
+      "focus": [
+        35,
+        29
       ]
     }
   ]

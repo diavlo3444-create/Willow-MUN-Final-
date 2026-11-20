@@ -13,7 +13,7 @@
   --color-cream: #ede6ca;
   --color-cream-muted: #cfc8aa;
 
-  --font-serif: "Cormorant Garamond", Georgia, "Times New Roman", serif;
+  --font-serif: "Cormorant Garamond", "Amiri", "Noto Naskh Arabic", "Geeza Pro", Georgia, "Times New Roman", serif;
   --font-sans: "Public Sans", "Instrument Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
@@ -21,6 +21,7 @@
 @layer base {
   html {
     scroll-behavior: smooth;
+    scrollbar-gutter: stable;
     background-color: #393f24;
     color: #ede6ca;
     font-family: var(--font-sans);
@@ -400,20 +401,13 @@
   }
 }
 
-.ft-stage-zoomable {
-  transition: transform 600ms cubic-bezier(0.2, 0.8, 0.2, 1);
-  will-change: transform;
-}
-
 .ft-member-box {
   position: relative;
   background-color: rgba(18, 22, 10, 0.94);
   border: 1px solid rgba(237, 230, 202, 0.24);
   transition:
-    transform 240ms cubic-bezier(0.16, 1, 0.3, 1),
     border-color 200ms ease,
-    background-color 200ms ease,
-    opacity 360ms ease;
+    background-color 200ms ease;
   will-change: transform, opacity;
 }
 
@@ -423,14 +417,14 @@
   position: absolute;
   inset: -1px;
   border-radius: inherit;
-  border: 1px solid rgba(237, 230, 202, 0.65);
+  border: 1px solid rgba(212, 188, 116, 0.62);
+  box-shadow: 0 0 18px rgba(212, 188, 116, 0.16);
   opacity: 0;
   transition: opacity 200ms ease;
 }
 
 @media (hover: hover) and (pointer: fine) {
   .ft-member-box:hover {
-    transform: translate3d(0, -2px, 0);
     background-color: rgba(25, 31, 14, 0.98);
   }
 
@@ -440,26 +434,6 @@
 }
 
 .ft-member-box:focus-visible::after {
-  opacity: 1;
-}
-
-@keyframes ft-box-pulse {
-  0% {
-    transform: scale(1);
-  }
-  45% {
-    transform: scale(1.08);
-  }
-  100% {
-    transform: scale(1.03);
-  }
-}
-
-.ft-member-box[data-pulsing="true"] {
-  animation: ft-box-pulse 460ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
-}
-
-.ft-member-box[data-pulsing="true"]::after {
   opacity: 1;
 }
 
@@ -710,7 +684,6 @@ body.intro-on * {
   .mun-eb-card::after,
   .mun-btn-interactive,
   .mun-link-underline::after,
-  .ft-stage-zoomable,
   .ft-member-box,
   .ft-member-box::after,
   .ft-connector-path,
@@ -733,7 +706,6 @@ body.intro-on * {
     stroke-dashoffset: 0 !important;
   }
 
-  .ft-member-box[data-pulsing="true"],
   .ft-leaf-drift,
   .ft-word-revealed {
     animation: none !important;

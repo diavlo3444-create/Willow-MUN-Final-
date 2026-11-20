@@ -5,15 +5,23 @@ import {
   useMemo,
   useRef,
   useState,
+  type MouseEvent as ReactMouseEvent,
 } from 'react';
+import { createPortal } from 'react-dom';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import membersJson from '../data/members.json';
 import { CONFERENCE_DATA } from '../data/conference';
 import {
+  computeDesktopGoldTravelPath,
   computeDesktopPedigreePaths,
+  computeMobileGoldTravelPath,
   computeMobileTreePaths,
-  computeZoomTransform,
+  generateLeafParticles,
   organizeFamilyTree,
+  type DesktopGroupMeasurement,
   type FamilyTreeData,
+  type LeafParticleSpec,
+  type MobileGroupMeasurement,
   type OrderedMember,
   type RectBox,
   type SvgConnectorPath,
@@ -26,7 +34,16 @@ interface StageGeometry {
   width: number;
   height: number;
   paths: SvgConnectorPath[];
-  boxLocalRects: Record<string, RectBox>;
+}
+
+interface GoldTravelSignal {
+  id: string;
+  d: string;
+}
+
+export interface ModalOriginCoords {
+  clickPoint: { x: number; y: number };
+  cardCenter: { x: number; y: number };
 }
 
 function toLocalRect(el: HTMLElement, stageRect: DOMRect, scaleFactor: number): RectBox {
@@ -61,22 +78,71 @@ function LeafGlyph() {
   );
 }
 
+function LeafParticleOverlay({ particles }: { particles: LeafParticleSpec[] }) {
+  if (particles.length === 0 || typeof document === 'undefined') return null;
+
+  return createPortal(
+    <div
+      aria-hidden="true"
+      className="pointer-events-none fixed inset-0 z-[95] overflow-hidden"
+    >
+      {particles.map((p, idx) => (
+        <motion.div
+          key={p.id}
+          initial={{
+            x: p.x - 6,
+            y: p.y - 8,
+            opacity: 0.95,
+            scale: 0.4,
+            rotate: p.rotateStart,
+          }}
+          animate={{
+            x: [p.x - 6, p.x - 6 + p.dx * 0.65, p.x - 6 + p.dx],
+            y: [p.y - 8, p.y - 8 + p.dy, p.y - 8 + p.gravityDy],
+            opacity: [0.95, 0.88, 0],
+            scale: [0.4, p.scale, p.scale * 0.45],
+            rotate: p.rotateEnd,
+          }}
+          transition={{
+            duration: p.duration,
+            delay: p.delay,
+            ease: [0.22, 1, 0.36, 1],
+          }}
+          style={{ willChange: 'transform, opacity' }}
+          className="absolute top-0 left-0 h-4 w-3"
+        >
+          <svg viewBox="0 0 16 20" className="h-full w-full drop-shadow-[0_1px_4px_rgba(0,0,0,0.4)]">
+            <path
+              d="M8 1C4.4 4.8 3 9.4 3.9 14.1C4.5 16.7 6.3 18.4 8 19C9.7 18.4 11.5 16.7 12.1 14.1C13 9.4 11.6 4.8 8 1Z"
+              fill={idx % 3 === 0 ? '#d4bc74' : idx % 2 === 0 ? '#c9d98a' : '#8fa058'}
+            />
+            <path
+              d="M8 3.2V17.4"
+              stroke="rgba(18, 22, 10, 0.45)"
+              strokeWidth="0.9"
+              strokeLinecap="round"
+            />
+          </svg>
+        </motion.div>
+      ))}
+    </div>,
+    document.body,
+  );
+}
+
 interface MemberButtonProps {
   member: OrderedMember;
-  layoutKey: 'desktop' | 'mobile';
+  prefersReduced: boolean;
   isActive: boolean;
-  isPulsing: boolean;
-  isDimmed: boolean;
   fadeDelayMs: number;
   buttonRef: (el: HTMLButtonElement | null) => void;
-  onSelect: (member: OrderedMember, buttonEl: HTMLButtonElement) => void;
+  onSelect: (member: OrderedMember, event: ReactMouseEvent<HTMLButtonElement>) => void;
 }
 
 function MemberNodeButton({
   member,
+  prefersReduced,
   isActive,
-  isPulsing,
-  isDimmed,
   fadeDelayMs,
   buttonRef,
   onSelect,
@@ -86,47 +152,50 @@ function MemberNodeButton({
       style={{ transitionDelay: `${fadeDelayMs}ms` }}
       className="ft-node-fade w-full"
     >
-      <button
+      <motion.button
         ref={buttonRef}
         type="button"
         data-member-id={member.id}
-        data-pulsing={isPulsing ? 'true' : undefined}
         aria-label={`${member.name}, ${member.displayRole}`}
-        style={{
-          opacity: isDimmed ? 0.15 : 1,
-        }}
-        onClick={(e) => onSelect(member, e.currentTarget)}
+        whileHover={prefersReduced ? undefined : { y: -2 }}
+        whileTap={prefersReduced ? undefined : { scale: 0.97 }}
+        transition={{ type: 'spring', stiffness: 360, damping: 28 }}
+        style={{ willChange: 'transform' }}
+        onClick={(e) => onSelect(member, e)}
         className={`ft-member-box group flex w-full items-center gap-3 rounded-[3px] px-3.5 py-2.5 text-left cursor-pointer focus-visible:outline-none ${
           isActive
-            ? 'z-20 border-[#ede6ca]/85 bg-[#1b210e]'
+            ? 'z-20 border-[#d4bc74]/85 bg-[#1b210e]'
             : member.side === 'center'
               ? 'z-10 border-[#ede6ca]/40 bg-[#171c0c]/96'
               : 'z-10'
         }`}
       >
-        {member.photo ? (
-          <img
-            src={member.photo.startsWith('/') ? member.photo : `/${member.photo}`}
-            alt=""
-            loading="lazy"
-            className={`shrink-0 rounded-full border object-cover ${
-              member.side === 'center'
+        <div
+          className={`flex shrink-0 items-center justify-center overflow-hidden rounded-full border ${
+            member.photo ? '' : 'bg-[#202414]'
+          } ${
+            member.side === 'center'
+              ? member.photo
                 ? 'h-11 w-11 border-[#ede6ca]/55'
-                : 'h-10 w-10 border-[#c9d98a]/35'
-            }`}
-            style={{ objectPosition: member.objectPosition }}
-          />
-        ) : (
-          <span
-            className={`flex shrink-0 items-center justify-center rounded-full border bg-[#202414] ${
-              member.side === 'center'
-                ? 'h-11 w-11 border-[#ede6ca]/45'
+                : 'h-11 w-11 border-[#ede6ca]/45'
+              : member.photo
+                ? 'h-10 w-10 border-[#c9d98a]/35'
                 : 'h-10 w-10 border-[#c9d98a]/25'
-            }`}
-          >
+          }`}
+        >
+          {member.photo ? (
+            <img
+              src={member.photo.startsWith('/') ? member.photo : `/${member.photo}`}
+              alt=""
+              loading="lazy"
+              className="h-full w-full object-cover"
+              style={{ objectPosition: member.objectPosition }}
+            />
+          ) : (
             <LeafGlyph />
-          </span>
-        )}
+          )}
+        </div>
+
         <span className="min-w-0 flex-1">
           <span className="block font-serif text-[1.06rem] sm:text-[1.14rem] font-medium leading-tight text-[#ede6ca] break-words">
             {member.name}
@@ -138,7 +207,7 @@ function MemberNodeButton({
             {member.displayRole}
           </span>
         </span>
-      </button>
+      </motion.button>
     </div>
   );
 }
@@ -147,10 +216,11 @@ function MemberNodeButton({
  * Interactive Executive Board family-tree section built dynamically from members.json.
  * - Desktop (>= 900px): center Secretariat trunk + left/right bracket pedigree chart over faint willow-tree-only.svg
  * - Mobile (< 900px): vertical left-trunk tree with L-shaped group connectors
- * - Click opens FLIP profile card with zoomed focus, bud photo clip reveal, word-by-word quote, and focus trap
+ * - Click triggers "Willow Unfurl": gold connector travel, olive-leaf burst, and circular clip-path reveal
  */
 export function ExecutiveBoardSection() {
   const treeData = useMemo(() => organizeFamilyTree(membersJson as FamilyTreeData), []);
+  const prefersReduced = useReducedMotion() ?? false;
 
   const outerWrapperRef = useRef<HTMLDivElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
@@ -158,12 +228,6 @@ export function ExecutiveBoardSection() {
   const mobileButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const desktopLabelRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const mobileLabelRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const pulseTimerRef = useRef<number | null>(null);
-
-  const [prefersReducedMotion, setPrefersReducedMotion] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  });
 
   const [treeRevealed, setTreeRevealed] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
@@ -174,42 +238,42 @@ export function ExecutiveBoardSection() {
     width: 0,
     height: 0,
     paths: [],
-    boxLocalRects: {},
   });
 
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
-  const [pulsingId, setPulsingId] = useState<string | null>(null);
-  const [sourceRect, setSourceRect] = useState<DOMRect | null>(null);
-  const [isClosingModal, setIsClosingModal] = useState(false);
+  const [navState, setNavState] = useState<{ direction: -1 | 1; step: number }>({
+    direction: 1,
+    step: 0,
+  });
+  const [modalOrigin, setModalOrigin] = useState<ModalOriginCoords | null>(null);
+  const [closeTargetPoint, setCloseTargetPoint] = useState<{ x: number; y: number } | null>(null);
+  const [goldTravel, setGoldTravel] = useState<GoldTravelSignal | null>(null);
+  const [leafParticles, setLeafParticles] = useState<LeafParticleSpec[]>([]);
 
   const lastViewedIdRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const onChange = (e: MediaQueryListEvent) => {
-      setPrefersReducedMotion(e.matches);
-      if (e.matches) {
-        setTreeRevealed(true);
-      }
-    };
-    mq.addEventListener('change', onChange);
-    return () => mq.removeEventListener('change', onChange);
-  }, []);
+  const particleSeedRef = useRef<number>(1);
+  const burstTimeoutRef = useRef<number | null>(null);
+  const goldTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     return () => {
-      if (pulseTimerRef.current !== null) {
-        window.clearTimeout(pulseTimerRef.current);
-      }
+      if (burstTimeoutRef.current !== null) window.clearTimeout(burstTimeoutRef.current);
+      if (goldTimeoutRef.current !== null) window.clearTimeout(goldTimeoutRef.current);
     };
   }, []);
 
-  // Bidirectional scroll-in connector draw trigger (responds naturally scrolling down & up)
+  useEffect(() => {
+    if (prefersReduced) {
+      setTreeRevealed(true);
+    }
+  }, [prefersReduced]);
+
+  // Bidirectional scroll-in connector draw trigger
   useEffect(() => {
     const el = outerWrapperRef.current;
     if (!el) return;
 
-    if (prefersReducedMotion) {
+    if (prefersReduced) {
       setTreeRevealed(true);
       return;
     }
@@ -217,11 +281,7 @@ export function ExecutiveBoardSection() {
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
-          if (entry.isIntersecting) {
-            setTreeRevealed(true);
-          } else {
-            setTreeRevealed(false);
-          }
+          setTreeRevealed(entry.isIntersecting);
         }
       },
       { threshold: [0, 0.04], rootMargin: '24px 0px -28px 0px' },
@@ -229,7 +289,7 @@ export function ExecutiveBoardSection() {
 
     observer.observe(el);
     return () => observer.disconnect();
-  }, [prefersReducedMotion]);
+  }, [prefersReduced]);
 
   // Measure real DOM rects of rendered boxes & group labels and compute SVG overlay paths
   const measureConnectors = useCallback(() => {
@@ -243,7 +303,6 @@ export function ExecutiveBoardSection() {
     const stageRect = stage.getBoundingClientRect();
     const scaleFactor = stageRect.width / naturalW || 1;
     const isDesktop = window.matchMedia('(min-width: 900px)').matches;
-    const boxLocalRects: Record<string, RectBox> = {};
 
     if (isDesktop) {
       const centerRects: RectBox[] = [];
@@ -251,9 +310,7 @@ export function ExecutiveBoardSection() {
         for (const m of cg.members) {
           const btn = desktopButtonRefs.current[m.id];
           if (btn && btn.offsetWidth > 0) {
-            const local = toLocalRect(btn, stageRect, scaleFactor);
-            centerRects.push(local);
-            boxLocalRects[m.id] = local;
+            centerRects.push(toLocalRect(btn, stageRect, scaleFactor));
           }
         }
       }
@@ -268,9 +325,7 @@ export function ExecutiveBoardSection() {
         for (const m of gw.members) {
           const btn = desktopButtonRefs.current[m.id];
           if (btn && btn.offsetWidth > 0) {
-            const local = toLocalRect(btn, stageRect, scaleFactor);
-            memberRects.push(local);
-            boxLocalRects[m.id] = local;
+            memberRects.push(toLocalRect(btn, stageRect, scaleFactor));
           }
         }
         return {
@@ -282,7 +337,7 @@ export function ExecutiveBoardSection() {
       });
 
       const paths = computeDesktopPedigreePaths(centerRects, sideGroups, naturalW / 2);
-      setGeometry({ width: naturalW, height: naturalH, paths, boxLocalRects });
+      setGeometry({ width: naturalW, height: naturalH, paths });
     } else {
       const mobileGroups = treeData.allGroupsInOrder.map((gw) => {
         const labelEl = mobileLabelRefs.current[gw.group.id];
@@ -294,9 +349,7 @@ export function ExecutiveBoardSection() {
         for (const m of gw.members) {
           const btn = mobileButtonRefs.current[m.id];
           if (btn && btn.offsetWidth > 0) {
-            const local = toLocalRect(btn, stageRect, scaleFactor);
-            memberRects.push(local);
-            boxLocalRects[m.id] = local;
+            memberRects.push(toLocalRect(btn, stageRect, scaleFactor));
           }
         }
         return {
@@ -307,7 +360,7 @@ export function ExecutiveBoardSection() {
       });
 
       const paths = computeMobileTreePaths(mobileGroups, 10);
-      setGeometry({ width: naturalW, height: naturalH, paths, boxLocalRects });
+      setGeometry({ width: naturalW, height: naturalH, paths });
     }
   }, [treeData]);
 
@@ -350,49 +403,157 @@ export function ExecutiveBoardSection() {
     };
   }, [measureConnectors]);
 
+  const spawnLeafBurst = useCallback(
+    (origin: { x: number; y: number }, count = 9) => {
+      if (prefersReduced) return;
+      particleSeedRef.current += 1;
+      const batch = generateLeafParticles(origin, count, particleSeedRef.current);
+      setLeafParticles(batch);
+      if (burstTimeoutRef.current !== null) {
+        window.clearTimeout(burstTimeoutRef.current);
+      }
+      burstTimeoutRef.current = window.setTimeout(() => {
+        burstTimeoutRef.current = null;
+        setLeafParticles([]);
+      }, 1050);
+    },
+    [prefersReduced],
+  );
+
+  const computeGoldPathForMember = useCallback(
+    (member: OrderedMember): string | null => {
+      const stage = stageRef.current;
+      if (!stage) return null;
+      const naturalW = stage.offsetWidth;
+      if (naturalW === 0) return null;
+
+      const stageRect = stage.getBoundingClientRect();
+      const scaleFactor = stageRect.width / naturalW || 1;
+      const isDesktop = window.matchMedia('(min-width: 900px)').matches;
+
+      if (isDesktop) {
+        const clickedBtn = desktopButtonRefs.current[member.id];
+        if (!clickedBtn || clickedBtn.offsetWidth === 0) return null;
+        const memberRect = toLocalRect(clickedBtn, stageRect, scaleFactor);
+
+        const centerRects: RectBox[] = [];
+        for (const cg of treeData.centerGroups) {
+          for (const m of cg.members) {
+            const btn = desktopButtonRefs.current[m.id];
+            if (btn && btn.offsetWidth > 0) {
+              centerRects.push(toLocalRect(btn, stageRect, scaleFactor));
+            }
+          }
+        }
+
+        const secretariatLabelEl = desktopLabelRefs.current['secretariat'];
+        const secretariatLabelRect =
+          secretariatLabelEl && secretariatLabelEl.offsetWidth > 0
+            ? toLocalRect(secretariatLabelEl, stageRect, scaleFactor)
+            : null;
+
+        const sideGroups: DesktopGroupMeasurement[] = [
+          ...treeData.leftGroups,
+          ...treeData.rightGroups,
+        ].map((gw) => {
+          const labelEl = desktopLabelRefs.current[gw.group.id];
+          const labelRect =
+            labelEl && labelEl.offsetWidth > 0
+              ? toLocalRect(labelEl, stageRect, scaleFactor)
+              : null;
+          const memberRects: RectBox[] = [];
+          for (const m of gw.members) {
+            const btn = desktopButtonRefs.current[m.id];
+            if (btn && btn.offsetWidth > 0) {
+              memberRects.push(toLocalRect(btn, stageRect, scaleFactor));
+            }
+          }
+          return {
+            groupId: gw.group.id,
+            side: gw.group.side as 'left' | 'right',
+            labelRect,
+            memberRects,
+          };
+        });
+
+        return computeDesktopGoldTravelPath(
+          memberRect,
+          member.side,
+          member.group,
+          centerRects,
+          secretariatLabelRect,
+          sideGroups,
+          naturalW / 2,
+        );
+      }
+
+      const clickedBtn = mobileButtonRefs.current[member.id];
+      if (!clickedBtn || clickedBtn.offsetWidth === 0) return null;
+      const memberRect = toLocalRect(clickedBtn, stageRect, scaleFactor);
+
+      const mobileGroups: MobileGroupMeasurement[] = treeData.allGroupsInOrder.map((gw) => {
+        const labelEl = mobileLabelRefs.current[gw.group.id];
+        const labelRect =
+          labelEl && labelEl.offsetWidth > 0
+            ? toLocalRect(labelEl, stageRect, scaleFactor)
+            : null;
+        const memberRects: RectBox[] = [];
+        for (const m of gw.members) {
+          const btn = mobileButtonRefs.current[m.id];
+          if (btn && btn.offsetWidth > 0) {
+            memberRects.push(toLocalRect(btn, stageRect, scaleFactor));
+          }
+        }
+        return {
+          groupId: gw.group.id,
+          labelRect,
+          memberRects,
+        };
+      });
+
+      return computeMobileGoldTravelPath(memberRect, member.group, mobileGroups, 10);
+    },
+    [treeData],
+  );
+
   const activeMember =
     activeIndex !== null ? treeData.orderedMembers[activeIndex] ?? null : null;
 
-  const isZoomed = activeMember !== null && !isClosingModal && !prefersReducedMotion;
-
-  const stageZoomStyle = useMemo(() => {
-    if (!isZoomed || !activeMember) {
-      return {
-        transform: 'translate3d(0, 0, 0) scale(1)',
-        transformOrigin: '50% 50%',
-      };
-    }
-    const localBox = geometry.boxLocalRects[activeMember.id];
-    if (!localBox || geometry.width === 0 || geometry.height === 0) {
-      return {
-        transform: 'translate3d(0, 0, 0) scale(1)',
-        transformOrigin: '50% 50%',
-      };
-    }
-    return computeZoomTransform(localBox, geometry.width, geometry.height, 1.5);
-  }, [activeMember, geometry.boxLocalRects, geometry.height, geometry.width, isZoomed]);
-
   const handleSelectMember = useCallback(
-    (member: OrderedMember, buttonEl: HTMLButtonElement) => {
-      if (pulseTimerRef.current !== null) {
-        window.clearTimeout(pulseTimerRef.current);
-      }
+    (member: OrderedMember, event: ReactMouseEvent<HTMLButtonElement>) => {
+      const rect = event.currentTarget.getBoundingClientRect();
+      const cardCenter = {
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
+      };
+      // Keyboard activation yields clientX === 0 && clientY === 0 -> anchor at card center
+      const hasPointerCoords = event.clientX > 0 || event.clientY > 0;
+      const clickPoint = hasPointerCoords
+        ? { x: event.clientX, y: event.clientY }
+        : cardCenter;
 
-      const rect = buttonEl.getBoundingClientRect();
       lastViewedIdRef.current = member.id;
-      setSourceRect(rect);
-      setIsClosingModal(false);
+      setModalOrigin({ clickPoint, cardCenter });
+      setCloseTargetPoint(cardCenter);
+      setNavState({ direction: 1, step: 0 });
       setActiveIndex(member.canonicalIndex);
 
-      if (!prefersReducedMotion) {
-        setPulsingId(member.id);
-        pulseTimerRef.current = window.setTimeout(() => {
-          setPulsingId(null);
-          pulseTimerRef.current = null;
-        }, 480);
+      if (!prefersReduced) {
+        spawnLeafBurst(clickPoint, 9);
+        const goldPath = computeGoldPathForMember(member);
+        if (goldPath) {
+          setGoldTravel({ id: `${member.id}-${Date.now()}`, d: goldPath });
+          if (goldTimeoutRef.current !== null) {
+            window.clearTimeout(goldTimeoutRef.current);
+          }
+          goldTimeoutRef.current = window.setTimeout(() => {
+            goldTimeoutRef.current = null;
+            setGoldTravel(null);
+          }, 950);
+        }
       }
     },
-    [prefersReducedMotion],
+    [computeGoldPathForMember, prefersReduced, spawnLeafBurst],
   );
 
   const handleNavigate = useCallback(
@@ -403,42 +564,48 @@ export function ExecutiveBoardSection() {
       const nextMember = treeData.orderedMembers[nextIndex];
       if (!nextMember) return;
       lastViewedIdRef.current = nextMember.id;
+      setNavState((prev) => ({ direction, step: prev.step + 1 }));
       setActiveIndex(nextIndex);
     },
     [activeIndex, treeData.orderedMembers],
   );
 
-  const getActiveBoxViewportRectAtRest = useCallback((): DOMRect | null => {
-    if (!activeMember) return null;
-    const outer = outerWrapperRef.current;
-    const localBox = geometry.boxLocalRects[activeMember.id];
-    if (outer && localBox) {
-      const outerRect = outer.getBoundingClientRect();
-      return new DOMRect(
-        outerRect.left + localBox.left,
-        outerRect.top + localBox.top,
-        localBox.width,
-        localBox.height,
+  const handleRequestClose = useCallback(() => {
+    const viewedId = lastViewedIdRef.current;
+    let targetCenter = modalOrigin?.cardCenter ?? {
+      x: window.innerWidth / 2,
+      y: window.innerHeight / 2,
+    };
+
+    if (viewedId) {
+      const isDesktop = window.matchMedia('(min-width: 900px)').matches;
+      const btn = isDesktop
+        ? desktopButtonRefs.current[viewedId]
+        : mobileButtonRefs.current[viewedId];
+      if (btn && btn.offsetWidth > 0) {
+        const r = btn.getBoundingClientRect();
+        targetCenter = {
+          x: r.left + r.width / 2,
+          y: r.top + r.height / 2,
+        };
+      }
+    }
+
+    setCloseTargetPoint(targetCenter);
+    if (!prefersReduced) {
+      spawnLeafBurst(
+        { x: window.innerWidth / 2, y: window.innerHeight / 2 },
+        8,
       );
     }
-    const isDesktop = window.matchMedia('(min-width: 900px)').matches;
-    const btn = isDesktop
-      ? desktopButtonRefs.current[activeMember.id]
-      : mobileButtonRefs.current[activeMember.id];
-    return btn ? btn.getBoundingClientRect() : null;
-  }, [activeMember, geometry.boxLocalRects]);
-
-  const handleRequestClose = useCallback(() => {
-    if (activeIndex === null || isClosingModal) return;
-    setIsClosingModal(true);
-  }, [activeIndex, isClosingModal]);
-
-  const handleCloseComplete = useCallback(() => {
-    const restoreId = lastViewedIdRef.current;
     setActiveIndex(null);
-    setIsClosingModal(false);
-    setSourceRect(null);
-    setPulsingId(null);
+  }, [modalOrigin, prefersReduced, spawnLeafBurst]);
+
+  const handleExitComplete = useCallback(() => {
+    const restoreId = lastViewedIdRef.current;
+    setModalOrigin(null);
+    setCloseTargetPoint(null);
+    setNavState({ direction: 1, step: 0 });
 
     if (restoreId) {
       window.requestAnimationFrame(() => {
@@ -450,8 +617,6 @@ export function ExecutiveBoardSection() {
       });
     }
   }, []);
-
-  const isModalEngaged = activeMember !== null && !isClosingModal;
 
   return (
     <RevealSection
@@ -476,18 +641,13 @@ export function ExecutiveBoardSection() {
         </RevealItem>
       </div>
 
-      {/* Outer container prevents 1.5x zoom from producing horizontal page scroll */}
       <div
         ref={outerWrapperRef}
         className={`relative mx-auto w-full max-w-[1160px] overflow-x-clip py-2 ${
           treeRevealed ? 'ft-tree-revealed' : ''
         }`}
       >
-        <div
-          ref={stageRef}
-          style={stageZoomStyle}
-          className="ft-stage-zoomable relative w-full"
-        >
+        <div ref={stageRef} className="relative w-full">
           {/* Faint centered willow-tree-only.svg background watermark with restrained scroll parallax */}
           <ParallaxFrame
             offsetPx={18}
@@ -501,7 +661,7 @@ export function ExecutiveBoardSection() {
             />
           </ParallaxFrame>
 
-          {/* Measured real-rect SVG connector overlay */}
+          {/* Measured real-rect SVG connector overlay + Gold travel highlight */}
           {geometry.width > 0 && geometry.height > 0 && (
             <svg
               aria-hidden="true"
@@ -516,15 +676,38 @@ export function ExecutiveBoardSection() {
                   strokeDasharray={1}
                   strokeDashoffset={treeRevealed ? 0 : 1}
                   style={{
-                    opacity: isModalEngaged ? 0.25 : 1,
                     transitionDelay:
-                      treeRevealed && !prefersReducedMotion
+                      treeRevealed && !prefersReduced
                         ? `${Math.round(path.stageOrder * 70)}ms`
                         : '0ms',
                   }}
                   className="ft-connector-path"
                 />
               ))}
+
+              {goldTravel && !prefersReduced && (
+                <motion.path
+                  key={goldTravel.id}
+                  data-testid="gold-connector-travel"
+                  d={goldTravel.d}
+                  pathLength={1}
+                  strokeDasharray={1}
+                  fill="none"
+                  stroke="#d4bc74"
+                  strokeWidth={2.4}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  initial={{ strokeDashoffset: 1, opacity: 0.95 }}
+                  animate={{
+                    strokeDashoffset: 0,
+                    opacity: [0.95, 1, 0],
+                  }}
+                  transition={{
+                    strokeDashoffset: { duration: 0.5, ease: [0.22, 1, 0.36, 1] },
+                    opacity: { duration: 0.9, times: [0, 0.58, 1], ease: 'easeOut' },
+                  }}
+                />
+              )}
             </svg>
           )}
 
@@ -538,24 +721,19 @@ export function ExecutiveBoardSection() {
                   className="grid grid-cols-[minmax(190px,230px)_minmax(90px,130px)] items-center justify-end gap-8 lg:gap-11"
                 >
                   <div className="flex flex-col gap-2.5">
-                    {gw.members.map((member, mIdx) => {
-                      const isActive = activeMember?.id === member.id;
-                      return (
-                        <MemberNodeButton
-                          key={member.id}
-                          layoutKey="desktop"
-                          member={member}
-                          isActive={isActive}
-                          isPulsing={pulsingId === member.id}
-                          isDimmed={isModalEngaged && !isActive}
-                          fadeDelayMs={prefersReducedMotion ? 0 : 120 + gIdx * 65 + mIdx * 35}
-                          buttonRef={(el) => {
-                            desktopButtonRefs.current[member.id] = el;
-                          }}
-                          onSelect={handleSelectMember}
-                        />
-                      );
-                    })}
+                    {gw.members.map((member, mIdx) => (
+                      <MemberNodeButton
+                        key={member.id}
+                        member={member}
+                        prefersReduced={prefersReduced}
+                        isActive={activeMember?.id === member.id}
+                        fadeDelayMs={prefersReduced ? 0 : 120 + gIdx * 65 + mIdx * 35}
+                        buttonRef={(el) => {
+                          desktopButtonRefs.current[member.id] = el;
+                        }}
+                        onSelect={handleSelectMember}
+                      />
+                    ))}
                   </div>
 
                   <div
@@ -563,9 +741,7 @@ export function ExecutiveBoardSection() {
                       desktopLabelRefs.current[gw.group.id] = el;
                     }}
                     style={{
-                      opacity: isModalEngaged ? 0.15 : undefined,
-                      transitionDelay:
-                        prefersReducedMotion || isModalEngaged ? '0ms' : `${90 + gIdx * 65}ms`,
+                      transitionDelay: prefersReduced ? '0ms' : `${90 + gIdx * 65}ms`,
                     }}
                     className="ft-node-fade justify-self-end px-2 py-1 text-right"
                   >
@@ -585,9 +761,6 @@ export function ExecutiveBoardSection() {
                     ref={(el) => {
                       desktopLabelRefs.current[gw.group.id] = el;
                     }}
-                    style={{
-                      opacity: isModalEngaged ? 0.15 : undefined,
-                    }}
                     className="ft-node-fade rounded-[2px] bg-[#14180a]/95 px-3.5 py-1 text-center border border-[#ede6ca]/35"
                   >
                     <span className="font-mono text-[10px] font-medium uppercase tracking-[0.22em] text-[#a9b47e]">
@@ -596,30 +769,25 @@ export function ExecutiveBoardSection() {
                   </div>
 
                   <div className="flex w-full flex-col gap-3">
-                    {gw.members.map((member, mIdx) => {
-                      const isActive = activeMember?.id === member.id;
-                      return (
-                        <MemberNodeButton
-                          key={member.id}
-                          layoutKey="desktop"
-                          member={member}
-                          isActive={isActive}
-                          isPulsing={pulsingId === member.id}
-                          isDimmed={isModalEngaged && !isActive}
-                          fadeDelayMs={prefersReducedMotion ? 0 : 70 + mIdx * 45}
-                          buttonRef={(el) => {
-                            desktopButtonRefs.current[member.id] = el;
-                          }}
-                          onSelect={handleSelectMember}
-                        />
-                      );
-                    })}
+                    {gw.members.map((member, mIdx) => (
+                      <MemberNodeButton
+                        key={member.id}
+                        member={member}
+                        prefersReduced={prefersReduced}
+                        isActive={activeMember?.id === member.id}
+                        fadeDelayMs={prefersReduced ? 0 : 70 + mIdx * 45}
+                        buttonRef={(el) => {
+                          desktopButtonRefs.current[member.id] = el;
+                        }}
+                        onSelect={handleSelectMember}
+                      />
+                    ))}
                   </div>
                 </div>
               ))}
             </div>
 
-            {/* Right Side Column: Security, Information Technology, Human Resources, Delegate Affairs, Volunteers */}
+            {/* Right Side Column: Security, IT, HR, Delegate Affairs, Volunteers, DCC, Logistics, Ceremonies */}
             <div className="flex flex-col gap-7 pt-4">
               {treeData.rightGroups.map((gw, gIdx) => (
                 <div
@@ -631,9 +799,7 @@ export function ExecutiveBoardSection() {
                       desktopLabelRefs.current[gw.group.id] = el;
                     }}
                     style={{
-                      opacity: isModalEngaged ? 0.15 : undefined,
-                      transitionDelay:
-                        prefersReducedMotion || isModalEngaged ? '0ms' : `${90 + gIdx * 65}ms`,
+                      transitionDelay: prefersReduced ? '0ms' : `${90 + gIdx * 65}ms`,
                     }}
                     className="ft-node-fade justify-self-start px-2 py-1 text-left"
                   >
@@ -643,24 +809,19 @@ export function ExecutiveBoardSection() {
                   </div>
 
                   <div className="flex flex-col gap-2.5">
-                    {gw.members.map((member, mIdx) => {
-                      const isActive = activeMember?.id === member.id;
-                      return (
-                        <MemberNodeButton
-                          key={member.id}
-                          layoutKey="desktop"
-                          member={member}
-                          isActive={isActive}
-                          isPulsing={pulsingId === member.id}
-                          isDimmed={isModalEngaged && !isActive}
-                          fadeDelayMs={prefersReducedMotion ? 0 : 120 + gIdx * 65 + mIdx * 35}
-                          buttonRef={(el) => {
-                            desktopButtonRefs.current[member.id] = el;
-                          }}
-                          onSelect={handleSelectMember}
-                        />
-                      );
-                    })}
+                    {gw.members.map((member, mIdx) => (
+                      <MemberNodeButton
+                        key={member.id}
+                        member={member}
+                        prefersReduced={prefersReduced}
+                        isActive={activeMember?.id === member.id}
+                        fadeDelayMs={prefersReduced ? 0 : 120 + gIdx * 65 + mIdx * 35}
+                        buttonRef={(el) => {
+                          desktopButtonRefs.current[member.id] = el;
+                        }}
+                        onSelect={handleSelectMember}
+                      />
+                    ))}
                   </div>
                 </div>
               ))}
@@ -677,9 +838,7 @@ export function ExecutiveBoardSection() {
                       mobileLabelRefs.current[gw.group.id] = el;
                     }}
                     style={{
-                      opacity: isModalEngaged ? 0.15 : undefined,
-                      transitionDelay:
-                        prefersReducedMotion || isModalEngaged ? '0ms' : `${gIdx * 45}ms`,
+                      transitionDelay: prefersReduced ? '0ms' : `${gIdx * 45}ms`,
                     }}
                     className="ft-node-fade inline-block px-1.5 py-0.5"
                   >
@@ -690,24 +849,19 @@ export function ExecutiveBoardSection() {
                 </div>
 
                 <div className="flex flex-col gap-2.5 pl-12">
-                  {gw.members.map((member, mIdx) => {
-                    const isActive = activeMember?.id === member.id;
-                    return (
-                      <MemberNodeButton
-                        key={member.id}
-                        layoutKey="mobile"
-                        member={member}
-                        isActive={isActive}
-                        isPulsing={pulsingId === member.id}
-                        isDimmed={isModalEngaged && !isActive}
-                        fadeDelayMs={prefersReducedMotion ? 0 : 40 + gIdx * 45 + mIdx * 30}
-                        buttonRef={(el) => {
-                          mobileButtonRefs.current[member.id] = el;
-                        }}
-                        onSelect={handleSelectMember}
-                      />
-                    );
-                  })}
+                  {gw.members.map((member, mIdx) => (
+                    <MemberNodeButton
+                      key={member.id}
+                      member={member}
+                      prefersReduced={prefersReduced}
+                      isActive={activeMember?.id === member.id}
+                      fadeDelayMs={prefersReduced ? 0 : 40 + gIdx * 45 + mIdx * 30}
+                      buttonRef={(el) => {
+                        mobileButtonRefs.current[member.id] = el;
+                      }}
+                      onSelect={handleSelectMember}
+                    />
+                  ))}
                 </div>
               </div>
             ))}
@@ -715,21 +869,26 @@ export function ExecutiveBoardSection() {
         </div>
       </div>
 
-      {/* FLIP Profile Card Modal */}
-      {activeMember && activeIndex !== null && (
-        <MemberProfileModal
-          member={activeMember}
-          activeIndex={activeIndex}
-          totalCount={treeData.orderedMembers.length}
-          sourceRect={sourceRect}
-          getTargetBoxRect={getActiveBoxViewportRectAtRest}
-          isClosing={isClosingModal}
-          prefersReducedMotion={prefersReducedMotion}
-          onNavigate={handleNavigate}
-          onRequestClose={handleRequestClose}
-          onCloseComplete={handleCloseComplete}
-        />
-      )}
+      {/* Olive-leaf burst particles on card click and modal close */}
+      <LeafParticleOverlay particles={leafParticles} />
+
+      {/* Willow Unfurl Profile Modal */}
+      <AnimatePresence onExitComplete={handleExitComplete}>
+        {activeMember && activeIndex !== null && modalOrigin && (
+          <MemberProfileModal
+            key="member-profile-modal"
+            member={activeMember}
+            activeIndex={activeIndex}
+            totalCount={treeData.orderedMembers.length}
+            navDirection={navState.direction}
+            navStep={navState.step}
+            openClickPoint={modalOrigin.clickPoint}
+            closeTargetPoint={closeTargetPoint ?? modalOrigin.cardCenter}
+            onNavigate={handleNavigate}
+            onRequestClose={handleRequestClose}
+          />
+        )}
+      </AnimatePresence>
     </RevealSection>
   );
 }

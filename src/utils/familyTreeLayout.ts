@@ -414,3 +414,307 @@ export function computeZoomTransform(
     transform: `translate3d(${r1(nudgeX)}px, ${r1(nudgeY)}px, 0) scale(${scale})`,
   };
 }
+
+/**
+ * Traces one continuous SVG path from a clicked desktop card back through its group bracket
+ * and central trunk into the SECRETARIAT node header/top.
+ */
+export function computeDesktopGoldTravelPath(
+  memberRect: RectBox,
+  side: GroupSide,
+  groupId: string,
+  centerMemberRects: RectBox[],
+  secretariatLabelRect: RectBox | null,
+  sideGroups: DesktopGroupMeasurement[],
+  fallbackTrunkX: number,
+): string {
+  const trunkX =
+    centerMemberRects.length > 0
+      ? centerMemberRects.reduce((acc, r) => acc + centerX(r), 0) / centerMemberRects.length
+      : fallbackTrunkX;
+
+  const targetY = secretariatLabelRect
+    ? secretariatLabelRect.bottom
+    : centerMemberRects.length > 0
+      ? Math.min(...centerMemberRects.map((r) => centerY(r)))
+      : memberRect.top;
+
+  const mCy = centerY(memberRect);
+
+  if (side === 'center') {
+    const startY = mCy > targetY ? mCy : memberRect.bottom;
+    return `M ${r1(trunkX)} ${r1(startY)} V ${r1(targetY)}`;
+  }
+
+  const group = sideGroups.find((g) => g.groupId === groupId);
+  if (!group || !group.labelRect || group.memberRects.length === 0) {
+    const startX = side === 'left' ? memberRect.right : memberRect.left;
+    return `M ${r1(startX)} ${r1(mCy)} H ${r1(trunkX)} V ${r1(targetY)}`;
+  }
+
+  const { labelRect, memberRects } = group;
+  const labelCy = centerY(labelRect);
+  const memberCys = memberRects.map(centerY);
+  const bracketMidY = (Math.min(...memberCys) + Math.max(...memberCys)) / 2;
+
+  if (side === 'left') {
+    const maxMemberRight = Math.max(...memberRects.map((r) => r.right));
+    const spineX = maxMemberRight + (labelRect.left - maxMemberRight) * 0.5;
+    const segments: string[] = [`M ${r1(memberRect.right)} ${r1(mCy)}`, `H ${r1(spineX)}`];
+
+    if (Math.abs(mCy - bracketMidY) >= 1) {
+      segments.push(`V ${r1(bracketMidY)}`);
+    }
+
+    if (Math.abs(labelCy - bracketMidY) < 1.5) {
+      segments.push(`H ${r1(trunkX)}`);
+    } else {
+      segments.push(
+        `H ${r1((labelRect.left + spineX) / 2)}`,
+        `V ${r1(labelCy)}`,
+        `H ${r1(trunkX)}`,
+      );
+    }
+
+    if (Math.abs(labelCy - targetY) >= 1) {
+      segments.push(`V ${r1(targetY)}`);
+    }
+
+    return segments.join(' ');
+  }
+
+  // side === 'right'
+  const minMemberLeft = Math.min(...memberRects.map((r) => r.left));
+  const spineX = labelRect.right + (minMemberLeft - labelRect.right) * 0.5;
+  const segments: string[] = [`M ${r1(memberRect.left)} ${r1(mCy)}`, `H ${r1(spineX)}`];
+
+  if (Math.abs(mCy - bracketMidY) >= 1) {
+    segments.push(`V ${r1(bracketMidY)}`);
+  }
+
+  if (Math.abs(labelCy - bracketMidY) < 1.5) {
+    segments.push(`H ${r1(trunkX)}`);
+  } else {
+    segments.push(
+      `H ${r1((labelRect.right + spineX) / 2)}`,
+      `V ${r1(labelCy)}`,
+      `H ${r1(trunkX)}`,
+    );
+  }
+
+  if (Math.abs(labelCy - targetY) >= 1) {
+    segments.push(`V ${r1(targetY)}`);
+  }
+
+  return segments.join(' ');
+}
+
+/**
+ * Traces one continuous SVG path from a clicked mobile card back through its group sub-trunk
+ * and main vertical trunk into the SECRETARIAT header.
+ */
+export function computeMobileGoldTravelPath(
+  memberRect: RectBox,
+  groupId: string,
+  mobileGroups: MobileGroupMeasurement[],
+  trunkX = 10,
+): string {
+  const secretariatGroup = mobileGroups[0];
+  const targetY = secretariatGroup?.labelRect ? centerY(secretariatGroup.labelRect) : 20;
+  const mCy = centerY(memberRect);
+
+  const group = mobileGroups.find((g) => g.groupId === groupId);
+  if (!group || !group.labelRect || group.memberRects.length === 0) {
+    return `M ${r1(memberRect.left)} ${r1(mCy)} H ${r1(trunkX)} V ${r1(targetY)}`;
+  }
+
+  const { labelRect, memberRects } = group;
+  const labelCy = centerY(labelRect);
+  const minMemberLeft = Math.min(...memberRects.map((r) => r.left));
+  const subX = Math.max(trunkX + 12, Math.min(minMemberLeft - 12, labelRect.left + 10));
+
+  const segments: string[] = [
+    `M ${r1(memberRect.left)} ${r1(mCy)}`,
+    `H ${r1(subX)}`,
+    `V ${r1(labelCy)}`,
+    `H ${r1(trunkX)}`,
+  ];
+
+  if (Math.abs(labelCy - targetY) >= 1) {
+    segments.push(`V ${r1(targetY)}`);
+  }
+
+  return segments.join(' ');
+}
+
+/**
+ * Computes fixed modal dimensions (width: min(92vw, 460px), height: min(86dvh, 620px)),
+ * maps a viewport coordinate into the modal-local clip-path origin (X, Y),
+ * and calculates fullRadiusPx so the expanded circle covers all four corners.
+ */
+export function computeModalClipOrigin(
+  viewportPoint: { x: number; y: number },
+  viewportWidth: number,
+  viewportHeight: number,
+): { x: number; y: number; fullRadiusPx: number } {
+  const modalW = Math.min(viewportWidth * 0.92, 460);
+  const modalH = Math.min(viewportHeight * 0.86, 620);
+  const modalLeft = (viewportWidth - modalW) / 2;
+  const modalTop = (viewportHeight - modalH) / 2;
+
+  const x = Math.round(viewportPoint.x - modalLeft);
+  const y = Math.round(viewportPoint.y - modalTop);
+  const dxMax = Math.max(Math.abs(x), Math.abs(modalW - x));
+  const dyMax = Math.max(Math.abs(y), Math.abs(modalH - y));
+  const fullRadiusPx = Math.ceil(Math.hypot(dxMax, dyMax)) + 24;
+
+  return { x, y, fullRadiusPx };
+}
+
+export interface LaurelLeafNode {
+  id: string;
+  x: number;
+  y: number;
+  rotate: number;
+  scale: number;
+  orderIndex: number;
+}
+
+export interface LaurelWreathGeometry {
+  leftBranchPath: string;
+  rightBranchPath: string;
+  leftLeaves: LaurelLeafNode[];
+  rightLeaves: LaurelLeafNode[];
+}
+
+/**
+ * Generates two curved olive branch SVG paths around a 200x200 circular portrait frame
+ * plus evenly distributed leaves along each branch (8-12 per branch).
+ */
+export function generateLaurelWreathData(leavesPerBranch = 10): LaurelWreathGeometry {
+  const clampedCount = Math.max(8, Math.min(12, leavesPerBranch));
+  const cx = 100;
+  const cy = 100;
+  const radius = 82;
+
+  const degToRad = (deg: number) => (deg * Math.PI) / 180;
+  const ptOnCircle = (deg: number) => {
+    const rad = degToRad(deg);
+    return {
+      x: r1(cx + radius * Math.cos(rad)),
+      y: r1(cy + radius * Math.sin(rad)),
+    };
+  };
+
+  // Left branch: bottom-left (103deg) sweeping clockwise through left (180deg) to top-left (256deg)
+  const leftStartDeg = 103;
+  const leftEndDeg = 256;
+  const ls = ptOnCircle(leftStartDeg);
+  const le = ptOnCircle(leftEndDeg);
+  const leftBranchPath = `M ${ls.x} ${ls.y} A ${radius} ${radius} 0 0 1 ${le.x} ${le.y}`;
+
+  // Right branch: bottom-right (77deg) sweeping counter-clockwise through right (0deg) to top-right (-76deg)
+  const rightStartDeg = 77;
+  const rightEndDeg = -76;
+  const rs = ptOnCircle(rightStartDeg);
+  const re = ptOnCircle(rightEndDeg);
+  const rightBranchPath = `M ${rs.x} ${rs.y} A ${radius} ${radius} 0 0 0 ${re.x} ${re.y}`;
+
+  const leftLeaves: LaurelLeafNode[] = [];
+  const rightLeaves: LaurelLeafNode[] = [];
+
+  for (let i = 0; i < clampedCount; i += 1) {
+    const t = (i + 0.55) / clampedCount;
+    const sideFlip = i % 2 === 0 ? 1 : -1;
+    const scale = r1(0.88 + Math.sin(t * Math.PI) * 0.24);
+
+    // Left branch point + upward-following tangent angle
+    const lDeg = leftStartDeg + (leftEndDeg - leftStartDeg) * t;
+    const lp = ptOnCircle(lDeg);
+    const lTangentDeg = lDeg + 90;
+    leftLeaves.push({
+      id: `left-leaf-${i}`,
+      x: lp.x,
+      y: lp.y,
+      rotate: r1(lTangentDeg + sideFlip * 28),
+      scale,
+      orderIndex: i,
+    });
+
+    // Right branch point + upward-following tangent angle
+    const rDeg = rightStartDeg + (rightEndDeg - rightStartDeg) * t;
+    const rp = ptOnCircle(rDeg);
+    const rTangentDeg = rDeg - 90;
+    rightLeaves.push({
+      id: `right-leaf-${i}`,
+      x: rp.x,
+      y: rp.y,
+      rotate: r1(rTangentDeg - sideFlip * 28),
+      scale,
+      orderIndex: i,
+    });
+  }
+
+  return {
+    leftBranchPath,
+    rightBranchPath,
+    leftLeaves,
+    rightLeaves,
+  };
+}
+
+export interface LeafParticleSpec {
+  id: string;
+  x: number;
+  y: number;
+  dx: number;
+  dy: number;
+  gravityDy: number;
+  rotateStart: number;
+  rotateEnd: number;
+  scale: number;
+  delay: number;
+  duration: number;
+}
+
+/**
+ * Generates 8-10 outward-flying olive-leaf particle trajectories with slight gravity.
+ */
+export function generateLeafParticles(
+  origin: { x: number; y: number },
+  count = 9,
+  seed = 1,
+): LeafParticleSpec[] {
+  const clamped = Math.max(8, Math.min(10, count));
+  const particles: LeafParticleSpec[] = [];
+
+  for (let i = 0; i < clamped; i += 1) {
+    const hash = Math.sin((seed + 1) * 12.9898 + (i + 1) * 78.233) * 43758.5453;
+    const rand = hash - Math.floor(hash);
+    const hash2 = Math.sin((seed + 3) * 45.164 + (i + 7) * 19.13) * 19283.17;
+    const rand2 = hash2 - Math.floor(hash2);
+
+    const baseAngle = (Math.PI * 2 * i) / clamped + (rand - 0.5) * 0.45;
+    const speed = 58 + rand2 * 56;
+    const dx = r1(Math.cos(baseAngle) * speed);
+    const initialDy = Math.sin(baseAngle) * speed - 22;
+    const gravityDy = r1(initialDy + 48 + rand * 26);
+
+    particles.push({
+      id: `leaf-p-${seed}-${i}`,
+      x: Math.round(origin.x),
+      y: Math.round(origin.y),
+      dx,
+      dy: r1(initialDy),
+      gravityDy,
+      rotateStart: Math.round((rand - 0.5) * 80),
+      rotateEnd: Math.round((rand - 0.5) * 80 + (i % 2 === 0 ? 190 : -190)),
+      scale: r1(0.75 + rand2 * 0.45),
+      delay: r1(i * 0.015),
+      duration: 0.9,
+    });
+  }
+
+  return particles;
+}
+

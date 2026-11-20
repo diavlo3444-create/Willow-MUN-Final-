@@ -1,246 +1,270 @@
 import {
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
-  type CSSProperties,
   type TouchEvent as ReactTouchEvent,
 } from 'react';
 import { createPortal } from 'react-dom';
+import {
+  AnimatePresence,
+  motion,
+  useIsPresent,
+  useReducedMotion,
+  type Variants,
+} from 'motion/react';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
-import type { OrderedMember } from '../utils/familyTreeLayout';
+import {
+  computeModalClipOrigin,
+  generateLaurelWreathData,
+  type OrderedMember,
+} from '../utils/familyTreeLayout';
+import { WILLOW_EASE } from './MotionPrimitives';
 
 interface MemberProfileModalProps {
   member: OrderedMember;
   activeIndex: number;
   totalCount: number;
-  sourceRect: DOMRect | null;
-  getTargetBoxRect: () => DOMRect | null;
-  isClosing: boolean;
-  prefersReducedMotion: boolean;
+  navDirection: -1 | 1;
+  navStep: number;
+  openClickPoint: { x: number; y: number };
+  closeTargetPoint: { x: number; y: number };
   onNavigate: (direction: -1 | 1) => void;
   onRequestClose: () => void;
-  onCloseComplete: () => void;
 }
 
-interface LeafSpec {
-  id: number;
-  leftPct: number;
-  size: number;
-  dx: number;
-  dy: number;
-  rStart: number;
-  rEnd: number;
-  delayMs: number;
-  durationMs: number;
-}
+const UNFURL_EASE = [0.22, 1, 0.36, 1] as const;
 
-const DRIFTING_LEAVES: LeafSpec[] = [
-  { id: 0, leftPct: 12, size: 14, dx: 26, dy: 300, rStart: -18, rEnd: 48, delayMs: 80, durationMs: 2100 },
-  { id: 1, leftPct: 28, size: 11, dx: -18, dy: 280, rStart: 12, rEnd: -34, delayMs: 240, durationMs: 2300 },
-  { id: 2, leftPct: 48, size: 15, dx: 22, dy: 320, rStart: -8, rEnd: 56, delayMs: 150, durationMs: 2450 },
-  { id: 3, leftPct: 68, size: 12, dx: -24, dy: 290, rStart: 20, rEnd: -42, delayMs: 320, durationMs: 2150 },
-  { id: 4, leftPct: 84, size: 14, dx: -14, dy: 310, rStart: -22, rEnd: 36, delayMs: 110, durationMs: 2250 },
-  { id: 5, leftPct: 37, size: 10, dx: 16, dy: 265, rStart: 14, rEnd: 62, delayMs: 420, durationMs: 2000 },
-  { id: 6, leftPct: 75, size: 13, dx: 18, dy: 295, rStart: -12, rEnd: -48, delayMs: 360, durationMs: 2350 },
+const IDLE_LEAVES = [
+  { id: 'idle-1', left: '9%', top: '16%', size: 15, xDrift: 8, yDrift: 12, rot: 14, dur: 9.5, delay: 0 },
+  { id: 'idle-2', left: '84%', top: '24%', size: 13, xDrift: -9, yDrift: 10, rot: -18, dur: 11, delay: 1.4 },
+  { id: 'idle-3', left: '14%', top: '66%', size: 12, xDrift: 7, yDrift: -10, rot: 22, dur: 10.5, delay: 0.7 },
+  { id: 'idle-4', left: '86%', top: '68%', size: 16, xDrift: -7, yDrift: -12, rot: -14, dur: 12, delay: 2.1 },
+  { id: 'idle-5', left: '52%', top: '12%', size: 11, xDrift: 6, yDrift: 9, rot: 12, dur: 8.8, delay: 1.1 },
 ];
+
+const slideMemberVariants: Variants = {
+  enter: (direction: number) => ({
+    x: direction > 0 ? 44 : -44,
+    opacity: 0,
+  }),
+  center: {
+    x: 0,
+    opacity: 1,
+    transition: { duration: 0.28, ease: UNFURL_EASE },
+  },
+  exit: (direction: number) => ({
+    x: direction > 0 ? -44 : 44,
+    opacity: 0,
+    transition: { duration: 0.18, ease: [0.4, 0, 1, 1] },
+  }),
+};
+
+const reducedSlideVariants: Variants = {
+  enter: { opacity: 0 },
+  center: { opacity: 1, transition: { duration: 0.2 } },
+  exit: { opacity: 0, transition: { duration: 0.2 } },
+};
+
+function LaurelWreathSvg({
+  memberId,
+  baseDelay,
+  prefersReduced,
+}: {
+  memberId: string;
+  baseDelay: number;
+  prefersReduced: boolean;
+}) {
+  const wreath = useMemo(() => generateLaurelWreathData(10), []);
+
+  const renderLeaf = (
+    leaf: { id: string; x: number; y: number; rotate: number; scale: number; orderIndex: number },
+    branchPrefix: string,
+  ) => (
+    <g
+      key={`${memberId}-${branchPrefix}-${leaf.id}`}
+      transform={`translate(${leaf.x}, ${leaf.y}) rotate(${leaf.rotate}) scale(${leaf.scale})`}
+    >
+      <motion.path
+        d="M 0 0 C -3.8 -3.6 -4.2 -9.4 0 -13.5 C 4.2 -9.4 3.8 -3.6 0 0 Z"
+        fill="#c9d98a"
+        stroke="#d4bc74"
+        strokeWidth="0.7"
+        style={{ transformOrigin: '0px 0px', willChange: 'transform, opacity' }}
+        initial={prefersReduced ? { scale: 1, opacity: 0.9 } : { scale: 0, opacity: 0 }}
+        animate={{ scale: 1, opacity: 0.92 }}
+        exit={
+          prefersReduced
+            ? { opacity: 0, transition: { duration: 0.15 } }
+            : {
+                scale: 0,
+                opacity: 0,
+                transition: { duration: 0.14, delay: (9 - leaf.orderIndex) * 0.012 },
+              }
+        }
+        transition={
+          prefersReduced
+            ? { duration: 0.2 }
+            : {
+                type: 'spring',
+                stiffness: 340,
+                damping: 18,
+                delay: baseDelay + 0.14 + leaf.orderIndex * 0.04,
+              }
+        }
+      />
+    </g>
+  );
+
+  return (
+    <svg
+      viewBox="0 0 200 200"
+      aria-hidden="true"
+      className="pointer-events-none absolute -inset-[20px] h-[calc(100%+40px)] w-[calc(100%+40px)] overflow-visible"
+    >
+      {/* Left curved olive branch */}
+      <motion.path
+        d={wreath.leftBranchPath}
+        fill="none"
+        stroke="#d4bc74"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        initial={prefersReduced ? { pathLength: 1, opacity: 0.85 } : { pathLength: 0, opacity: 0.2 }}
+        animate={{ pathLength: 1, opacity: 0.9 }}
+        exit={
+          prefersReduced
+            ? { opacity: 0, transition: { duration: 0.15 } }
+            : { pathLength: 0, opacity: 0, transition: { duration: 0.22, ease: 'easeIn' } }
+        }
+        transition={
+          prefersReduced
+            ? { duration: 0.2 }
+            : {
+                pathLength: { duration: 0.9, delay: baseDelay, ease: UNFURL_EASE },
+                opacity: { duration: 0.2, delay: baseDelay },
+              }
+        }
+      />
+
+      {/* Right curved olive branch */}
+      <motion.path
+        d={wreath.rightBranchPath}
+        fill="none"
+        stroke="#d4bc74"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        initial={prefersReduced ? { pathLength: 1, opacity: 0.85 } : { pathLength: 0, opacity: 0.2 }}
+        animate={{ pathLength: 1, opacity: 0.9 }}
+        exit={
+          prefersReduced
+            ? { opacity: 0, transition: { duration: 0.15 } }
+            : { pathLength: 0, opacity: 0, transition: { duration: 0.22, ease: 'easeIn' } }
+        }
+        transition={
+          prefersReduced
+            ? { duration: 0.2 }
+            : {
+                pathLength: { duration: 0.9, delay: baseDelay, ease: UNFURL_EASE },
+                opacity: { duration: 0.2, delay: baseDelay },
+              }
+        }
+      />
+
+      {/* 10 staggered olive leaves along each branch */}
+      {wreath.leftLeaves.map((leaf) => renderLeaf(leaf, 'L'))}
+      {wreath.rightLeaves.map((leaf) => renderLeaf(leaf, 'R'))}
+    </svg>
+  );
+}
 
 export function MemberProfileModal({
   member,
   activeIndex,
   totalCount,
-  sourceRect,
-  getTargetBoxRect,
-  isClosing,
-  prefersReducedMotion,
+  navDirection,
+  navStep,
+  openClickPoint,
+  closeTargetPoint,
   onNavigate,
   onRequestClose,
-  onCloseComplete,
 }: MemberProfileModalProps) {
+  const prefersReduced = useReducedMotion() ?? false;
+  const isPresent = useIsPresent();
+
   const dialogRef = useRef<HTMLDivElement | null>(null);
-  const cardRef = useRef<HTMLDivElement | null>(null);
   const closeBtnRef = useRef<HTMLButtonElement | null>(null);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
-  const hasPlayedInitialFlipRef = useRef(false);
-
-  const [backdropVisible, setBackdropVisible] = useState(false);
-  const [contentVisible, setContentVisible] = useState(prefersReducedMotion);
-  const [photoRevealed, setPhotoRevealed] = useState(prefersReducedMotion);
-  const [revealedWords, setRevealedWords] = useState<number>(prefersReducedMotion ? 9999 : 0);
   const [failedPhotos, setFailedPhotos] = useState<Record<string, boolean>>({});
-  const [leafWaveKey] = useState(0);
 
-  const words = useMemo(() => {
-    const trimmed = member.quote.trim();
-    return trimmed ? trimmed.split(/\s+/) : [];
-  }, [member.quote]);
+  const isPresentRef = useRef(isPresent);
+  const onNavigateRef = useRef(onNavigate);
+  const onRequestCloseRef = useRef(onRequestClose);
+  isPresentRef.current = isPresent;
+  onNavigateRef.current = onNavigate;
+  onRequestCloseRef.current = onRequestClose;
 
-  // Initial FLIP open animation (runs once when modal opens) + move initial focus into dialog
-  useLayoutEffect(() => {
-    if (hasPlayedInitialFlipRef.current) return;
-    hasPlayedInitialFlipRef.current = true;
-
-    const card = cardRef.current;
-    if (!card) return;
-
-    if (prefersReducedMotion || !sourceRect) {
-      card.style.transition = prefersReducedMotion ? 'opacity 160ms ease' : 'opacity 260ms ease';
-      card.style.opacity = '0';
-      card.style.transform = 'translate3d(0, 0, 0) scale(1)';
-      void card.offsetWidth;
-      const raf = window.requestAnimationFrame(() => {
-        setBackdropVisible(true);
-        card.style.opacity = '1';
-      });
-      return () => window.cancelAnimationFrame(raf);
-    }
-
-    const targetRect = card.getBoundingClientRect();
-    const dx = sourceRect.left + sourceRect.width / 2 - (targetRect.left + targetRect.width / 2);
-    const dy = sourceRect.top + sourceRect.height / 2 - (targetRect.top + targetRect.height / 2);
-    const sx = Math.max(0.18, sourceRect.width / Math.max(1, targetRect.width));
-    const sy = Math.max(0.14, sourceRect.height / Math.max(1, targetRect.height));
-
-    card.style.transition = 'none';
-    card.style.transformOrigin = 'center center';
-    card.style.transform = `translate3d(${dx}px, ${dy}px, 0) scale(${sx}, ${sy})`;
-    card.style.opacity = '0.15';
-
-    // Force synchronous layout before enabling transition
-    void card.offsetWidth;
-
-    const raf = window.requestAnimationFrame(() => {
-      setBackdropVisible(true);
-      card.style.transition =
-        'transform 500ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 360ms ease';
-      card.style.transform = 'translate3d(0, 0, 0) scale(1, 1)';
-      card.style.opacity = '1';
-    });
-
-    return () => window.cancelAnimationFrame(raf);
-  }, [prefersReducedMotion, sourceRect]);
-
-  // Focus initial interactive button cleanly once opened
+  // Focus close button on open without scrolling viewport
   useEffect(() => {
     const t = window.setTimeout(() => {
       closeBtnRef.current?.focus({ preventScroll: true });
-    }, 40);
+    }, 60);
     return () => window.clearTimeout(t);
   }, []);
 
-  // Reverse FLIP animation on close -> invokes onCloseComplete once finished
+  // Fixed scroll-position lock (preserves exact scrollY with zero shift on open/close)
   useEffect(() => {
-    if (!isClosing) return;
+    const savedScrollY = window.scrollY;
+    const body = document.body;
+    const html = document.documentElement;
+    const prevStyle = {
+      position: body.style.position,
+      top: body.style.top,
+      left: body.style.left,
+      right: body.style.right,
+      width: body.style.width,
+    };
 
-    const card = cardRef.current;
-    setBackdropVisible(false);
-
-    if (!card || prefersReducedMotion) {
-      if (card) {
-        card.style.transition = prefersReducedMotion ? 'opacity 150ms ease' : 'none';
-        card.style.opacity = '0';
-      }
-      const timer = window.setTimeout(onCloseComplete, prefersReducedMotion ? 160 : 20);
-      return () => window.clearTimeout(timer);
-    }
-
-    const targetBoxRect = getTargetBoxRect() ?? sourceRect;
-    const currentRect = card.getBoundingClientRect();
-
-    if (targetBoxRect && currentRect.width > 0 && currentRect.height > 0) {
-      const dx =
-        targetBoxRect.left +
-        targetBoxRect.width / 2 -
-        (currentRect.left + currentRect.width / 2);
-      const dy =
-        targetBoxRect.top +
-        targetBoxRect.height / 2 -
-        (currentRect.top + currentRect.height / 2);
-      const sx = Math.max(0.18, targetBoxRect.width / currentRect.width);
-      const sy = Math.max(0.14, targetBoxRect.height / currentRect.height);
-
-      card.style.transition =
-        'transform 380ms cubic-bezier(0.4, 0, 0.2, 1), opacity 300ms ease';
-      card.style.transform = `translate3d(${dx}px, ${dy}px, 0) scale(${sx}, ${sy})`;
-      card.style.opacity = '0';
-    } else {
-      card.style.transition = 'transform 280ms ease, opacity 260ms ease';
-      card.style.transform = 'translate3d(0, 12px, 0) scale(0.92)';
-      card.style.opacity = '0';
-    }
-
-    const doneTimer = window.setTimeout(onCloseComplete, 400);
-    return () => window.clearTimeout(doneTimer);
-  }, [getTargetBoxRect, isClosing, onCloseComplete, prefersReducedMotion, sourceRect]);
-
-  // Choreography per member: photo bud clip-path -> name & role fade -> word-by-word quote (25ms/word)
-  useEffect(() => {
-    if (prefersReducedMotion) {
-      setPhotoRevealed(true);
-      setContentVisible(true);
-      setRevealedWords(words.length);
-      return;
-    }
-
-    setPhotoRevealed(false);
-    setContentVisible(false);
-    setRevealedWords(0);
-
-    let wordIntervalId: number | null = null;
-    const tPhoto = window.setTimeout(() => {
-      setPhotoRevealed(true);
-    }, 90);
-
-    const tMeta = window.setTimeout(() => {
-      setContentVisible(true);
-    }, 170);
-
-    const tWordsStart = window.setTimeout(() => {
-      if (words.length === 0) return;
-      let count = 0;
-      wordIntervalId = window.setInterval(() => {
-        count += 1;
-        setRevealedWords(count);
-        if (count >= words.length && wordIntervalId !== null) {
-          window.clearInterval(wordIntervalId);
-          wordIntervalId = null;
-        }
-      }, 25);
-    }, 260);
+    body.style.position = 'fixed';
+    body.style.top = `-${savedScrollY}px`;
+    body.style.left = '0';
+    body.style.right = '0';
+    body.style.width = '100%';
 
     return () => {
-      window.clearTimeout(tPhoto);
-      window.clearTimeout(tMeta);
-      window.clearTimeout(tWordsStart);
-      if (wordIntervalId !== null) {
-        window.clearInterval(wordIntervalId);
-      }
+      body.style.position = prevStyle.position;
+      body.style.top = prevStyle.top;
+      body.style.left = prevStyle.left;
+      body.style.right = prevStyle.right;
+      body.style.width = prevStyle.width;
+
+      const prevBehavior = html.style.scrollBehavior;
+      html.style.scrollBehavior = 'auto';
+      window.scrollTo(0, savedScrollY);
+      html.style.scrollBehavior = prevBehavior;
     };
-  }, [member.id, prefersReducedMotion, words]);
+  }, []);
 
-  // Strict keyboard handling: Escape, ArrowLeft, ArrowRight, and Tab/Shift+Tab focus trap
+  // Keyboard navigation (Escape, Arrows, Tab focus trap)
   useEffect(() => {
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-
     const onKeyDown = (event: KeyboardEvent) => {
+      if (!isPresentRef.current) return;
+
       if (event.key === 'Escape') {
         event.preventDefault();
-        onRequestClose();
+        onRequestCloseRef.current();
         return;
       }
 
       if (event.key === 'ArrowLeft') {
         event.preventDefault();
-        onNavigate(-1);
+        onNavigateRef.current(-1);
         return;
       }
 
       if (event.key === 'ArrowRight') {
         event.preventDefault();
-        onNavigate(1);
+        onNavigateRef.current(1);
         return;
       }
 
@@ -280,10 +304,9 @@ export function MemberProfileModal({
 
     window.addEventListener('keydown', onKeyDown, true);
     return () => {
-      document.body.style.overflow = prevOverflow;
       window.removeEventListener('keydown', onKeyDown, true);
     };
-  }, [onNavigate, onRequestClose]);
+  }, []);
 
   const handleTouchStart = useCallback((event: ReactTouchEvent<HTMLDivElement>) => {
     if (event.touches.length !== 1) return;
@@ -295,24 +318,32 @@ export function MemberProfileModal({
 
   const handleTouchEnd = useCallback(
     (event: ReactTouchEvent<HTMLDivElement>) => {
-      if (!touchStartRef.current || event.changedTouches.length !== 1) return;
+      if (!isPresentRef.current || !touchStartRef.current || event.changedTouches.length !== 1) return;
       const dx = event.changedTouches[0].clientX - touchStartRef.current.x;
       const dy = event.changedTouches[0].clientY - touchStartRef.current.y;
       touchStartRef.current = null;
       if (Math.abs(dx) >= 44 && Math.abs(dx) > Math.abs(dy) * 1.2) {
-        onNavigate(dx < 0 ? 1 : -1);
+        onNavigateRef.current(dx < 0 ? 1 : -1);
       }
     },
-    [onNavigate],
+    [],
   );
 
+  // Modal-local clip-path coordinates captured for open & close
+  const clipCoords = useMemo(() => {
+    const vw = typeof window !== 'undefined' ? window.innerWidth : 1440;
+    const vh = typeof window !== 'undefined' ? window.innerHeight : 900;
+    return {
+      open: computeModalClipOrigin(openClickPoint, vw, vh),
+      close: computeModalClipOrigin(closeTargetPoint, vw, vh),
+    };
+  }, [openClickPoint, closeTargetPoint]);
+
   const hasPhoto = Boolean(member.photo) && !failedPhotos[member.id];
-  const clipStyle: CSSProperties = {
-    clipPath: photoRevealed ? 'circle(100% at 50% 50%)' : 'circle(0% at 50% 50%)',
-    transition: prefersReducedMotion
-      ? 'none'
-      : 'clip-path 560ms cubic-bezier(0.2, 0.8, 0.2, 1)',
-  };
+  const quoteText = member.quote.trim();
+  const isInitialOpen = navStep === 0;
+  const wreathDelay = isInitialOpen ? 0.16 : 0.04;
+  const textBaseDelay = isInitialOpen ? 0.24 : 0.05;
 
   return createPortal(
     <div
@@ -320,203 +351,320 @@ export function MemberProfileModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="member-profile-name"
-      onClick={onRequestClose}
+      onClick={() => {
+        if (isPresent) onRequestClose();
+      }}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
-      className="fixed inset-0 z-[80] flex items-center justify-center p-4 sm:p-6"
+      className={`fixed inset-0 z-[80] flex items-center justify-center p-4 ${
+        isPresent ? 'pointer-events-auto' : 'pointer-events-none'
+      }`}
     >
-      {/* Backdrop */}
-      <div
+      {/* Backdrop with animated 0px -> 8px blur */}
+      <motion.div
         aria-hidden="true"
-        style={{
-          opacity: backdropVisible ? 1 : 0,
-          transition: prefersReducedMotion ? 'opacity 160ms ease' : 'opacity 380ms ease',
-        }}
-        className="pointer-events-none fixed inset-0 bg-[#0e1207]/78 backdrop-blur-[3px]"
+        initial={
+          prefersReduced
+            ? { opacity: 0 }
+            : { opacity: 0, backdropFilter: 'blur(0px)' }
+        }
+        animate={
+          prefersReduced
+            ? { opacity: 1 }
+            : { opacity: 1, backdropFilter: 'blur(8px)' }
+        }
+        exit={
+          prefersReduced
+            ? { opacity: 0, transition: { duration: 0.2 } }
+            : {
+                opacity: 0,
+                backdropFilter: 'blur(0px)',
+                transition: { duration: 0.42, delay: 0.1, ease: UNFURL_EASE },
+              }
+        }
+        transition={{ duration: prefersReduced ? 0.2 : 0.48, ease: UNFURL_EASE }}
+        className="pointer-events-none fixed inset-0 bg-[#0e1207]/78"
       />
 
-      {/* Profile Card (FLIP target) */}
-      <div
-        ref={cardRef}
+      {/* Fixed-Size Modal Shell with Willow Unfurl Circular Clip-Path */}
+      <motion.div
+        data-testid="member-profile-shell"
         onClick={(e) => e.stopPropagation()}
+        initial={
+          prefersReduced
+            ? { opacity: 0 }
+            : {
+                clipPath: `circle(0px at ${clipCoords.open.x}px ${clipCoords.open.y}px)`,
+                opacity: 1,
+              }
+        }
+        animate={
+          prefersReduced
+            ? { opacity: 1 }
+            : {
+                clipPath: `circle(${clipCoords.open.fullRadiusPx}px at ${clipCoords.open.x}px ${clipCoords.open.y}px)`,
+                opacity: 1,
+              }
+        }
+        exit={
+          prefersReduced
+            ? { opacity: 0, transition: { duration: 0.2 } }
+            : {
+                clipPath: `circle(0px at ${clipCoords.close.x}px ${clipCoords.close.y}px)`,
+                opacity: 1,
+                transition: { duration: 0.48, delay: 0.12, ease: UNFURL_EASE },
+              }
+        }
+        transition={
+          prefersReduced
+            ? { duration: 0.2 }
+            : { duration: 0.6, ease: UNFURL_EASE }
+        }
         style={{
-          width: 'min(560px, calc(100vw - 24px))',
-          maxHeight: 'min(90dvh, 720px)',
-          willChange: 'transform, opacity',
+          width: 'min(92vw, 460px)',
+          height: 'min(86dvh, 620px)',
+          willChange: prefersReduced ? 'opacity' : 'clip-path',
         }}
-        className="relative z-10 flex flex-col items-center overflow-y-auto rounded-[4px] border border-[#ede6ca]/35 bg-[#12160a]/98 px-6 py-8 sm:px-11 sm:py-10 text-center shadow-[0_28px_72px_rgba(0,0,0,0.7)]"
+        className="relative z-10 flex flex-col overflow-hidden rounded-[4px] border border-[#ede6ca]/35 bg-[#12160a]/98 text-center shadow-[0_28px_72px_rgba(0,0,0,0.72)]"
       >
-        {/* Falling small SVG leaf shapes drifting down once across card */}
-        {!prefersReducedMotion && (
-          <div
-            key={leafWaveKey}
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]"
-          >
-            {DRIFTING_LEAVES.map((leaf) => (
-              <svg
+        {/* Subtle Idle Olive-Leaf Background Drift (decorative, pointer-events: none) */}
+        {!prefersReduced && (
+          <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
+            {IDLE_LEAVES.map((leaf) => (
+              <motion.svg
                 key={leaf.id}
-                viewBox="0 0 24 24"
-                width={leaf.size}
-                height={leaf.size}
-                style={
-                  {
-                    position: 'absolute',
-                    top: '-10px',
-                    left: `${leaf.leftPct}%`,
-                    '--dx': `${leaf.dx}px`,
-                    '--dy': `${leaf.dy}px`,
-                    '--r-start': `${leaf.rStart}deg`,
-                    '--r-end': `${leaf.rEnd}deg`,
-                    '--fall-delay': `${leaf.delayMs}ms`,
-                    '--fall-dur': `${leaf.durationMs}ms`,
-                  } as CSSProperties
-                }
-                className="ft-leaf-drift text-[#c9d98a]/65"
+                viewBox="0 0 16 20"
+                style={{
+                  position: 'absolute',
+                  left: leaf.left,
+                  top: leaf.top,
+                  width: `${leaf.size}px`,
+                  height: `${Math.round(leaf.size * 1.25)}px`,
+                  willChange: 'transform, opacity',
+                }}
+                initial={{ opacity: 0.08, x: 0, y: 0, rotate: leaf.rot }}
+                animate={{
+                  x: [0, leaf.xDrift, -leaf.xDrift * 0.5, 0],
+                  y: [0, leaf.yDrift, -leaf.yDrift * 0.4, 0],
+                  rotate: [leaf.rot, leaf.rot + 12, leaf.rot - 8, leaf.rot],
+                  opacity: [0.07, 0.13, 0.08, 0.07],
+                }}
+                transition={{
+                  duration: leaf.dur,
+                  delay: leaf.delay,
+                  repeat: Infinity,
+                  ease: 'easeInOut',
+                }}
               >
                 <path
-                  fill="currentColor"
-                  d="M12 2C7.5 6.4 5.5 11.4 6.5 16.5C7.1 19.3 9.2 21.2 12 22C14.8 21.2 16.9 19.3 17.5 16.5C18.5 11.4 16.5 6.4 12 2Z"
+                  d="M8 1C4.4 4.8 3 9.4 3.9 14.1C4.5 16.7 6.3 18.4 8 19C9.7 18.4 11.5 16.7 12.1 14.1C13 9.4 11.6 4.8 8 1Z"
+                  fill="#a9b47e"
                 />
-              </svg>
+              </motion.svg>
             ))}
           </div>
         )}
 
-        {/* Close Button (X) */}
+        {/* Close Button (Bug 5: no flicker, only 150ms background/border transition) */}
         <button
           ref={closeBtnRef}
           type="button"
           onClick={onRequestClose}
           aria-label="Close member profile"
-          className="mun-btn-interactive absolute top-4 right-4 sm:top-5 sm:right-5 z-20 flex h-10 w-10 items-center justify-center rounded-[2px] border border-[#ede6ca]/28 bg-[#14180a]/95 text-[#ede6ca] hover:border-[#ede6ca]/65 cursor-pointer"
+          className="absolute top-3.5 right-3.5 z-30 flex h-10 w-10 items-center justify-center rounded-[2px] border border-[#ede6ca]/28 bg-[#14180a]/95 text-[#ede6ca] transition-[background-color,border-color] duration-150 hover:border-[#ede6ca]/65 hover:bg-[#1e2410] cursor-pointer"
         >
           <X className="h-4 w-4" aria-hidden="true" />
         </button>
 
-        {/* Circular Photo (~156px) opening from bud via clip-path: circle(0% -> 100%) */}
-        <div
-          style={clipStyle}
-          className="relative z-10 flex h-[148px] w-[148px] sm:h-[164px] sm:w-[164px] shrink-0 items-center justify-center overflow-hidden rounded-full border border-[#ede6ca]/70 bg-[#232814] shadow-[0_8px_24px_rgba(0,0,0,0.45)]"
-        >
-          {hasPhoto && member.photo ? (
-            <img
+        {/* Main Content Viewport (flex-1 min-h-0 flex column; only quote area scrolls) */}
+        <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden px-6 pt-8 sm:px-9 sm:pt-9">
+          <AnimatePresence mode="wait" custom={navDirection} initial={false}>
+            <motion.div
               key={member.id}
-              src={member.photo.startsWith('/') ? member.photo : `/${member.photo}`}
-              alt={member.name}
-              style={{ objectPosition: member.objectPosition }}
-              onError={() =>
-                setFailedPhotos((prev) => ({
-                  ...prev,
-                  [member.id]: true,
-                }))
+              custom={navDirection}
+              variants={prefersReduced ? reducedSlideVariants : slideMemberVariants}
+              initial="enter"
+              animate="center"
+              exit={
+                isPresent
+                  ? 'exit'
+                  : prefersReduced
+                    ? { opacity: 0, transition: { duration: 0.2 } }
+                    : { opacity: 0, transition: { duration: 0.18, ease: 'easeOut' } }
               }
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <div className="flex h-full w-full flex-col items-center justify-center px-4 text-center">
-              <img
-                src="willow-tree-only.svg"
-                alt=""
-                aria-hidden="true"
-                className="h-16 w-16 object-contain opacity-85"
-              />
-              <span className="mt-1.5 text-[10px] font-medium uppercase tracking-[0.14em] text-[#cfc8aa]">
-                Photo coming soon
-              </span>
-            </div>
-          )}
-        </div>
-
-        {/* Member Name & Role */}
-        <div
-          style={{
-            opacity: contentVisible ? 1 : 0,
-            transform: contentVisible ? 'translate3d(0, 0, 0)' : 'translate3d(0, 8px, 0)',
-            transition: prefersReducedMotion
-              ? 'none'
-              : 'opacity 320ms ease, transform 320ms cubic-bezier(0.2, 0.8, 0.2, 1)',
-          }}
-          className="relative z-10 mt-5 w-full min-w-0"
-        >
-          <p className="text-[10px] font-medium uppercase tracking-[0.22em] text-[#a9b47e]">
-            {member.groupLabel}
-          </p>
-
-          <h3
-            id="member-profile-name"
-            className="mt-1.5 font-serif text-3xl sm:text-4xl font-medium leading-[1.08] text-[#ede6ca] [text-wrap:balance]"
-          >
-            {member.name}
-          </h3>
-
-          <p
-            style={{ fontVariantCaps: 'small-caps' }}
-            className="mt-1.5 text-sm sm:text-[15px] font-medium tracking-[0.12em] text-[#cfc8aa]"
-          >
-            {member.displayRole}
-          </p>
-        </div>
-
-        {/* Quote revealed word by word (25ms/word) inside large quotation marks */}
-        {words.length > 0 && (
-          <figure className="relative z-10 mt-5 w-full max-w-[44ch] px-3 sm:px-5">
-            <blockquote
-              dir="auto"
-              className="relative font-serif text-lg sm:text-[1.35rem] italic leading-relaxed text-[#f2ecd4]"
+              style={{ willChange: 'transform, opacity' }}
+              className="flex min-h-0 flex-1 flex-col items-center overflow-hidden"
             >
-              <span
-                aria-hidden="true"
-                className="mr-1.5 inline-block align-top font-serif text-3xl sm:text-4xl not-italic leading-none text-[#a9b47e]/85"
+              {/* Fixed Avatar + Laurel Wreath */}
+              <div className="relative z-10 mt-2 flex h-[126px] w-[126px] sm:h-[136px] sm:w-[136px] shrink-0 items-center justify-center">
+                <LaurelWreathSvg
+                  memberId={member.id}
+                  baseDelay={wreathDelay}
+                  prefersReduced={prefersReduced}
+                />
+
+                <motion.div
+                  initial={prefersReduced ? { opacity: 0 } : { scale: 0.8, opacity: 0 }}
+                  animate={prefersReduced ? { opacity: 1 } : { scale: 1, opacity: 1 }}
+                  exit={
+                    prefersReduced
+                      ? { opacity: 0, transition: { duration: 0.15 } }
+                      : { scale: 0.88, opacity: 0, transition: { duration: 0.18 } }
+                  }
+                  transition={{
+                    duration: prefersReduced ? 0.2 : 0.46,
+                    delay: prefersReduced ? 0 : wreathDelay * 0.4,
+                    ease: UNFURL_EASE,
+                  }}
+                  style={{ willChange: 'transform, opacity' }}
+                  className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-full border border-[#ede6ca]/45 bg-[#232814] shadow-[0_8px_24px_rgba(0,0,0,0.45)]"
+                >
+                  {hasPhoto && member.photo ? (
+                    <img
+                      src={member.photo.startsWith('/') ? member.photo : `/${member.photo}`}
+                      alt={member.name}
+                      style={{ objectPosition: member.objectPosition }}
+                      onError={() =>
+                        setFailedPhotos((prev) => ({
+                          ...prev,
+                          [member.id]: true,
+                        }))
+                      }
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full flex-col items-center justify-center px-4 text-center">
+                      <img
+                        src="willow-tree-only.svg"
+                        alt=""
+                        aria-hidden="true"
+                        className="h-14 w-14 object-contain opacity-85"
+                      />
+                      <span className="mt-1.5 text-[10px] font-medium uppercase tracking-[0.14em] text-[#cfc8aa]">
+                        Photo coming soon
+                      </span>
+                    </div>
+                  )}
+                </motion.div>
+              </div>
+
+              {/* Staggered Header Identity (0.07s stagger: Role -> Name -> Title) */}
+              <div className="mt-6 flex w-full shrink-0 flex-col items-center">
+                <motion.p
+                  initial={prefersReduced ? { opacity: 0 } : { opacity: 0, y: 14 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{
+                    duration: prefersReduced ? 0.2 : 0.34,
+                    delay: prefersReduced ? 0 : textBaseDelay,
+                    ease: UNFURL_EASE,
+                  }}
+                  className="text-[10px] font-medium uppercase tracking-[0.22em] text-[#a9b47e]"
+                >
+                  {member.groupLabel}
+                </motion.p>
+
+                <motion.h3
+                  id="member-profile-name"
+                  initial={prefersReduced ? { opacity: 0 } : { opacity: 0, y: 14 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{
+                    duration: prefersReduced ? 0.2 : 0.36,
+                    delay: prefersReduced ? 0 : textBaseDelay + 0.07,
+                    ease: UNFURL_EASE,
+                  }}
+                  className="mt-1.5 font-serif text-[1.75rem] sm:text-[2.1rem] font-medium leading-[1.08] text-[#ede6ca] [text-wrap:balance]"
+                >
+                  {member.name}
+                </motion.h3>
+
+                <motion.p
+                  initial={prefersReduced ? { opacity: 0 } : { opacity: 0, y: 14 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{
+                    duration: prefersReduced ? 0.2 : 0.36,
+                    delay: prefersReduced ? 0 : textBaseDelay + 0.14,
+                    ease: UNFURL_EASE,
+                  }}
+                  style={{ fontVariantCaps: 'small-caps' }}
+                  className="mt-1 text-sm font-medium tracking-[0.12em] text-[#cfc8aa]"
+                >
+                  {member.displayRole}
+                </motion.p>
+              </div>
+
+              {/* Quote Area (ONLY area allowed to scroll; scrollbar hidden) */}
+              <div
+                data-testid="member-quote-scroll"
+                className="mun-no-scrollbar mt-4 flex min-h-0 w-full flex-1 flex-col items-center overflow-y-auto px-1 pb-3"
               >
-                &ldquo;
-              </span>
-              {words.map((word, idx) => {
-                const isShown = idx < revealedWords;
-                return (
-                  <span
-                    key={`${member.id}-${idx}`}
-                    style={{
-                      opacity: isShown ? 1 : 0,
-                      transition: prefersReducedMotion ? 'none' : 'opacity 140ms ease',
+                {quoteText.length > 0 && (
+                  <motion.figure
+                    initial={prefersReduced ? { opacity: 0 } : { opacity: 0, y: 14 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{
+                      duration: prefersReduced ? 0.2 : 0.38,
+                      delay: prefersReduced ? 0 : textBaseDelay + 0.21,
+                      ease: UNFURL_EASE,
                     }}
-                    className="inline-block"
+                    className="my-auto w-full max-w-[38ch] py-1"
                   >
-                    {word}
-                    {idx < words.length - 1 ? '\u00A0' : ''}
-                  </span>
-                );
-              })}
-              <span
-                aria-hidden="true"
-                className="ml-1 inline-block align-bottom font-serif text-3xl sm:text-4xl not-italic leading-none text-[#a9b47e]/85"
-              >
-                &rdquo;
-              </span>
-            </blockquote>
+                    <div
+                      dir="ltr"
+                      className="text-center font-serif text-[1.12rem] sm:text-[1.24rem] italic leading-relaxed text-[#f2ecd4]"
+                    >
+                      <span
+                        aria-hidden="true"
+                        style={{ direction: 'ltr', unicodeBidi: 'isolate' }}
+                        className="mr-1 inline-block align-baseline font-serif text-2xl sm:text-[1.7rem] not-italic leading-none text-[#d4bc74]/85 select-none"
+                      >
+                        &ldquo;
+                      </span>
+                      <blockquote dir="auto" className="inline">
+                        {quoteText}
+                      </blockquote>
+                      <span
+                        aria-hidden="true"
+                        style={{ direction: 'ltr', unicodeBidi: 'isolate' }}
+                        className="ml-1 inline-block align-baseline font-serif text-2xl sm:text-[1.7rem] not-italic leading-none text-[#d4bc74]/85 select-none"
+                      >
+                        &rdquo;
+                      </span>
+                    </div>
 
-            {member.quoteBy && (
-              <figcaption
-                style={{
-                  opacity:
-                    prefersReducedMotion || revealedWords >= words.length ? 1 : 0,
-                  transition: prefersReducedMotion ? 'none' : 'opacity 260ms ease',
-                }}
-                className="mt-2 text-xs font-medium tracking-[0.14em] text-[#cfc8aa]"
-              >
-                &mdash; {member.quoteBy}
-              </figcaption>
-            )}
-          </figure>
-        )}
+                    {member.quoteBy && (
+                      <figcaption className="mt-2 text-xs font-medium tracking-[0.14em] text-[#cfc8aa]">
+                        &mdash; {member.quoteBy}
+                      </figcaption>
+                    )}
+                  </motion.figure>
+                )}
+              </div>
+            </motion.div>
+          </AnimatePresence>
+        </div>
 
-        {/* Prev / Counter / Next Navigation Controls */}
-        <div className="relative z-10 mt-7 flex w-full items-center justify-center gap-4 pt-2">
+        {/* Fixed Bottom Controls (Prev / Counter / Next always visible) */}
+        <motion.div
+          data-testid="member-modal-footer"
+          initial={prefersReduced ? { opacity: 0 } : { opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={
+            prefersReduced
+              ? { opacity: 0, transition: { duration: 0.16 } }
+              : { opacity: 0, transition: { duration: 0.16, ease: WILLOW_EASE } }
+          }
+          transition={{
+            duration: prefersReduced ? 0.2 : 0.34,
+            delay: prefersReduced ? 0 : 0.28,
+            ease: UNFURL_EASE,
+          }}
+          className="relative z-20 flex w-full shrink-0 items-center justify-center gap-4 border-t border-[#ede6ca]/10 bg-[#12160a]/98 px-6 py-4"
+        >
           <button
             type="button"
             onClick={() => onNavigate(-1)}
             aria-label="Previous Executive Board member"
-            className="mun-btn-interactive flex h-11 w-11 items-center justify-center rounded-full border border-[#ede6ca]/35 bg-[#14180a] text-[#ede6ca] hover:border-[#ede6ca] cursor-pointer"
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-[#ede6ca]/35 bg-[#14180a] text-[#ede6ca] transition-[background-color,border-color] duration-150 hover:border-[#ede6ca] hover:bg-[#1e2410] cursor-pointer"
           >
             <ChevronLeft className="h-5 w-5" aria-hidden="true" />
           </button>
@@ -532,12 +680,12 @@ export function MemberProfileModal({
             type="button"
             onClick={() => onNavigate(1)}
             aria-label="Next Executive Board member"
-            className="mun-btn-interactive flex h-11 w-11 items-center justify-center rounded-full border border-[#ede6ca]/35 bg-[#14180a] text-[#ede6ca] hover:border-[#ede6ca] cursor-pointer"
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-[#ede6ca]/35 bg-[#14180a] text-[#ede6ca] transition-[background-color,border-color] duration-150 hover:border-[#ede6ca] hover:bg-[#1e2410] cursor-pointer"
           >
             <ChevronRight className="h-5 w-5" aria-hidden="true" />
           </button>
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
     </div>,
     document.body,
   );
