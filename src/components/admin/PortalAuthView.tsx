@@ -69,6 +69,18 @@ const META: Record<
       { title: 'Personal My QR', copy: 'Access and download your permanent conference entrance QR.' },
     ],
   },
+  staff: {
+    title: 'Department Staff',
+    eyebrow: 'Department workspace',
+    heading: 'Your team. Your department. One workspace.',
+    description: 'Access the tasks, team roster, shifts and conference resources assigned to your department.',
+    icon: Building2,
+    features: [
+      { title: 'Department-only access', copy: 'Your account is limited to its assigned department.' },
+      { title: 'Team coordination', copy: 'View your department roster and assigned shifts.' },
+      { title: 'Personal QR', copy: 'Access your own conference credential.' },
+    ],
+  },
   security: {
     title: 'Security Entrance Scanner',
     eyebrow: 'Security operations',
@@ -119,6 +131,7 @@ export function PortalAuthView({ portal, onNavigate }: PortalAuthViewProps) {
     if (!portal) return true;
     if (portal === 'admin') return role === 'admin' || role === 'super_admin';
     if (portal === 'department_head') return role === 'department_head' || role === 'executive_board';
+    if (portal === 'staff') return role === 'staff';
     if (portal === 'security') return isSecurityAccount(currentUser, data.departments);
     return role === portal;
   };
