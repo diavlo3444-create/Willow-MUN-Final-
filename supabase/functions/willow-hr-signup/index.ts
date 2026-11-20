@@ -138,7 +138,7 @@ Deno.serve(async (req: Request) => {
       if (!departmentId) throw new Error("Applicant department is not configured.");
       const position = String(app.position || "Team Member").trim();
       const isHead = /\b(co[- ]?head|department head|head of|head)\b/i.test(position);
-      const role = isHead ? "department_head" : "executive_board";
+      const role = isHead ? "department_head" : "staff";
       const { data: created, error: createErr } = await admin.auth.admin.createUser({
         email, password, email_confirm: true, user_metadata: { full_name: app.applicant_name },
       });
