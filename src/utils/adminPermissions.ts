@@ -416,11 +416,20 @@ export const EXECUTIVE_BOARD_DEFAULT_PERMISSIONS: PermissionMap = buildPermissio
   'qr.scan': false,
 });
 
+export const STAFF_DEFAULT_PERMISSIONS: PermissionMap = buildPermissionMap({
+  'qr.view_pass': true,
+  'departments.workspace': true,
+  'operations.teams': true,
+  'operations.shifts': true,
+  'operations.deployment': false,
+});
+
 export const ROLE_DEFAULT_PERMISSIONS: Record<RoleType, PermissionMap> = {
   super_admin: SUPER_ADMIN_PERMISSIONS,
   admin: ADMIN_DEFAULT_PERMISSIONS,
   department_head: DEPARTMENT_HEAD_DEFAULT_PERMISSIONS,
   executive_board: EXECUTIVE_BOARD_DEFAULT_PERMISSIONS,
+  staff: STAFF_DEFAULT_PERMISSIONS,
 };
 
 export const SUPER_ADMIN_ONLY_KEYS = new Set<PermissionKey>(
@@ -506,6 +515,8 @@ export function resolveUserPermissions(
     base = { ...ADMIN_DEFAULT_PERMISSIONS };
   } else if (role === 'department_head') {
     base = { ...DEPARTMENT_HEAD_DEFAULT_PERMISSIONS };
+  } else if (role === 'staff') {
+    base = { ...STAFF_DEFAULT_PERMISSIONS };
   } else {
     const ebHead = isEbHeadActor({ role, ebRank, ebPermissions, title, permissions: dbPermissions ?? undefined });
     base = ebHead ? { ...DEPARTMENT_HEAD_DEFAULT_PERMISSIONS } : { ...EXECUTIVE_BOARD_DEFAULT_PERMISSIONS };
@@ -586,7 +597,7 @@ export function isSecurityAccount(
       getActorDepartmentSlug(user, departments) === 'security'
     );
   }
-  if (user.role === 'executive_board') {
+  if (user.role === 'executive_board' || user.role === 'staff') {
     return getActorDepartmentSlug(user, departments) === 'security';
   }
   return false;
@@ -633,6 +644,15 @@ export function hasPermission(
     if (permission === 'committees.manage') {
       return isDccActor(user, departments);
     }
+    return false;
+  }
+
+  if (user.role === 'staff') {
+    if (permission === 'qr.view_pass') return true;
+    if (permission === 'departments.workspace' || permission === 'operations.teams' || permission === 'operations.shifts') {
+      return user.permissions?.[permission] === true;
+    }
+    if (permission === 'qr.scan') return getActorDepartmentSlug(user, departments) === 'security';
     return false;
   }
 
@@ -686,6 +706,7 @@ export function canAccessPortal(
   }
   if (portal === 'executive_board') return user.role === 'executive_board';
   if (portal === 'security') return isSecurityAccount(user, departments);
+  if (portal === 'staff') return user.role === 'staff' && !isSecurityAccount(user, departments);
   return false;
 }
 
@@ -696,7 +717,7 @@ export function canAccessDepartment(
 ): boolean {
   if (!user || !user.isActive || user.status !== 'active') return false;
   if (user.role === 'super_admin' || user.role === 'admin') return true;
-  if (user.role === 'department_head' || user.role === 'executive_board') {
+  if (user.role === 'department_head' || user.role === 'executive_board' || user.role === 'staff') {
     if (!user.departmentId && !user.departmentSlug) return false;
     if (user.departmentId === departmentId) return true;
     const actorSlug = getActorDepartmentSlug(user, departments);
@@ -816,6 +837,8 @@ export function getRoleLabel(role: RoleType): string {
       return 'Department Head';
     case 'executive_board':
       return 'Executive Board';
+    case 'staff':
+      return 'Department Staff';
   }
 }
 
@@ -828,6 +851,8 @@ export function getPortalHomeRoute(role: RoleType): string {
     case 'department_head':
     case 'executive_board':
       return '/head';
+    case 'staff':
+      return '/staff';
   }
 }
 
@@ -838,6 +863,7 @@ export function getPortalHomeRouteForUser(
   if (!user) return '/portal';
   if (user.role === 'super_admin') return '/super-admin';
   if (user.role === 'admin') return '/admin';
+  if (user.role === 'staff') return isSecurityAccount(user, departments) ? '/security' : '/staff';
   if (isSecurityAccount(user, departments) && !hasPermission(user, 'applications.view', departments)) {
     return '/security';
   }
