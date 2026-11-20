@@ -22,6 +22,7 @@ import { ExecutiveBoardSignupView } from './components/admin/ExecutiveBoardSignu
 import { HrApplicantSignupView } from './components/admin/HrApplicantSignupView';
 import { HeadPasswordSetupView } from './components/admin/HeadPasswordSetupView';
 import { PortalErrorBoundary } from './components/admin/PortalErrorBoundary';
+import { AlyaLoginEasterEgg } from './components/admin/AlyaLoginEasterEgg';
 import { ToastViewport } from './components/admin/ToastViewport';
 import { AdminPortal } from './components/admin/portals/AdminPortal';
 import { DepartmentHeadPortal } from './components/admin/portals/DepartmentHeadPortal';
@@ -30,6 +31,7 @@ import { StaffPortal } from './components/admin/portals/StaffPortal';
 import { SuperAdminPortal } from './components/admin/portals/SuperAdminPortal';
 import { AdminStoreProvider, useAdminStore } from './context/AdminStoreContext';
 import { canAccessPortal, getPortalHomeRouteForUser } from './utils/adminPermissions';
+import { markAlyaIntroSeenInSession, shouldShowAlyaLoginEasterEgg } from './utils/alyaEasterEgg';
 import type { PortalKey } from './types/admin';
 import { isAdminRoute, usePathname } from './utils/router';
 
@@ -88,7 +90,8 @@ function PublicWebsite() {
 }
 
 function AdminRouter({ pathname, navigate }: { pathname: string; navigate: (path: string) => void }) {
-  const { currentUser, authReady, data, signOut } = useAdminStore();
+  const { currentUser, testModeHeadUser, authReady, data, signOut } = useAdminStore();
+  const [alyaIntroDismissedForId, setAlyaIntroDismissedForId] = useState<string | null>(null);
   const isLegacyEbRoute = pathname === '/eb' || pathname.startsWith('/eb/');
   const requestedPortal: PortalKey | null =
     pathname === '/super-admin' || pathname.startsWith('/super-admin/') ? 'super_admin' :
@@ -106,6 +109,12 @@ function AdminRouter({ pathname, navigate }: { pathname: string; navigate: (path
   const isEbSignup = pathname === '/eb-signup';
   const isHrSignup = pathname === '/team-signup';
   const isHeadSetup = pathname === '/head-setup';
+
+  useEffect(() => {
+    if (!currentUser) {
+      setAlyaIntroDismissedForId(null);
+    }
+  }, [currentUser]);
 
   useEffect(() => {
     if (!authReady || isHeadSetup) return;
@@ -186,6 +195,27 @@ function AdminRouter({ pathname, navigate }: { pathname: string; navigate: (path
           </button>
         </div>
       </div>
+    );
+  }
+
+  if (
+    requestedPortal &&
+    currentUser &&
+    shouldShowAlyaLoginEasterEgg({
+      user: currentUser,
+      testModeHeadUser,
+      departments: data.departments,
+      dismissedUserId: alyaIntroDismissedForId,
+    })
+  ) {
+    return (
+      <AlyaLoginEasterEgg
+        user={currentUser}
+        onComplete={() => {
+          markAlyaIntroSeenInSession(currentUser.id);
+          setAlyaIntroDismissedForId(currentUser.id);
+        }}
+      />
     );
   }
 

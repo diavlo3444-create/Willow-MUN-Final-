@@ -29,6 +29,7 @@ import {
   resolveUserPermissions,
 } from '../utils/adminPermissions';
 import membersJson from '../data/members.json';
+import { clearAlyaIntroSession } from '../utils/alyaEasterEgg';
 import type {
   AdminNotification,
   AdminUser,
@@ -560,7 +561,10 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (active) window.setTimeout(() => { if (active) void loadAuthenticatedUser(session?.user ?? null); }, 0);
     });
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT' || !session) {
+        clearAlyaIntroSession();
+      }
       if (active) window.setTimeout(() => { if (active) void loadAuthenticatedUser(session?.user ?? null); }, 0);
     });
     return () => { active = false; listener.subscription.unsubscribe(); };
@@ -615,6 +619,7 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
         window.sessionStorage.removeItem(TEST_HEAD_PROFILE_STORAGE_KEY);
         window.sessionStorage.removeItem(TEST_EB_PROFILE_STORAGE_KEY);
       } catch { /* Ignore storage errors */ }
+      clearAlyaIntroSession(user.id);
       setTestModeEbProfile(null);
       setData((prev) => ({
         ...prev,
@@ -660,12 +665,13 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
       window.location.replace('/super-admin');
       return;
     }
+    clearAlyaIntroSession(authenticatedUser?.id);
     void supabase.auth.signOut();
     setCurrentUserId(null);
     setTestModeHeadUserId(null);
     setTestModeEbProfile(null);
     pushToast({ tone: 'info', title: 'Signed out of Willow MUN administration' });
-  }, [pushToast, testModeHeadUser]);
+  }, [authenticatedUser?.id, pushToast, testModeHeadUser]);
 
   const enterDepartmentTestMode = useCallback(
     (
