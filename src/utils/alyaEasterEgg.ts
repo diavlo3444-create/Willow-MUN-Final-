@@ -1,12 +1,16 @@
 import type { AdminUser, Department } from '../types/admin';
-import { getActorDepartmentSlug } from './adminPermissions';
+import { getActorDepartmentSlug, getMediaPressSubScope } from './adminPermissions';
 
 export const ALYA_EASTER_EGG_IMAGE_URL = '/assets/aistudio/images__1__63a869f3.jpg';
 export const ALYA_INTRO_STORAGE_PREFIX = 'willow_alya_login_intro_seen_v1:';
 
-const LEGACY_ALYA_USER_IDS = new Set(['usr-head-media']);
+const LEGACY_ALYA_USER_IDS = new Set([
+  'usr-head-media',
+  'roster:alya-ismail',
+  'pending:alya-ismail',
+]);
 const LEGACY_ALYA_EMAILS = new Set(['alya-ismail@willowmun.org']);
-const ALYA_AVATAR_PATTERN = /(?:^|\/)alya-ismail(?:_[a-f0-9]+)?\.(?:jpg|jpeg|png|webp)(?:$|\?)/i;
+const ALYA_AVATAR_PATTERN = /(?:^|\/)alya[-_]ismail(?:[-_a-z0-9]*)?\.(?:jpg|jpeg|png|webp)(?:$|\?)/i;
 
 export type AlyaBeatMood = 'peek' | 'nervous' | 'flustered' | 'shy';
 
@@ -122,7 +126,15 @@ export function isAlyaAccount(
   }
 
   const deptSlug = getActorDepartmentSlug(user, departments);
-  if (deptSlug !== 'media') {
+  const subScope = getMediaPressSubScope(user);
+  if (subScope === 'press') {
+    return false;
+  }
+  const hasMediaScope =
+    deptSlug === 'media' ||
+    deptSlug === 'media-press' ||
+    (!deptSlug && (!departments || departments.length === 0));
+  if (!hasMediaScope) {
     return false;
   }
 
@@ -225,8 +237,9 @@ export function shouldShowAlyaLoginEasterEgg(params: {
   const { user, testModeHeadUser, departments, dismissedUserId, storage, overrides } = params;
   // Allow Super Admin Department Testing Mode to preview the intro when the selected test account is Alya.
   // The preview still uses the selected account's strict identity check and session deduplication.
-  if (!user || !isAlyaAccount(user, departments, overrides)) return false;
-  if (dismissedUserId && dismissedUserId === user.id) return false;
-  if (hasSeenAlyaIntroInSession(user.id, storage)) return false;
+  const targetUser = testModeHeadUser ?? user;
+  if (!targetUser || !isAlyaAccount(targetUser, departments, overrides)) return false;
+  if (dismissedUserId && dismissedUserId === targetUser.id) return false;
+  if (hasSeenAlyaIntroInSession(targetUser.id, storage)) return false;
   return true;
 }

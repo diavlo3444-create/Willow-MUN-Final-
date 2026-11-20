@@ -73,6 +73,7 @@ interface AdminStoreContextValue {
   currentUser: AdminUser | null;
   authReady: boolean;
   testModeHeadUser: AdminUser | null;
+  testModeSessionVersion: number;
   testModeExecutiveBoardUser: AdminUser | null;
   toasts: ToastMessage[];
   notifications: AdminNotification[];
@@ -241,6 +242,7 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
       return null;
     }
   });
+  const [testModeSessionVersion, setTestModeSessionVersion] = useState(0);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [myQrModalOpen, setMyQrModalOpen] = useState(false);
 
@@ -379,7 +381,10 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
       departmentId,
       departmentSlug,
       division: profile?.division ?? provisioned?.division ?? null,
-      avatarUrl: profile?.avatarUrl ?? provisioned?.avatarUrl ?? null,
+      avatarUrl:
+        profile?.avatarUrl ??
+        provisioned?.avatarUrl ??
+        (member?.photo ? (member.photo.startsWith('/') ? member.photo : `/${member.photo}`) : null),
       isActive: true,
       status: 'active',
       invitationStatus: 'none',
@@ -704,7 +709,9 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
           // Ignore storage error
         }
         setTestModeEbProfile(null);
+        clearAlyaIntroSession(headOrProfile.id);
         setTestModeHeadUserId(headOrProfile.id);
+        setTestModeSessionVersion((version) => version + 1);
         pushToast({
           tone: 'info',
           title: `Testing Mode Active: ${headOrProfile.fullName || 'Department Head'}`,
@@ -729,9 +736,11 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
         // Ignore storage error
       }
       setTestModeEbProfile(null);
+      clearAlyaIntroSession(headOrProfile);
       const targetName = target?.fullName ?? member?.name ?? 'Department Head';
       const targetTitle = target?.title ?? member?.role ?? 'Department Head';
       setTestModeHeadUserId(headOrProfile);
+      setTestModeSessionVersion((version) => version + 1);
       pushToast({
         tone: 'info',
         title: `Testing Mode Active: ${targetName}`,
@@ -743,6 +752,7 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
   );
 
   const exitDepartmentTestMode = useCallback(() => {
+    clearAlyaIntroSession(testModeHeadUser?.id);
     try {
       window.sessionStorage.removeItem(TEST_HEAD_STORAGE_KEY);
       window.sessionStorage.removeItem(TEST_HEAD_PROFILE_STORAGE_KEY);
@@ -752,8 +762,9 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
     }
     setTestModeHeadUserId(null);
     setTestModeEbProfile(null);
+    setTestModeSessionVersion((version) => version + 1);
     pushToast({ tone: 'info', title: 'Exited Department Access Testing Mode' });
-  }, [pushToast]);
+  }, [pushToast, testModeHeadUser?.id]);
 
   const resetDemoData = useCallback(() => {
     const fresh = conferenceDataService.resetDemoData();
@@ -1492,6 +1503,7 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
     currentUser,
     authReady,
     testModeHeadUser,
+    testModeSessionVersion,
     testModeExecutiveBoardUser,
     toasts,
     notifications,

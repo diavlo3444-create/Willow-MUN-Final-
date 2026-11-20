@@ -90,8 +90,8 @@ function PublicWebsite() {
 }
 
 function AdminRouter({ pathname, navigate }: { pathname: string; navigate: (path: string) => void }) {
-  const { currentUser, testModeHeadUser, authReady, data, signOut } = useAdminStore();
-  const [alyaIntroDismissedForId, setAlyaIntroDismissedForId] = useState<string | null>(null);
+  const { currentUser, testModeHeadUser, testModeSessionVersion, authReady, data, signOut } = useAdminStore();
+  const [alyaIntroDismissedKey, setAlyaIntroDismissedKey] = useState<string | null>(null);
   const isLegacyEbRoute = pathname === '/eb' || pathname.startsWith('/eb/');
   const requestedPortal: PortalKey | null =
     pathname === '/super-admin' || pathname.startsWith('/super-admin/') ? 'super_admin' :
@@ -112,7 +112,7 @@ function AdminRouter({ pathname, navigate }: { pathname: string; navigate: (path
 
   useEffect(() => {
     if (!currentUser) {
-      setAlyaIntroDismissedForId(null);
+      setAlyaIntroDismissedKey(null);
     }
   }, [currentUser]);
 
@@ -198,6 +198,7 @@ function AdminRouter({ pathname, navigate }: { pathname: string; navigate: (path
     );
   }
 
+  const activeAlyaSessionKey = currentUser ? `${testModeSessionVersion}:${currentUser.id}` : null;
   if (
     requestedPortal &&
     currentUser &&
@@ -205,7 +206,10 @@ function AdminRouter({ pathname, navigate }: { pathname: string; navigate: (path
       user: currentUser,
       testModeHeadUser,
       departments: data.departments,
-      dismissedUserId: alyaIntroDismissedForId,
+      dismissedUserId:
+        activeAlyaSessionKey && alyaIntroDismissedKey === activeAlyaSessionKey
+          ? currentUser.id
+          : null,
     })
   ) {
     return (
@@ -213,7 +217,7 @@ function AdminRouter({ pathname, navigate }: { pathname: string; navigate: (path
         user={currentUser}
         onComplete={() => {
           markAlyaIntroSeenInSession(currentUser.id);
-          setAlyaIntroDismissedForId(currentUser.id);
+          if (activeAlyaSessionKey) setAlyaIntroDismissedKey(activeAlyaSessionKey);
         }}
       />
     );

@@ -23,8 +23,10 @@ import {
   ADMIN_DEFAULT_PERMISSIONS,
   buildPermissionMap,
   canManageAccountsOrRoles,
+  normalizeDepartmentSlug,
   PERMISSION_DEFINITIONS,
 } from '../../../utils/adminPermissions';
+import { clearAlyaIntroSession } from '../../../utils/alyaEasterEgg';
 import { ConfirmDialog } from '../ConfirmDialog';
 import { WmSkeleton } from '../WmSkeleton';
 import membersJson from '../../../data/members.json';
@@ -638,8 +640,8 @@ export function DepartmentTestingView() {
     }
 
     const departmentByGroup: Record<string, string> = {
-      media: 'media-press',
-      press: 'media-press',
+      media: 'media',
+      press: 'press',
       marketing: 'marketing',
       design: 'design',
       security: 'security',
@@ -652,12 +654,14 @@ export function DepartmentTestingView() {
       if (!member.role || !/\bhead\b/i.test(member.role)) continue;
       const departmentId = departmentByGroup[member.group] || null;
       const key = `roster:${member.id}`;
+      const avatarUrl = member.photo ? (member.photo.startsWith('/') ? member.photo : `/${member.photo}`) : null;
       const existing = [...byEmail.values()].find((row) =>
         row.fullName.trim().toLowerCase() === member.name.trim().toLowerCase()
       );
       if (existing) {
         if (!existing.departmentId && departmentId) existing.departmentId = departmentId;
         if (!existing.title || existing.title === 'Department Head') existing.title = member.role;
+        if (!existing.avatarUrl && avatarUrl) existing.avatarUrl = avatarUrl;
         continue;
       }
       byEmail.set(key, {
@@ -668,6 +672,7 @@ export function DepartmentTestingView() {
         title: member.role,
         departmentId,
         division: null,
+        avatarUrl,
         isActive: true,
         status: 'Awaiting signup',
       });
@@ -686,11 +691,22 @@ export function DepartmentTestingView() {
     );
   }
 
+  const resolveDepartmentForHead = (departmentId: string | null | undefined, title?: string | null) => {
+    if (!departmentId) return null;
+    const direct = deptById.get(departmentId);
+    if (direct) return direct;
+    const normalized = normalizeDepartmentSlug(departmentId);
+    const bySlug =
+      data.departments.find((d) => normalizeDepartmentSlug(d.slug) === normalized) ??
+      (normalized === 'press' || (normalized === 'media' && /\bpress\b/i.test(title || ''))
+        ? data.departments.find((d) => normalizeDepartmentSlug(d.slug) === 'media')
+        : undefined);
+    return bySlug ?? null;
+  };
+
   const openHeadTestTab = (head: (typeof headRows)[number]) => {
     const targetId = head.testUserId || head.id;
-    const dept = head.departmentId
-      ? deptById.get(head.departmentId) ?? data.departments.find((d) => d.slug === head.departmentId) ?? null
-      : null;
+    const dept = resolveDepartmentForHead(head.departmentId, head.title);
     const profile = {
       id: targetId,
       role: head.role,
@@ -705,6 +721,8 @@ export function DepartmentTestingView() {
       permissions: head.permissions ?? null,
       avatarUrl: head.avatarUrl ?? null,
     };
+    clearAlyaIntroSession(targetId);
+    if (head.id !== targetId) clearAlyaIntroSession(head.id);
     const url = new URL('/head', window.location.origin);
     url.searchParams.set('testHead', targetId);
     url.searchParams.set('testProfile', JSON.stringify(profile));
@@ -737,8 +755,8 @@ export function DepartmentTestingView() {
         ) : (
           <div className="divide-y divide-[color:var(--wm-hairline)]">
             {headRows.map((head) => {
-              const dept = head.departmentId ? deptById.get(head.departmentId) ?? data.departments.find((d) => d.slug === head.departmentId) ?? null : null;
-              const deptApps = data.applications.filter((a) => a.departmentId === head.departmentId);
+              const dept = resolveDepartmentForHead(head.departmentId, head.title);
+              const deptApps = data.applications.filter((a) => a.departmentId === (dept?.id ?? head.departmentId));
               return (
                 <article key={head.email || head.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">

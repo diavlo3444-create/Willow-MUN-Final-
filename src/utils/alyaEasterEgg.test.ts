@@ -235,9 +235,16 @@ describe('Alya login Easter egg session deduplication', () => {
     );
 
     // Allows Super Admin to preview in Department Testing Mode only when selecting Alya
+    const superAdmin = makeUser({
+      id: 'uuid-super-admin',
+      fullName: 'Naya Barakat',
+      role: 'super_admin',
+      departmentId: null,
+      departmentSlug: null,
+    });
     assert.equal(
       shouldShowAlyaLoginEasterEgg({
-        user: alya,
+        user: superAdmin,
         testModeHeadUser: alya,
         departments: DEPARTMENTS,
         storage: makeMemoryStorage(),
@@ -254,7 +261,59 @@ describe('Alya login Easter egg session deduplication', () => {
       false,
     );
 
-    // Sign-out clears session flag so next login plays again cleanly
+    // Works for legacy media-press department slug, pending allowlist ID, and roster fallback ID, while excluding Press
+    const mediaPressDepts: Department[] = [
+      {
+        ...DEPARTMENTS[0],
+        id: 'dept-media-press',
+        slug: 'media-press',
+        name: 'Media & Press',
+      },
+    ];
+    assert.equal(
+      isAlyaAccount(
+        makeUser({
+          id: 'pending:alya-ismail',
+          fullName: 'Alya Ismail',
+          role: 'executive_board',
+          title: 'Head of Media',
+          departmentId: 'dept-media-press',
+          departmentSlug: 'media-press',
+        }),
+        mediaPressDepts,
+      ),
+      true,
+    );
+    assert.equal(
+      isAlyaAccount(
+        makeUser({
+          id: 'roster:alya-ismail',
+          fullName: 'Alya Ismail',
+          role: 'department_head',
+          title: 'Head of Media',
+          departmentId: 'media-press',
+          departmentSlug: null,
+        }),
+        mediaPressDepts,
+      ),
+      true,
+    );
+    assert.equal(
+      isAlyaAccount(
+        makeUser({
+          id: 'uuid-press-head',
+          fullName: 'Alya Ismail',
+          role: 'executive_board',
+          title: 'Head of Press',
+          departmentId: 'dept-media-press',
+          departmentSlug: 'media-press',
+        }),
+        mediaPressDepts,
+      ),
+      false,
+    );
+
+    // Sign-out or re-entering testing mode clears session flag so next login/preview plays again cleanly
     clearAlyaIntroSession(undefined, storage);
     assert.equal(hasSeenAlyaIntroInSession(alya.id, storage), false);
     assert.equal(

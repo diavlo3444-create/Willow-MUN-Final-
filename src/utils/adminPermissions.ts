@@ -441,7 +441,14 @@ export function normalizeDepartmentSlug(value: string | null | undefined): strin
   if (!clean) return '';
   if (clean === 'human-resources' || clean === 'human_resources') return 'hr';
   if (clean === 'delegate-affairs' || clean === 'delegate_affairs') return 'dcc';
-  if (clean === 'media-press') return 'media';
+  if (
+    clean === 'media-press' ||
+    clean === 'media_press' ||
+    clean === 'media-and-press' ||
+    clean === 'media & press'
+  ) {
+    return 'media';
+  }
   if (clean === 'media') return 'media';
   if (clean === 'press') return 'press';
   if (clean === 'volunteer') return 'volunteers';
