@@ -881,6 +881,8 @@ export function getPortalBasePath(portal: PortalKey): string {
     case 'department_head':
     case 'executive_board':
       return '/head';
+    case 'staff':
+      return '/staff';
   }
 }
 
@@ -917,6 +919,18 @@ export function getNavigationGroups(
     ];
     const visible = items.filter((item) => !item.requiredPermission || hasPermission(user, item.requiredPermission, departments));
     return visible.length ? [{ id: 'security-entrance', label: 'Entrance Security', items: visible }] : [];
+  }
+
+  if (portal === 'staff') {
+    const items: NavItemConfig[] = [
+      { id: 'overview', label: 'Department Overview', path: base },
+      { id: 'workspace', label: 'My Department', path: base + '/workspace', requiredPermission: 'departments.workspace' },
+      { id: 'teams', label: 'Team Roster', path: base + '/teams', requiredPermission: 'operations.teams' },
+      { id: 'shifts', label: 'My Shifts', path: base + '/shifts', requiredPermission: 'operations.shifts' },
+      { id: 'qr', label: 'My QR', path: base + '/qr', requiredPermission: 'qr.view_pass' },
+    ];
+    const visible = items.filter((item) => !item.requiredPermission || hasPermission(user, item.requiredPermission, departments));
+    return visible.length ? [{ id: 'staff-workspace', label: 'My Department', items: visible }] : [];
   }
 
   if (portal === 'department_head' || portal === 'executive_board') {
