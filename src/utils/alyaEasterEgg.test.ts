@@ -234,11 +234,20 @@ describe('Alya login Easter egg session deduplication', () => {
       false,
     );
 
-    // Also suppressed if Super Admin is previewing in Department Testing Mode
+    // Allows Super Admin to preview in Department Testing Mode only when selecting Alya
     assert.equal(
       shouldShowAlyaLoginEasterEgg({
         user: alya,
         testModeHeadUser: alya,
+        departments: DEPARTMENTS,
+        storage: makeMemoryStorage(),
+      }),
+      true,
+    );
+    assert.equal(
+      shouldShowAlyaLoginEasterEgg({
+        user: makeUser({ id: 'usr-other', fullName: 'Yousef Saifi', role: 'executive_board', departmentId: 'dept-media-uuid' }),
+        testModeHeadUser: makeUser({ id: 'usr-other', fullName: 'Yousef Saifi', role: 'executive_board', departmentId: 'dept-media-uuid' }),
         departments: DEPARTMENTS,
         storage: makeMemoryStorage(),
       }),

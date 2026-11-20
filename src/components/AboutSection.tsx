@@ -1,15 +1,20 @@
 import { CONFERENCE_DATA } from '../data/conference';
 import { usePublishedWebsite } from '../utils/usePublishedWebsite';
+import { CharterCharacter } from './CharterCharacter';
 import { ParallaxFrame, RevealItem } from './MotionPrimitives';
 import { RevealSection, SectionHeading } from './RevealSection';
 import { TbaText } from './TbaText';
 
+interface AboutSectionProps {
+  introPlaying?: boolean;
+}
+
 /**
  * Section 01: Conference Theme, Meaning & Charter
  * Editorial two-part spread featuring a full-width serif pull-quote on the Willow ethos
- * paired with a drop-cap Charter statement and a ruled Conference Architecture folio.
+ * paired with a drop-cap Charter statement, animated character presence, and a ruled Conference Architecture folio.
  */
-export function AboutSection() {
+export function AboutSection({ introPlaying = false }: AboutSectionProps) {
   const { published, settings } = usePublishedWebsite();
   const aboutSec = published.sections.find((s) => s.sectionKey === 'about');
   const label = aboutSec?.label || CONFERENCE_DATA.about.label;
@@ -76,11 +81,11 @@ export function AboutSection() {
           </RevealItem>
         </div>
 
-        {/* Lower Asymmetric Spread: Long-form Charter + Unboxed Ruled Fact Directory */}
+        {/* Lower Asymmetric Spread: Long-form Charter + Transparent Character & Unboxed Ruled Fact Directory */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-start">
           <RevealItem
             staggerIndex={2}
-            className="lg:col-span-7 space-y-5 max-w-[64ch] text-base sm:text-[17px] leading-[1.8] text-[#dcd5ba]"
+            className="order-2 lg:order-1 lg:col-span-7 space-y-5 max-w-[64ch] text-base sm:text-[17px] leading-[1.8] text-[#dcd5ba]"
           >
             <p className="first-letter:float-left first-letter:mr-3.5 first-letter:mt-1 first-letter:font-serif first-letter:text-5xl first-letter:font-medium first-letter:leading-[0.85] first-letter:text-[#ede6ca]">
               {paragraph}
@@ -93,7 +98,9 @@ export function AboutSection() {
             </p>
           </RevealItem>
 
-          <ParallaxFrame offsetPx={12} className="lg:col-span-5">
+          <ParallaxFrame offsetPx={10} className="order-1 lg:order-2 lg:col-span-5" innerClassName="space-y-6">
+            <CharterCharacter introPlaying={introPlaying} />
+
             <RevealItem staggerIndex={3}>
               <aside
                 aria-label="Conference charter specifications"

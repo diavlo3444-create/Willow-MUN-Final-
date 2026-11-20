@@ -70,7 +70,7 @@ function PublicWebsite() {
           <Hero cursorEffectsActive={!introPlaying} />
           <MarqueeStrip paused={introPlaying} />
 
-          <AboutSection />
+          <AboutSection introPlaying={introPlaying} />
           <CommitteesSection />
           <ExecutiveBoardSection />
           <UpdatesSection />
