@@ -223,8 +223,8 @@ export function shouldShowAlyaLoginEasterEgg(params: {
   overrides?: AlyaIdentityOverrides;
 }): boolean {
   const { user, testModeHeadUser, departments, dismissedUserId, storage, overrides } = params;
-  // Never trigger during Super Admin Department Testing Mode preview
-  if (testModeHeadUser) return false;
+  // Allow Super Admin Department Testing Mode to preview the intro when the selected test account is Alya.
+  // The preview still uses the selected account's strict identity check and session deduplication.
   if (!user || !isAlyaAccount(user, departments, overrides)) return false;
   if (dismissedUserId && dismissedUserId === user.id) return false;
   if (hasSeenAlyaIntroInSession(user.id, storage)) return false;
