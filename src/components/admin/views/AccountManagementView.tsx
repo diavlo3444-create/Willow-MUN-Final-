@@ -337,15 +337,20 @@ export function AccountManagementView({
     const isPendingRoster = Boolean(editingAccount?.user_id.startsWith('pending:'));
     const editingRealId = editingAccount && !isPendingRoster ? editingAccount.user_id : null;
 
-    // Duplicate email pre-check (server also enforces atomically)
-    const dup = accounts.find(
-      (a) =>
+    // Only check duplicates when creating an account or changing its email.
+    // Existing account edits that keep the same email must not be blocked by
+    // duplicate roster/profile entries returned by the account list.
+    const currentEmail = (editingAccount?.email || '').trim().toLowerCase();
+    const emailChanged = !editingAccount || cleanEmail !== currentEmail;
+    if (emailChanged) {
+      const dup = accounts.find((a) =>
         a.email.trim().toLowerCase() === cleanEmail &&
         (!editingAccount || a.user_id !== editingAccount.user_id),
-    );
-    if (dup) {
-      setFormError(`An account already exists with email "${cleanEmail}". Edit that account instead.`);
-      return;
+      );
+      if (dup) {
+        setFormError(`An account already exists with email "${cleanEmail}". Edit that account instead.`);
+        return;
+      }
     }
 
     const sanitizedPerms: Record<string, boolean> = {};
