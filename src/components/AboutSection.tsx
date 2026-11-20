@@ -1,6 +1,5 @@
 import { CONFERENCE_DATA } from '../data/conference';
 import { usePublishedWebsite } from '../utils/usePublishedWebsite';
-import { CharterCharacter } from './CharterCharacter';
 import { ParallaxFrame, RevealItem } from './MotionPrimitives';
 import { RevealSection, SectionHeading } from './RevealSection';
 import { TbaText } from './TbaText';
@@ -12,7 +11,7 @@ interface AboutSectionProps {
 /**
  * Section 01: Conference Theme, Meaning & Charter
  * Editorial two-part spread featuring a full-width serif pull-quote on the Willow ethos
- * paired with a drop-cap Charter statement, animated character presence, and a ruled Conference Architecture folio.
+ * paired with a drop-cap Charter statement and a ruled Conference Architecture folio.
  */
 export function AboutSection({ introPlaying = false }: AboutSectionProps) {
   const { published, settings } = usePublishedWebsite();
@@ -99,8 +98,6 @@ export function AboutSection({ introPlaying = false }: AboutSectionProps) {
           </RevealItem>
 
           <ParallaxFrame offsetPx={10} className="order-1 lg:order-2 lg:col-span-5" innerClassName="space-y-6">
-            <CharterCharacter introPlaying={introPlaying} />
-
             <RevealItem staggerIndex={3}>
               <aside
                 aria-label="Conference charter specifications"
