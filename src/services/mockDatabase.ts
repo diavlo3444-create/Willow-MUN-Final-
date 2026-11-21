@@ -1644,7 +1644,13 @@ const INITIAL_COMMITTEES: CommitteeRecord[] = [
 
 function mapGroupToSecretariatCategory(groupId: string): SecretariatCategory {
   if (groupId === 'secretariat') return 'secretariat';
-  if (groupId === 'media' || groupId === 'press' || groupId === 'marketing' || groupId === 'design') {
+  if (
+    groupId === 'media' ||
+    groupId === 'press' ||
+    groupId === 'marketing' ||
+    groupId === 'design' ||
+    groupId === 'pr'
+  ) {
     return 'communications';
   }
   if (groupId === 'it') return 'logistics';

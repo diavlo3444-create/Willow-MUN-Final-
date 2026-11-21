@@ -9,6 +9,7 @@ import { Footer } from './components/Footer';
 import { Hero } from './components/Hero';
 import { InstagramSection } from './components/InstagramSection';
 import { MarqueeStrip } from './components/MarqueeStrip';
+import { MascotDog } from './components/MascotDog';
 import { Navbar } from './components/Navbar';
 import { ScrollProgressBar } from './components/ScrollProgressBar';
 import { UpdatesSection } from './components/UpdatesSection';
@@ -79,6 +80,8 @@ function PublicWebsite() {
         </main>
 
         <Footer onReplayIntro={handleReplayIntro} />
+
+        <MascotDog introPlaying={introPlaying} />
 
         <AnnouncementBar
           visible={showAnnouncement}

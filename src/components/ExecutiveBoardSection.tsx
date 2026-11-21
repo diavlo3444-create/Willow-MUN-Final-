@@ -523,6 +523,16 @@ export function ExecutiveBoardSection() {
       return;
     }
 
+    const btn = getButtonForMember(memberId);
+    if (btn) {
+      const rect = btn.getBoundingClientRect();
+      window.dispatchEvent(
+        new CustomEvent('willow:mascot-hover', {
+          detail: { targetX: rect.left + rect.width / 2 },
+        }),
+      );
+    }
+
     const len = overlay.getTotalLength();
     if (len > 0) {
       overlay.style.strokeDasharray = `${len}`;
@@ -536,9 +546,14 @@ export function ExecutiveBoardSection() {
         },
       );
     }
-  }, []);
+  }, [getButtonForMember]);
 
   const handleHoverLeave = useCallback(() => {
+    window.dispatchEvent(
+      new CustomEvent('willow:mascot-hover', {
+        detail: { targetX: null },
+      }),
+    );
     if (isZoomActiveRef.current || isAnimatingRef.current) return;
     const stage = stageRef.current;
     const overlay = hoverOverlayPathRef.current;
@@ -568,6 +583,17 @@ export function ExecutiveBoardSection() {
       const seqKey = sessionSeqRef.current;
 
       lockPageScroll();
+      const btnRect = btn.getBoundingClientRect();
+      window.dispatchEvent(
+        new CustomEvent('willow:mascot-card-click', {
+          detail: { targetX: btnRect.left + btnRect.width / 2 },
+        }),
+      );
+      window.dispatchEvent(
+        new CustomEvent('willow:mascot-modal', {
+          detail: { open: true },
+        }),
+      );
 
       if (reduced) {
         isZoomActiveRef.current = true;
@@ -893,6 +919,11 @@ export function ExecutiveBoardSection() {
 
     setModalSession(null);
     unlockPageScroll();
+    window.dispatchEvent(
+      new CustomEvent('willow:mascot-modal', {
+        detail: { open: false },
+      }),
+    );
 
     if (restoreId) {
       window.requestAnimationFrame(() => {

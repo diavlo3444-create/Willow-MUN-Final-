@@ -52,9 +52,9 @@ test('formatObjectPosition handles focus array and null defaults cleanly', () =>
 test('organizeFamilyTree orders secretariat -> left groups -> right groups canonically', () => {
   const tree = organizeFamilyTree(membersData as FamilyTreeData);
 
-  assert.equal(tree.orderedMembers.length, 32);
+  assert.equal(tree.orderedMembers.length, 35);
   assert.equal(tree.centerGroups.length, 1);
-  assert.equal(tree.leftGroups.length, 4);
+  assert.equal(tree.leftGroups.length, 5);
   assert.equal(tree.rightGroups.length, 7);
 
   const seenGroups: string[] = [];
@@ -69,6 +69,7 @@ test('organizeFamilyTree orders secretariat -> left groups -> right groups canon
     'press',
     'marketing',
     'design',
+    'pr',
     'security',
     'it',
     'hr',
@@ -78,11 +79,19 @@ test('organizeFamilyTree orders secretariat -> left groups -> right groups canon
     'ceremonies',
   ]);
 
-  assert.equal(tree.orderedMembers[0].id, 'naya-almasr');
-  assert.equal(tree.orderedMembers[0].name, 'Naya Almasri');
-  assert.equal(tree.orderedMembers[0].displayRole, 'Operation Director');
-  assert.equal(tree.orderedMembers[1].id, 'lana-ahmed');
-  assert.equal(tree.orderedMembers[2].id, 'loor-almasri');
+  assert.equal(tree.orderedMembers[0].id, 'lana-ahmed');
+  assert.equal(tree.orderedMembers[1].id, 'loor-almasri');
+  assert.equal(tree.orderedMembers[1].quote, "In the end, we'll all become stories.");
+
+  const nayaIdx = tree.indexById['naya-almasr'];
+  assert.equal(tree.orderedMembers[nayaIdx].name, 'Naya Almasri');
+  assert.equal(tree.orderedMembers[nayaIdx].displayRole, 'Operation Director');
+  assert.equal(tree.orderedMembers[nayaIdx].group, 'ceremonies');
+
+  assert.equal(tree.orderedMembers[tree.indexById['bushra']].group, 'volunteers');
+  assert.equal(tree.orderedMembers[tree.indexById['bushra']].displayRole, 'Head of Volunteers');
+  assert.equal(tree.orderedMembers[tree.indexById['abdulhadi']].group, 'volunteers');
+  assert.equal(tree.orderedMembers[tree.indexById['abdulhadi']].displayRole, 'Head of Volunteers');
 
   const nasserIdx = tree.indexById['nasser-alqassem'];
   assert.equal(typeof nasserIdx, 'number');
@@ -92,6 +101,14 @@ test('organizeFamilyTree orders secretariat -> left groups -> right groups canon
   assert.equal(tree.orderedMembers[tree.indexById['rayan-alsaoud']].displayRole, 'Head of DCC');
   assert.equal(tree.orderedMembers[tree.indexById['maria']].group, 'dcc');
   assert.equal(tree.indexById['lelas-almadi'], undefined);
+
+  const lilyIdx = tree.indexById['lily-rabia'];
+  assert.equal(typeof lilyIdx, 'number');
+  assert.equal(tree.orderedMembers[lilyIdx].name, 'Lily Rabia');
+  assert.equal(tree.orderedMembers[lilyIdx].displayRole, 'Head of PR');
+  assert.equal(tree.orderedMembers[lilyIdx].group, 'pr');
+  assert.equal(tree.orderedMembers[lilyIdx].quote, 'Dream big. Start small. Act daily.');
+  assert.equal(tree.orderedMembers[lilyIdx].photo, 'photos/lily-rabia.jpg');
 
   assert.equal(tree.orderedMembers[tree.indexById['loor-almasri']].photo, 'photos/loor-almasri.jpg');
   assert.equal(tree.orderedMembers[tree.indexById['ward-ajaj']].photo, 'photos/ward-ajaj.jpg');

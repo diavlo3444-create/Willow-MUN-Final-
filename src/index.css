@@ -1139,3 +1139,119 @@ section.mun-scroll-section:nth-of-type(odd)::before {
 @media (prefers-reduced-motion: reduce) {
   .willow-scanline { animation: none; opacity: 0.9; }
 }
+
+/* ============================================================================
+   Reactive Mascot Pekingese 6x5 Sprite Atlas (transform, opacity & bg-position)
+   ============================================================================ */
+@keyframes mascot-frames-6 {
+  from {
+    background-position-x: 0%;
+  }
+  to {
+    background-position-x: 120%;
+  }
+}
+
+@keyframes mascot-frames-4 {
+  from {
+    background-position-x: 0%;
+  }
+  to {
+    background-position-x: 80%;
+  }
+}
+
+.mascot-dog-layer {
+  --dog-size: 64px;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 52px;
+  height: var(--dog-size);
+  z-index: 20;
+  pointer-events: none;
+  overflow: visible;
+  opacity: 1;
+  transition: opacity 0.35s ease;
+}
+
+@media (min-width: 768px) {
+  .mascot-dog-layer {
+    --dog-size: 90px;
+  }
+}
+
+body.intro-on .mascot-dog-layer {
+  opacity: 0;
+}
+
+.mascot-dog {
+  --row: 0;
+  --frames: 6;
+  --frame-duration: 720ms;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: var(--dog-size);
+  height: var(--dog-size);
+  background-image: url('/dog-atlas.webp');
+  background-repeat: no-repeat;
+  background-size: 600% 500%;
+  background-position-x: 0%;
+  background-position-y: calc(var(--row) * 25%);
+  will-change: transform;
+  pointer-events: auto;
+  cursor: pointer;
+  animation: mascot-frames-6 var(--frame-duration) steps(var(--frames)) infinite;
+}
+
+.mascot-dog[data-frames="4"] {
+  animation-name: mascot-frames-4;
+}
+
+.mascot-dog[data-frames="6"] {
+  animation-name: mascot-frames-6;
+}
+
+.mascot-woof {
+  position: absolute;
+  pointer-events: none;
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 8px;
+  line-height: 1;
+  color: #efe9d0;
+  background-color: #2a3219;
+  border: 1px solid #c9b36b;
+  padding: 2px 5px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.mascot-particle {
+  position: absolute;
+  pointer-events: none;
+  line-height: 0;
+}
+
+.mascot-sleep-z {
+  position: absolute;
+  pointer-events: none;
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-size: 11px;
+  line-height: 1;
+  color: #efe9d0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mascot-dog {
+    animation: none !important;
+    transform: translateX(16px) scaleX(1) !important;
+    background-position-x: 0% !important;
+    background-position-y: 50% !important;
+    pointer-events: none;
+  }
+}
+
+

@@ -30,6 +30,12 @@
       "cluster": "Communications & Creative"
     },
     {
+      "id": "pr",
+      "label": "PR",
+      "side": "left",
+      "cluster": "Communications & Creative"
+    },
+    {
       "id": "security",
       "label": "Security",
       "side": "right",
@@ -74,19 +80,6 @@
   ],
   "members": [
     {
-      "id": "naya-almasr",
-      "name": "Naya Almasri",
-      "role": "Operation Director",
-      "group": "secretariat",
-      "quote": "الحمدلله",
-      "quoteBy": null,
-      "photo": "photos/naya-almasr.jpg",
-      "focus": [
-        46,
-        50
-      ]
-    },
-    {
       "id": "lana-ahmed",
       "name": "Lana Ahmed",
       "role": "Secretary-General",
@@ -104,7 +97,7 @@
       "name": "Loor Almasri",
       "role": "Secretary-General",
       "group": "secretariat",
-      "quote": "",
+      "quote": "In the end, we'll all become stories.",
       "quoteBy": null,
       "photo": "photos/loor-almasri.jpg",
       "focus": [
@@ -295,6 +288,19 @@
       ]
     },
     {
+      "id": "lily-rabia",
+      "name": "Lily Rabia",
+      "role": "Head of PR",
+      "group": "pr",
+      "quote": "Dream big. Start small. Act daily.",
+      "quoteBy": null,
+      "photo": "photos/lily-rabia.jpg",
+      "focus": [
+        50,
+        50
+      ]
+    },
+    {
       "id": "wed-abdulrhman-sidahmed",
       "name": "Wed Abdulrhman Sidahmed",
       "role": "Head of Security",
@@ -396,6 +402,26 @@
       ]
     },
     {
+      "id": "bushra",
+      "name": "Bushra",
+      "role": "Head of Volunteers",
+      "group": "volunteers",
+      "quote": "",
+      "quoteBy": null,
+      "photo": null,
+      "focus": null
+    },
+    {
+      "id": "abdulhadi",
+      "name": "Abdulhadi",
+      "role": "Head of Volunteers",
+      "group": "volunteers",
+      "quote": "",
+      "quoteBy": null,
+      "photo": null,
+      "focus": null
+    },
+    {
       "id": "hayady-alsuwaigh",
       "name": "Hayady Alsuwaigh",
       "role": "Co-head of Volunteers",
@@ -465,6 +491,19 @@
       "focus": [
         44,
         18
+      ]
+    },
+    {
+      "id": "naya-almasr",
+      "name": "Naya Almasri",
+      "role": "Operation Director",
+      "group": "ceremonies",
+      "quote": "الحمدلله",
+      "quoteBy": null,
+      "photo": "photos/naya-almasr.jpg",
+      "focus": [
+        46,
+        50
       ]
     },
     {
