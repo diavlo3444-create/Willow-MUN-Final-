@@ -371,9 +371,9 @@ export function LiveQrScannerWorkspace({
               <p className="text-[11px] text-[color:var(--wm-ink-muted)]">
                 {scanMode === 'checkin' ? 'Valid passes check in automatically upon scan.' : 'Scan an attendee who is currently checked in to record departure.'}
               </p>
-              <div className="mt-2 inline-flex rounded-md border border-[color:var(--wm-hairline-strong)] p-1">
-                <button type="button" onClick={() => setScanMode('checkin')} aria-pressed={scanMode === 'checkin'} className={`rounded px-3 py-1.5 text-[11px] font-semibold ${scanMode === 'checkin' ? 'bg-[color:var(--wm-emerald)] text-white' : 'text-[color:var(--wm-ink-muted)]'}`}>Check In</button>
-                <button type="button" onClick={() => setScanMode('checkout')} aria-pressed={scanMode === 'checkout'} className={`rounded px-3 py-1.5 text-[11px] font-semibold ${scanMode === 'checkout' ? 'bg-amber-700 text-white' : 'text-[color:var(--wm-ink-muted)]'}`}>Check Out</button>
+              <div className="mt-3 grid w-full max-w-sm grid-cols-2 gap-1 rounded-lg border border-[color:var(--wm-hairline-strong)] bg-black/15 p-1.5">
+                <button type="button" disabled={scanBusy} onClick={() => { setScanMode('checkin'); setValidation(null); setScanError(''); }} aria-pressed={scanMode === 'checkin'} className={`min-h-10 rounded-md px-4 text-xs font-bold tracking-wide transition-colors disabled:opacity-50 ${scanMode === 'checkin' ? 'bg-[color:var(--wm-emerald)] text-white shadow-sm' : 'text-[color:var(--wm-ink-muted)] hover:bg-white/5'}`}>CHECK IN</button>
+                <button type="button" disabled={scanBusy} onClick={() => { setScanMode('checkout'); setValidation(null); setScanError(''); }} aria-pressed={scanMode === 'checkout'} className={`min-h-10 rounded-md px-4 text-xs font-bold tracking-wide transition-colors disabled:opacity-50 ${scanMode === 'checkout' ? 'bg-amber-700 text-white shadow-sm' : 'text-[color:var(--wm-ink-muted)] hover:bg-white/5'}`}>CHECK OUT</button>
               </div>
             </div>
           </div>
