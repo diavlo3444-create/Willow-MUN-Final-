@@ -8,6 +8,7 @@ import type {
   EmailHistoryRecord,
   EmailTemplateRecord,
   FailedEmailRecord,
+  ManualEmailConfirmationRecord,
 } from '../components/admin/views/emails/types';
 
 export const FAILED_EMAILS_STORAGE_KEY = 'wm_failed_emails_v1';
@@ -188,6 +189,11 @@ export function interpretSendResponse(params: {
   }
 
   return { outcome: 'sent', errorDetails: null };
+}
+
+export function hasValidRecipientEmail(email: string | null | undefined): boolean {
+  const clean = String(email ?? '').trim();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(clean);
 }
 
 export function buildGmailComposeUrl(params: {
@@ -482,6 +488,161 @@ export function mergeAndDeduplicateFailedEmails(params: {
   return { failedRecords, resolvedKeysToClear };
 }
 
+export function mergeEmailHistoryWithManualConfirmations(params: {
+  serverHistory: EmailHistoryRecord[];
+  manualConfirmations: ManualEmailConfirmationRecord[];
+  applicants?: EmailApplicantRecord[];
+  templates?: Record<EmailDecisionType, EmailTemplateRecord>;
+}): EmailHistoryRecord[] {
+  const {
+    serverHistory,
+    manualConfirmations,
+    applicants = [],
+    templates = DEFAULT_EMAIL_TEMPLATES,
+  } = params;
+
+  const toMs = (iso: string | null | undefined): number => {
+    if (!iso) return 0;
+    const parsed = Date.parse(iso);
+    return Number.isNaN(parsed) ? 0 : parsed;
+  };
+
+  const applicantById = new Map<string, EmailApplicantRecord>();
+  applicants.forEach((a) => applicantById.set(a.id, a));
+
+  const confirmationByKey = new Map<string, ManualEmailConfirmationRecord>();
+  const confirmationByDeliveryId = new Map<string, ManualEmailConfirmationRecord>();
+
+  for (const conf of manualConfirmations) {
+    const key = buildFailedEmailKey(conf.applicationId, conf.recipientEmail, conf.decisionStatus);
+    const prev = confirmationByKey.get(key);
+    if (!prev || toMs(conf.sentAt) >= toMs(prev.sentAt)) {
+      confirmationByKey.set(key, conf);
+    }
+    if (conf.serverDeliveryId) {
+      confirmationByDeliveryId.set(conf.serverDeliveryId, conf);
+    }
+  }
+
+  const consumedKeys = new Set<string>();
+  const mergedRows: EmailHistoryRecord[] = [];
+  const seenKeyForDedupe = new Set<string>();
+
+  for (const row of serverHistory) {
+    const key = buildFailedEmailKey(row.applicantId, row.recipientEmail, row.emailType);
+    const matchedConf =
+      confirmationByDeliveryId.get(row.id) ?? confirmationByKey.get(key);
+
+    if (matchedConf) {
+      consumedKeys.add(
+        buildFailedEmailKey(
+          matchedConf.applicationId,
+          matchedConf.recipientEmail,
+          matchedConf.decisionStatus,
+        ),
+      );
+      const confMs = toMs(matchedConf.sentAt);
+      const rowMs = toMs(row.sentAt || row.lastAttemptAt);
+      const isSameDelivery = Boolean(
+        matchedConf.serverDeliveryId && matchedConf.serverDeliveryId === row.id,
+      );
+
+      // If this manual confirmation applies to this delivery or happened at/after it,
+      // upgrade the row in-place to Successfully Sent (Manual via Gmail) without duplicating.
+      if (isSameDelivery || confMs >= rowMs) {
+        if (seenKeyForDedupe.has(key) && row.status !== 'sent') {
+          continue;
+        }
+        seenKeyForDedupe.add(key);
+
+        const applicant = row.applicantId ? applicantById.get(row.applicantId) : undefined;
+        const resolved = resolveEmailContent({
+          applicant: {
+            id: row.applicantId || matchedConf.applicationId || key,
+            applicantName: row.recipientName || matchedConf.recipientName || 'Applicant',
+            email: row.recipientEmail || matchedConf.recipientEmail,
+            department: row.department || matchedConf.department || 'General',
+            appliedPosition: applicant?.appliedPosition || 'Team Member',
+            applicationStatus: row.emailType,
+            signupLink: applicant?.signupLink,
+          },
+          emailType: row.emailType,
+          templates,
+          subjectOverride: row.subject || matchedConf.subject,
+          bodyOverride: row.bodyText || matchedConf.bodyText,
+        });
+
+        mergedRows.push({
+          ...row,
+          recipientName: row.recipientName || matchedConf.recipientName || applicant?.applicantName || 'Applicant',
+          recipientEmail: row.recipientEmail || matchedConf.recipientEmail || applicant?.email || '',
+          department: row.department || matchedConf.department || applicant?.department || 'General',
+          subject: resolved.subject,
+          bodyText: resolved.bodyText,
+          status: 'sent',
+          attemptCount: Math.max(1, row.attemptCount, matchedConf.attemptCount),
+          sentAt: matchedConf.sentAt,
+          lastAttemptAt: matchedConf.sentAt,
+          errorDetails: null,
+          deliveryMethod: 'manual_gmail',
+          manuallyConfirmedAt: matchedConf.sentAt,
+          manuallyConfirmedByName: matchedConf.confirmedByName ?? row.manuallyConfirmedByName ?? null,
+          manuallyConfirmedByEmail: matchedConf.confirmedByEmail ?? row.manuallyConfirmedByEmail ?? null,
+        });
+        continue;
+      }
+    }
+
+    mergedRows.push(row);
+  }
+
+  for (const conf of confirmationByKey.values()) {
+    const key = buildFailedEmailKey(conf.applicationId, conf.recipientEmail, conf.decisionStatus);
+    if (consumedKeys.has(key) || seenKeyForDedupe.has(key)) continue;
+    seenKeyForDedupe.add(key);
+
+    const applicant = conf.applicationId ? applicantById.get(conf.applicationId) : undefined;
+    const resolved = resolveEmailContent({
+      applicant: {
+        id: conf.applicationId || key,
+        applicantName: conf.recipientName || applicant?.applicantName || 'Applicant',
+        email: conf.recipientEmail || applicant?.email || '',
+        department: conf.department || applicant?.department || 'General',
+        appliedPosition: applicant?.appliedPosition || 'Team Member',
+        applicationStatus: conf.decisionStatus,
+        signupLink: applicant?.signupLink,
+      },
+      emailType: conf.decisionStatus,
+      templates,
+      subjectOverride: conf.subject,
+      bodyOverride: conf.bodyText,
+    });
+
+    mergedRows.push({
+      id: conf.serverDeliveryId || `manual-${conf.id}`,
+      applicantId: conf.applicationId,
+      recipientName: conf.recipientName || applicant?.applicantName || 'Applicant',
+      recipientEmail: conf.recipientEmail || applicant?.email || '',
+      department: conf.department || applicant?.department || 'General',
+      emailType: conf.decisionStatus,
+      subject: resolved.subject,
+      bodyText: resolved.bodyText,
+      status: 'sent',
+      attemptCount: Math.max(1, conf.attemptCount),
+      sentAt: conf.sentAt,
+      lastAttemptAt: conf.sentAt,
+      errorDetails: null,
+      deliveryMethod: 'manual_gmail',
+      manuallyConfirmedAt: conf.sentAt,
+      manuallyConfirmedByName: conf.confirmedByName,
+      manuallyConfirmedByEmail: conf.confirmedByEmail,
+    });
+  }
+
+  mergedRows.sort((a, b) => toMs(b.sentAt || b.lastAttemptAt) - toMs(a.sentAt || a.lastAttemptAt));
+  return mergedRows;
+}
+
 function getStorage(storage?: Storage | null): Storage | null {
   if (storage !== undefined) return storage;
   if (typeof window === 'undefined') return null;
@@ -577,6 +738,27 @@ export function recordManualGmailOpened(
 ): Record<string, string> {
   const existing = loadManualGmailOpenedMap(storage);
   const next = { ...existing, [key]: openedAt };
+  const target = getStorage(storage);
+  if (target) {
+    try {
+      target.setItem(FAILED_EMAILS_GMAIL_OPENED_KEY, JSON.stringify(next));
+    } catch {
+      // Ignore storage errors
+    }
+  }
+  return next;
+}
+
+export function removeManualGmailOpened(
+  keysToRemove: string[],
+  storage?: Storage | null,
+): Record<string, string> {
+  const existing = loadManualGmailOpenedMap(storage);
+  if (!keysToRemove.length) return existing;
+  const next = { ...existing };
+  for (const key of keysToRemove) {
+    delete next[key];
+  }
   const target = getStorage(storage);
   if (target) {
     try {

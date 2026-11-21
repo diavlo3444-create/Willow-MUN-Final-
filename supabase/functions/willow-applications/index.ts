@@ -799,5 +799,153 @@ Deno.serve(async (req: Request) => {
     }
     return json({ success: true });
   }
+  if (action === "list_manual_email_confirmations") {
+    const canViewEmails =
+      isSuperAdmin ||
+      isHr ||
+      (actor.role === "admin" && actorPerms["email.view"] !== false);
+    if (!canViewEmails) {
+      return json({ error: "Only Admins or HR can access email delivery confirmations." }, 403);
+    }
+
+    const { data: rows, error } = await admin
+      .from("wm_email_manual_confirmations")
+      .select("*")
+      .order("sent_at", { ascending: false });
+
+    if (error) {
+      const msg = String(error.message || "").toLowerCase();
+      if (msg.includes("does not exist") || msg.includes("could not find")) {
+        return json({ confirmations: [] });
+      }
+      return json({ error: error.message }, 400);
+    }
+
+    return json({ confirmations: rows || [] });
+  }
+
+  if (action === "mark_email_sent") {
+    const canDispatchEmail =
+      isSuperAdmin ||
+      isHr ||
+      (actor.role === "admin" &&
+        actorPerms["email.view"] !== false &&
+        actorPerms["email.send"] !== false);
+    if (!canDispatchEmail) {
+      return json({ error: "Only authorized Admins or HR staff can mark emails as sent." }, 403);
+    }
+
+    const rawApplicationId = String(body?.application_id || "").trim();
+    const rawRecipientEmail = String(body?.recipient_email || "").trim().toLowerCase();
+    const rawRecipientName = String(body?.recipient_name || "").trim() || "Applicant";
+    const rawDepartmentId = String(body?.department_id || "general").trim() || "general";
+    const decisionStatus = String(body?.decision_status || "").trim().toLowerCase() === "rejected"
+      ? "rejected"
+      : "accepted";
+    const subject = String(body?.subject || "").trim() || "Willow MUN Application Decision";
+    const bodyText = String(body?.body_text || "");
+    const attemptCount = Math.max(1, Number(body?.attempt_count || 1) || 1);
+    const serverDeliveryId = body?.server_delivery_id ? String(body.server_delivery_id).trim() : null;
+
+    if (!rawRecipientEmail || !EMAIL_REGEX.test(rawRecipientEmail)) {
+      return json({ error: "A valid recipient email address is required before marking as sent." }, 400);
+    }
+
+    const appKey = rawApplicationId || `email:${rawRecipientEmail}`;
+    const confirmedAt = new Date().toISOString();
+    const confirmedByName = String(actor.full_name || "").trim() || "Administrator";
+    const confirmedByEmail = authData.user.email ? String(authData.user.email).trim().toLowerCase() : null;
+
+    const { data: confirmation, error: confirmErr } = await admin
+      .from("wm_email_manual_confirmations")
+      .upsert(
+        {
+          application_id: appKey,
+          decision_status: decisionStatus,
+          server_delivery_id: serverDeliveryId,
+          recipient_name: rawRecipientName,
+          recipient_email: rawRecipientEmail,
+          department_id: rawDepartmentId,
+          subject,
+          body_text: bodyText,
+          attempt_count: attemptCount,
+          sent_at: confirmedAt,
+          confirmed_by: authData.user.id,
+          confirmed_by_name: confirmedByName,
+          confirmed_by_email: confirmedByEmail,
+          delivery_method: "manual_gmail",
+          updated_at: confirmedAt,
+        },
+        { onConflict: "application_id,decision_status" },
+      )
+      .select("*")
+      .single();
+
+    if (confirmErr) {
+      return json({ error: confirmErr.message || "Could not persist manual send confirmation." }, 400);
+    }
+
+    // Also update wm_email_deliveries in-place when available so automated history stays synced
+    let updatedDelivery: Record<string, unknown> | null = null;
+    try {
+      const fullPatch = {
+        status: "sent",
+        sent_at: confirmedAt,
+        error_message: null,
+        delivery_method: "manual_gmail",
+        manual_sent_at: confirmedAt,
+        manual_sent_by: authData.user.id,
+        manual_sent_by_name: confirmedByName,
+        updated_at: confirmedAt,
+      };
+      const basePatch = {
+        status: "sent",
+        sent_at: confirmedAt,
+        error_message: null,
+        updated_at: confirmedAt,
+      };
+
+      const applyDeliveryUpdate = async (patch: Record<string, unknown>) => {
+        if (serverDeliveryId) {
+          const res = await admin
+            .from("wm_email_deliveries")
+            .update(patch)
+            .eq("id", serverDeliveryId)
+            .select("*")
+            .maybeSingle();
+          if (!res.error && res.data) return res;
+          if (res.error) return res;
+        }
+        return await admin
+          .from("wm_email_deliveries")
+          .update(patch)
+          .eq("application_id", appKey)
+          .eq("decision_status", decisionStatus)
+          .neq("status", "sent")
+          .select("*")
+          .maybeSingle();
+      };
+
+      let updateRes = await applyDeliveryUpdate(fullPatch);
+      if (updateRes.error) {
+        const msg = String(updateRes.error.message || "").toLowerCase();
+        if (msg.includes("column") || msg.includes("does not exist")) {
+          updateRes = await applyDeliveryUpdate(basePatch);
+        }
+      }
+      if (!updateRes.error && updateRes.data) {
+        updatedDelivery = updateRes.data as Record<string, unknown>;
+      }
+    } catch {
+      // wm_email_deliveries may use a custom schema or not be present; wm_email_manual_confirmations remains authoritative
+    }
+
+    return json({
+      success: true,
+      confirmation,
+      delivery: updatedDelivery,
+    });
+  }
+
   return json({ error: "Unsupported action." }, 400);
 });

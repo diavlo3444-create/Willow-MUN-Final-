@@ -292,3 +292,82 @@ test('resolveEmailContent and applySignupLinkToBody replace placeholder signup l
     'Click https://willowmun.org/team-signup?token=real-token to register.',
   );
 });
+
+test('hasValidRecipientEmail detects missing or malformed emails accurately', async () => {
+  const { hasValidRecipientEmail } = await import('./failedEmails');
+  assert.equal(hasValidRecipientEmail(''), false);
+  assert.equal(hasValidRecipientEmail('   '), false);
+  assert.equal(hasValidRecipientEmail('not-an-email'), false);
+  assert.equal(hasValidRecipientEmail('applicant.a@example.com'), true);
+});
+
+test('mergeEmailHistoryWithManualConfirmations moves failed entry to Successfully Sent without duplicates and clears Failed to Send', async () => {
+  const {
+    mergeEmailHistoryWithManualConfirmations,
+    removeManualGmailOpened,
+  } = await import('./failedEmails');
+  const storage = createMemoryStorage();
+  const key = buildFailedEmailKey('app-10', 'omar.haddad@example.com', 'accepted');
+  recordManualGmailOpened(key, '2026-11-20T12:00:00.000Z', storage);
+
+  const serverHistory: EmailHistoryRecord[] = [
+    {
+      id: 'deliv-10',
+      applicantId: 'app-10',
+      recipientName: 'Omar Haddad',
+      recipientEmail: 'omar.haddad@example.com',
+      department: 'Security',
+      emailType: 'accepted',
+      subject: 'Willow MUN 2027 — Security Team Acceptance (Omar Haddad)',
+      bodyText: 'Original preserved message body for Omar.',
+      status: 'failed',
+      attemptCount: 2,
+      sentAt: null,
+      lastAttemptAt: '2026-11-20T11:55:00.000Z',
+      errorDetails: 'SMTP timeout',
+    },
+  ];
+
+  const mergedHistory = mergeEmailHistoryWithManualConfirmations({
+    serverHistory,
+    manualConfirmations: [
+      {
+        id: 'conf-10',
+        applicationId: 'app-10',
+        decisionStatus: 'accepted',
+        serverDeliveryId: 'deliv-10',
+        recipientName: 'Omar Haddad',
+        recipientEmail: 'omar.haddad@example.com',
+        department: 'Security',
+        subject: 'Willow MUN 2027 — Security Team Acceptance (Omar Haddad)',
+        bodyText: 'Original preserved message body for Omar.',
+        attemptCount: 2,
+        sentAt: '2026-11-20T12:05:00.000Z',
+        confirmedByName: 'Nadia Admin',
+        confirmedByEmail: 'nadia@willowmun.org',
+      },
+    ],
+  });
+
+  // No duplicate rows in Email History
+  assert.equal(mergedHistory.length, 1);
+  assert.equal(mergedHistory[0].status, 'sent');
+  assert.equal(mergedHistory[0].deliveryMethod, 'manual_gmail');
+  assert.equal(mergedHistory[0].manuallyConfirmedByName, 'Nadia Admin');
+  assert.equal(mergedHistory[0].sentAt, '2026-11-20T12:05:00.000Z');
+  assert.equal(mergedHistory[0].bodyText, 'Original preserved message body for Omar.');
+  assert.equal(mergedHistory[0].errorDetails, null);
+
+  // Feeding mergedHistory into mergeAndDeduplicateFailedEmails removes it from Failed to Send
+  const deduped = mergeAndDeduplicateFailedEmails({
+    serverHistory: mergedHistory,
+    localFailures: [],
+    applicants: [],
+    templates: DEFAULT_EMAIL_TEMPLATES,
+    manualOpenedMap: loadManualGmailOpenedMap(storage),
+  });
+  assert.equal(deduped.failedRecords.length, 0);
+
+  const clearedMap = removeManualGmailOpened([key], storage);
+  assert.equal(clearedMap[key], undefined);
+});

@@ -2,12 +2,15 @@ import { useMemo, useState } from 'react';
 import {
   AlertTriangle,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   Clock3,
-  ExternalLink,
+  Mail,
   RefreshCw,
   Search,
   XCircle,
 } from 'lucide-react';
+import { hasValidRecipientEmail } from '../../../../utils/failedEmails';
 import type { EmailHistoryRecord, HistoryDeliveryStatus } from './types';
 
 interface EmailHistoryTabProps {
@@ -21,7 +24,7 @@ const HISTORY_STATUS_META: Record<
   { label: string; classes: string; Icon: typeof CheckCircle2 }
 > = {
   sent: {
-    label: 'Sent',
+    label: 'Successfully Sent',
     classes: 'border-emerald-400/25 bg-emerald-500/[0.08] text-emerald-200',
     Icon: CheckCircle2,
   },
@@ -44,6 +47,7 @@ export function EmailHistoryTab({
 }: EmailHistoryTabProps) {
   const [statusFilter, setStatusFilter] = useState<'all' | HistoryDeliveryStatus>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [expandedBodyIds, setExpandedBodyIds] = useState<Record<string, boolean>>({});
 
   const counts = useMemo(
     () => ({
@@ -63,17 +67,22 @@ export function EmailHistoryTab({
       return (
         row.recipientName.toLowerCase().includes(q) ||
         row.recipientEmail.toLowerCase().includes(q) ||
-        row.subject.toLowerCase().includes(q)
+        row.subject.toLowerCase().includes(q) ||
+        (row.manuallyConfirmedByName || '').toLowerCase().includes(q)
       );
     });
   }, [history, statusFilter, searchQuery]);
 
   const filterButtons: Array<{ key: 'all' | HistoryDeliveryStatus; label: string; count: number }> = [
     { key: 'all', label: 'All', count: counts.all },
-    { key: 'sent', label: 'Sent', count: counts.sent },
+    { key: 'sent', label: 'Successfully Sent', count: counts.sent },
     { key: 'failed', label: 'Failed', count: counts.failed },
     { key: 'pending', label: 'Pending', count: counts.pending },
   ];
+
+  const toggleBody = (id: string) => {
+    setExpandedBodyIds((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
 
   return (
     <div className="space-y-4">
@@ -149,6 +158,9 @@ export function EmailHistoryTab({
                   {visible.map((row) => {
                     const meta = HISTORY_STATUS_META[row.status];
                     const StatusIcon = meta.Icon;
+                    const isBodyOpen = Boolean(expandedBodyIds[row.id]);
+                    const hasEmail = hasValidRecipientEmail(row.recipientEmail);
+
                     return (
                       <tr
                         key={row.id}
@@ -159,7 +171,7 @@ export function EmailHistoryTab({
                             {row.recipientName}
                           </p>
                           <p className="mt-0.5 font-mono text-[11px] text-[color:var(--wm-ink-muted)]">
-                            {row.recipientEmail}
+                            {row.recipientEmail || 'Missing email'}
                           </p>
                         </td>
                         <td className="px-3 py-3.5 align-top whitespace-nowrap">
@@ -170,13 +182,47 @@ export function EmailHistoryTab({
                             {row.department}
                           </p>
                         </td>
-                        <td className="px-3 py-3.5 align-top max-w-md">
+                        <td className="px-3 py-3.5 align-top max-w-md space-y-1.5">
                           <p className="text-[color:var(--wm-ink)] leading-snug">{row.subject}</p>
+                          {row.deliveryMethod === 'manual_gmail' && (
+                            <p className="text-[11px] text-emerald-200/85">
+                              Manually marked successful via Gmail
+                              {row.manuallyConfirmedByName
+                                ? ` · Confirmed by ${row.manuallyConfirmedByName}`
+                                : ''}
+                            </p>
+                          )}
                           {row.errorDetails && (
-                            <p className="mt-1.5 flex items-start gap-1.5 rounded border border-rose-400/20 bg-rose-500/[0.06] px-2.5 py-1.5 text-[11px] text-rose-200">
+                            <p className="flex items-start gap-1.5 rounded border border-rose-400/20 bg-rose-500/[0.06] px-2.5 py-1.5 text-[11px] text-rose-200">
                               <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" />
                               <span>{row.errorDetails}</span>
                             </p>
+                          )}
+                          {row.bodyText && row.bodyText.trim() && (
+                            <div>
+                              <button
+                                type="button"
+                                onClick={() => toggleBody(row.id)}
+                                className="inline-flex items-center gap-1 text-[11px] font-medium text-[color:var(--wm-ink-secondary)] hover:text-[color:var(--wm-ink)] cursor-pointer"
+                              >
+                                {isBodyOpen ? (
+                                  <>
+                                    <ChevronUp className="h-3 w-3" aria-hidden="true" />
+                                    <span>Hide original email</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <ChevronDown className="h-3 w-3" aria-hidden="true" />
+                                    <span>View original email</span>
+                                  </>
+                                )}
+                              </button>
+                              {isBodyOpen && (
+                                <pre className="mt-1.5 max-h-56 overflow-y-auto whitespace-pre-wrap break-words rounded border border-[color:var(--wm-hairline)] bg-[color:var(--wm-canvas)] p-2.5 font-sans text-[11px] leading-relaxed text-[color:var(--wm-ink-secondary)]">
+                                  {row.bodyText}
+                                </pre>
+                              )}
+                            </div>
                           )}
                         </td>
                         <td className="px-3 py-3.5 align-top whitespace-nowrap">
@@ -201,17 +247,24 @@ export function EmailHistoryTab({
                               {onOpenFailedInGmail && (
                                 <button
                                   type="button"
+                                  disabled={!hasEmail}
+                                  title={
+                                    !hasEmail
+                                      ? 'Disabled: recipient email address is missing'
+                                      : 'Open prefilled email in Gmail'
+                                  }
                                   onClick={() => onOpenFailedInGmail(row)}
-                                  className="inline-flex h-7 items-center gap-1 rounded border border-emerald-400/30 bg-[color:var(--wm-emerald)]/85 px-2.5 text-[11px] font-medium text-[#eef4ef] hover:bg-[#357a5b] cursor-pointer"
+                                  className="inline-flex h-7 items-center gap-1 rounded border border-emerald-400/30 bg-[#102b21] px-2.5 text-[11px] font-medium text-[#eef4ef] hover:bg-[#163a2c] disabled:opacity-45 disabled:cursor-not-allowed cursor-pointer"
                                 >
-                                  <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                                  <Mail className="h-3 w-3" aria-hidden="true" />
                                   <span>Open in Gmail</span>
                                 </button>
                               )}
                               <button
                                 type="button"
+                                disabled={!hasEmail}
                                 onClick={() => onRetryHistoryItem(row.id)}
-                                className="inline-flex h-7 items-center gap-1 rounded border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-inset)] px-2.5 text-[11px] font-medium text-[color:var(--wm-ink)] hover:bg-[color:var(--wm-overlay)] cursor-pointer"
+                                className="inline-flex h-7 items-center gap-1 rounded border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-inset)] px-2.5 text-[11px] font-medium text-[color:var(--wm-ink)] hover:bg-[color:var(--wm-overlay)] disabled:opacity-45 disabled:cursor-not-allowed cursor-pointer"
                               >
                                 <RefreshCw className="h-3 w-3" aria-hidden="true" />
                                 <span>Retry</span>
@@ -233,6 +286,9 @@ export function EmailHistoryTab({
               {visible.map((row) => {
                 const meta = HISTORY_STATUS_META[row.status];
                 const StatusIcon = meta.Icon;
+                const isBodyOpen = Boolean(expandedBodyIds[row.id]);
+                const hasEmail = hasValidRecipientEmail(row.recipientEmail);
+
                 return (
                   <article key={row.id} className="p-4 space-y-2 text-xs">
                     <div className="flex items-start justify-between gap-2">
@@ -241,7 +297,7 @@ export function EmailHistoryTab({
                           {row.recipientName}
                         </p>
                         <p className="font-mono text-[11px] text-[color:var(--wm-ink-muted)] truncate">
-                          {row.recipientEmail}
+                          {row.recipientEmail || 'Missing email'}
                         </p>
                       </div>
                       <span
@@ -252,6 +308,14 @@ export function EmailHistoryTab({
                       </span>
                     </div>
                     <p className="text-[color:var(--wm-ink)]">{row.subject}</p>
+                    {row.deliveryMethod === 'manual_gmail' && (
+                      <p className="text-[11px] text-emerald-200/85">
+                        Manually marked successful via Gmail
+                        {row.manuallyConfirmedByName
+                          ? ` · Confirmed by ${row.manuallyConfirmedByName}`
+                          : ''}
+                      </p>
+                    )}
                     <p className="text-[11px] text-[color:var(--wm-ink-muted)] tabular-nums">
                       {row.emailType === 'accepted' ? 'Acceptance' : 'Rejection'} · {row.department} ·
                       Attempts: {row.attemptCount} ·{' '}
@@ -262,22 +326,55 @@ export function EmailHistoryTab({
                         {row.errorDetails}
                       </p>
                     )}
+                    {row.bodyText && row.bodyText.trim() && (
+                      <div>
+                        <button
+                          type="button"
+                          onClick={() => toggleBody(row.id)}
+                          className="inline-flex items-center gap-1 text-[11px] font-medium text-[color:var(--wm-ink-secondary)] hover:text-[color:var(--wm-ink)] cursor-pointer"
+                        >
+                          {isBodyOpen ? (
+                            <>
+                              <ChevronUp className="h-3 w-3" aria-hidden="true" />
+                              <span>Hide original email</span>
+                            </>
+                          ) : (
+                            <>
+                              <ChevronDown className="h-3 w-3" aria-hidden="true" />
+                              <span>View original email</span>
+                            </>
+                          )}
+                        </button>
+                        {isBodyOpen && (
+                          <pre className="mt-1.5 max-h-56 overflow-y-auto whitespace-pre-wrap break-words rounded border border-[color:var(--wm-hairline)] bg-[color:var(--wm-canvas)] p-2.5 font-sans text-[11px] leading-relaxed text-[color:var(--wm-ink-secondary)]">
+                            {row.bodyText}
+                          </pre>
+                        )}
+                      </div>
+                    )}
                     {row.status === 'failed' && (
                       <div className="flex flex-wrap gap-2 pt-1">
                         {onOpenFailedInGmail && (
                           <button
                             type="button"
+                            disabled={!hasEmail}
+                            title={
+                              !hasEmail
+                                ? 'Disabled: recipient email address is missing'
+                                : 'Open prefilled email in Gmail'
+                            }
                             onClick={() => onOpenFailedInGmail(row)}
-                            className="inline-flex h-8 items-center gap-1.5 rounded bg-[color:var(--wm-emerald)] px-3 text-[11px] font-semibold text-[#eef4ef] hover:bg-[#357a5b] cursor-pointer"
+                            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-emerald-400/35 bg-[#102b21] px-3 text-[11px] font-semibold text-[#eef4ef] hover:bg-[#163a2c] disabled:opacity-45 disabled:cursor-not-allowed cursor-pointer"
                           >
-                            <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                            <Mail className="h-3 w-3" aria-hidden="true" />
                             <span>Open in Gmail</span>
                           </button>
                         )}
                         <button
                           type="button"
+                          disabled={!hasEmail}
                           onClick={() => onRetryHistoryItem(row.id)}
-                          className="inline-flex h-8 items-center gap-1.5 rounded border border-[color:var(--wm-hairline-strong)] px-3 text-[11px] font-medium text-[color:var(--wm-ink)] hover:bg-[color:var(--wm-overlay)] cursor-pointer"
+                          className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[color:var(--wm-hairline-strong)] px-3 text-[11px] font-medium text-[color:var(--wm-ink)] hover:bg-[color:var(--wm-overlay)] disabled:opacity-45 disabled:cursor-not-allowed cursor-pointer"
                         >
                           <RefreshCw className="h-3 w-3" aria-hidden="true" />
                           <span>Retry Email</span>

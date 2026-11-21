@@ -17,17 +17,21 @@ import { supabase } from '../../../lib/supabase';
 import { createHrApplicantSignupInvite } from '../../../services/liveBackendService';
 import type { AdminUser } from '../../../types/admin';
 import { canAccessEmailsDashboard, canDispatchEmails } from '../../../utils/adminPermissions';
+import { ConfirmDialog } from '../ConfirmDialog';
 import {
   applySignupLinkToBody,
   buildFailedEmailKey,
   buildGmailComposeUrl,
   extractEdgeInvokeError,
+  hasValidRecipientEmail,
   interpretSendResponse,
   loadLocalFailedEmails,
   loadManualGmailOpenedMap,
   mergeAndDeduplicateFailedEmails,
+  mergeEmailHistoryWithManualConfirmations,
   recordManualGmailOpened,
   removeLocalFailedEmails,
+  removeManualGmailOpened,
   resolveEmailContent,
   sanitizeEmailError,
   upsertLocalFailedEmail,
@@ -51,6 +55,7 @@ import type {
   EmailQueueItem,
   EmailTemplateRecord,
   FailedEmailRecord,
+  ManualEmailConfirmationRecord,
 } from './emails/types';
 
 type Tab = 'applicants' | 'failed' | 'queue' | 'history' | 'templates';
@@ -109,6 +114,36 @@ const historyMap = (
     sentAt: r.sent_at || null,
     lastAttemptAt: String(r.updated_at || r.created_at || ''),
     errorDetails: r.error_message ? sanitizeEmailError(r.error_message) : null,
+    deliveryMethod:
+      r.delivery_method === 'manual_gmail' || r.manual_sent_at ? 'manual_gmail' : 'automated',
+    manuallyConfirmedAt: r.manual_sent_at || null,
+    manuallyConfirmedByName: r.manual_sent_by_name ? String(r.manual_sent_by_name) : null,
+    manuallyConfirmedByEmail: r.manual_sent_by_email ? String(r.manual_sent_by_email) : null,
+  };
+};
+
+const manualConfirmationMap = (
+  r: Row,
+  applicantLookup: Map<string, EmailApplicantRecord>,
+): ManualEmailConfirmationRecord => {
+  const applicationId = String(r.application_id || '');
+  const matchedApplicant = applicantLookup.get(applicationId);
+  return {
+    id: String(r.id || `manual-${applicationId}-${r.decision_status}`),
+    applicationId,
+    decisionStatus: r.decision_status === 'rejected' ? 'rejected' : 'accepted',
+    serverDeliveryId: r.server_delivery_id ? String(r.server_delivery_id) : null,
+    recipientName: String(r.recipient_name || matchedApplicant?.applicantName || 'Applicant'),
+    recipientEmail: String(r.recipient_email || matchedApplicant?.email || ''),
+    department:
+      matchedApplicant?.department ||
+      (r.department_id ? deptLabel(r.department_id) : 'General'),
+    subject: String(r.subject || ''),
+    bodyText: String(r.body_text || ''),
+    attemptCount: Math.max(1, Number(r.attempt_count || 1)),
+    sentAt: String(r.sent_at || r.updated_at || r.created_at || new Date().toISOString()),
+    confirmedByName: r.confirmed_by_name ? String(r.confirmed_by_name) : null,
+    confirmedByEmail: r.confirmed_by_email ? String(r.confirmed_by_email) : null,
   };
 };
 
@@ -132,6 +167,7 @@ export function EmailsDashboardView({
 
   const [rawApplicants, setRawApplicants] = useState<EmailApplicantRecord[]>([]);
   const [serverHistory, setServerHistory] = useState<EmailHistoryRecord[]>([]);
+  const [manualConfirmations, setManualConfirmations] = useState<ManualEmailConfirmationRecord[]>([]);
   const [localFailures, setLocalFailures] = useState<LocalFailedEmailEntry[]>(() =>
     loadLocalFailedEmails(),
   );
@@ -143,29 +179,43 @@ export function EmailsDashboardView({
   const [activeTab, setActiveTab] = useState<Tab>('applicants');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [confirmState, setConfirmState] = useState<BulkSendConfirmState | null>(null);
+  const [markSentConfirmRecord, setMarkSentConfirmRecord] = useState<FailedEmailRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [retryingKey, setRetryingKey] = useState<string | null>(null);
   const [openingGmailKey, setOpeningGmailKey] = useState<string | null>(null);
+  const [markingSentKey, setMarkingSentKey] = useState<string | null>(null);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const inFlightKeysRef = useRef<Set<string>>(new Set());
+
+  const mergedServerHistory = useMemo(
+    () =>
+      mergeEmailHistoryWithManualConfirmations({
+        serverHistory,
+        manualConfirmations,
+        applicants: rawApplicants,
+        templates,
+      }),
+    [serverHistory, manualConfirmations, rawApplicants, templates],
+  );
 
   const { failedRecords, resolvedKeysToClear } = useMemo(
     () =>
       mergeAndDeduplicateFailedEmails({
-        serverHistory,
+        serverHistory: mergedServerHistory,
         localFailures,
         applicants: rawApplicants,
         templates,
         manualOpenedMap,
       }),
-    [serverHistory, localFailures, rawApplicants, templates, manualOpenedMap],
+    [mergedServerHistory, localFailures, rawApplicants, templates, manualOpenedMap],
   );
 
   useEffect(() => {
     if (resolvedKeysToClear.length === 0) return;
     const nextLocal = removeLocalFailedEmails(resolvedKeysToClear);
     setLocalFailures(nextLocal);
+    setManualOpenedMap(removeManualGmailOpened(resolvedKeysToClear));
   }, [resolvedKeysToClear]);
 
   const failedByKey = useMemo(() => {
@@ -176,7 +226,7 @@ export function EmailsDashboardView({
 
   const applicants = useMemo(() => {
     const latestServer = new Map<string, EmailHistoryRecord>();
-    serverHistory.forEach((row) => {
+    mergedServerHistory.forEach((row) => {
       const k = buildFailedEmailKey(row.applicantId, row.recipientEmail, row.emailType);
       const prev = latestServer.get(k);
       if (!prev || row.lastAttemptAt >= prev.lastAttemptAt) {
@@ -212,11 +262,11 @@ export function EmailsDashboardView({
               : ('not_sent' as const),
       };
     });
-  }, [rawApplicants, serverHistory, failedByKey]);
+  }, [rawApplicants, mergedServerHistory, failedByKey]);
 
   const history = useMemo<EmailHistoryRecord[]>(() => {
     const existingServerKeys = new Set(
-      serverHistory
+      mergedServerHistory
         .filter((h) => h.status === 'failed')
         .map((h) => buildFailedEmailKey(h.applicantId, h.recipientEmail, h.emailType)),
     );
@@ -239,8 +289,8 @@ export function EmailsDashboardView({
         errorDetails: rec.errorDetails,
       }));
 
-    return [...localOnlyFailedRows, ...serverHistory];
-  }, [serverHistory, failedRecords]);
+    return [...localOnlyFailedRows, ...mergedServerHistory];
+  }, [mergedServerHistory, failedRecords]);
 
   const refresh = useCallback(async () => {
     if (!canAccessEmails) {
@@ -249,11 +299,14 @@ export function EmailsDashboardView({
     }
     setLoading(true);
     try {
-      const [a, d] = await Promise.all([
+      const [a, d, manualRes] = await Promise.all([
         supabase.functions.invoke('willow-applications', { body: { action: 'list' } }),
         supabase.functions.invoke('willow-email-management', {
           body: { action: 'dashboard' },
         }),
+        supabase.functions
+          .invoke('willow-applications', { body: { action: 'list_manual_email_confirmations' } })
+          .catch(() => ({ data: null, error: null })),
       ]);
       if (a.error) throw a.error;
       if (d.error) throw d.error;
@@ -266,8 +319,29 @@ export function EmailsDashboardView({
         historyMap(row, appLookup),
       ) as EmailHistoryRecord[];
 
+      let rawConfirmations: Row[] = Array.isArray(manualRes?.data?.confirmations)
+        ? (manualRes.data.confirmations as Row[])
+        : [];
+      if (!manualRes?.data?.confirmations) {
+        try {
+          const directRes = await supabase
+            .from('wm_email_manual_confirmations')
+            .select('*')
+            .order('sent_at', { ascending: false });
+          if (!directRes.error && Array.isArray(directRes.data)) {
+            rawConfirmations = directRes.data as Row[];
+          }
+        } catch {
+          // Optional table until migration is applied
+        }
+      }
+      const mappedConfirmations = rawConfirmations.map((row) =>
+        manualConfirmationMap(row, appLookup),
+      );
+
       setRawApplicants(apps);
       setServerHistory(logs);
+      setManualConfirmations(mappedConfirmations);
 
       const loadedTemplates = (d.data?.templates || []).map(templateMap) as EmailTemplateRecord[];
       setTemplates((prev) => {
@@ -298,7 +372,7 @@ export function EmailsDashboardView({
   const total = applicants.length;
   const accepted = applicants.filter((a) => a.applicationStatus === 'accepted').length;
   const rejected = applicants.filter((a) => a.applicationStatus === 'rejected').length;
-  const sent = serverHistory.filter((h) => h.status === 'sent').length;
+  const sent = mergedServerHistory.filter((h) => h.status === 'sent').length;
   const failedCount = failedRecords.length;
   const remaining = Math.max(0, ESTIMATED_DAILY_CAPACITY - sent);
   const percent = Math.min(100, Math.round((sent / ESTIMATED_DAILY_CAPACITY) * 100));
@@ -783,11 +857,11 @@ export function EmailsDashboardView({
   const openFailedInGmail = useCallback(
     async (record: FailedEmailRecord) => {
       if (!canAccessEmails) return;
-      if (!record.recipientEmail.trim()) {
+      if (!hasValidRecipientEmail(record.recipientEmail)) {
         pushToast({
           tone: 'error',
           title: 'Recipient email missing',
-          description: 'Cannot open Gmail compose because this failed record has no recipient address.',
+          description: 'Cannot open Gmail compose because this failed record has no valid recipient email address.',
         });
         return;
       }
@@ -837,6 +911,179 @@ export function EmailsDashboardView({
       setManualOpenedMap(recordManualGmailOpened(record.key));
     },
     [canAccessEmails, pushToast],
+  );
+
+  const confirmMarkFailedAsSent = useCallback(
+    async (record: FailedEmailRecord) => {
+      if (!canDispatch || inFlightKeysRef.current.has(record.key)) return;
+      if (!hasValidRecipientEmail(record.recipientEmail)) {
+        pushToast({
+          tone: 'error',
+          title: 'Recipient email missing',
+          description: 'Cannot mark as sent because this application has no valid recipient email address.',
+        });
+        setMarkSentConfirmRecord(null);
+        return;
+      }
+
+      inFlightKeysRef.current.add(record.key);
+      setMarkingSentKey(record.key);
+
+      try {
+        const payload = {
+          action: 'mark_email_sent',
+          application_id: record.applicantId,
+          decision_status: record.emailType,
+          server_delivery_id: record.serverDeliveryId,
+          recipient_name: record.recipientName,
+          recipient_email: record.recipientEmail.trim().toLowerCase(),
+          department_id: record.department,
+          subject: record.subject,
+          body_text: record.bodyText,
+          attempt_count: record.attemptCount,
+        };
+
+        let persistedRow: Row | null = null;
+        let lastError: string | null = null;
+
+        // 1. Try willow-applications Edge Function (service-role transaction)
+        const edgeRes = await supabase.functions.invoke('willow-applications', {
+          body: payload,
+        });
+        const edgeErrMsg =
+          edgeRes.error || edgeRes.data?.error
+            ? await extractEdgeInvokeError(edgeRes.error, edgeRes.data)
+            : null;
+
+        if (!edgeRes.error && edgeRes.data?.success && edgeRes.data?.confirmation) {
+          persistedRow = edgeRes.data.confirmation as Row;
+        } else {
+          lastError = edgeErrMsg;
+
+          // 2. Fallback to PostgreSQL SECURITY DEFINER RPC
+          const rpcRes = await supabase.rpc('wm_mark_email_manually_sent', {
+            p_application_id: payload.application_id,
+            p_decision_status: payload.decision_status,
+            p_recipient_name: payload.recipient_name,
+            p_recipient_email: payload.recipient_email,
+            p_department_id: payload.department_id,
+            p_subject: payload.subject,
+            p_body_text: payload.body_text,
+            p_attempt_count: payload.attempt_count,
+            p_server_delivery_id: payload.server_delivery_id,
+          });
+
+          if (!rpcRes.error && rpcRes.data?.ok && rpcRes.data?.confirmation) {
+            persistedRow = rpcRes.data.confirmation as Row;
+          } else {
+            if (rpcRes.error?.message) lastError = sanitizeEmailError(rpcRes.error.message);
+
+            // 3. Final fallback: authenticated RLS upsert on wm_email_manual_confirmations
+            const authUserRes = await supabase.auth.getUser().catch(() => null);
+            const authUid = authUserRes?.data?.user?.id ?? null;
+            const nowIso = new Date().toISOString();
+            const directRes = await supabase
+              .from('wm_email_manual_confirmations')
+              .upsert(
+                {
+                  application_id: payload.application_id || `email:${payload.recipient_email}`,
+                  decision_status: payload.decision_status,
+                  server_delivery_id: payload.server_delivery_id,
+                  recipient_name: payload.recipient_name,
+                  recipient_email: payload.recipient_email,
+                  department_id: payload.department_id,
+                  subject: payload.subject,
+                  body_text: payload.body_text,
+                  attempt_count: payload.attempt_count,
+                  sent_at: nowIso,
+                  confirmed_by: authUid,
+                  confirmed_by_name: actor?.fullName || 'Administrator',
+                  confirmed_by_email: actor?.email || null,
+                  delivery_method: 'manual_gmail',
+                  updated_at: nowIso,
+                },
+                { onConflict: 'application_id,decision_status' },
+              )
+              .select('*')
+              .single();
+
+            if (!directRes.error && directRes.data) {
+              persistedRow = directRes.data as Row;
+            } else if (directRes.error?.message) {
+              lastError = sanitizeEmailError(directRes.error.message);
+            }
+          }
+        }
+
+        if (!persistedRow) {
+          throw new Error(
+            lastError || 'Could not save manual confirmation to the database. Please try again.',
+          );
+        }
+
+        const confirmedRecord: ManualEmailConfirmationRecord = {
+          id: String(persistedRow.id || `manual-${record.applicantId}-${record.emailType}`),
+          applicationId: String(persistedRow.application_id || record.applicantId),
+          decisionStatus:
+            persistedRow.decision_status === 'rejected' ? 'rejected' : record.emailType,
+          serverDeliveryId: persistedRow.server_delivery_id
+            ? String(persistedRow.server_delivery_id)
+            : record.serverDeliveryId,
+          recipientName: String(persistedRow.recipient_name || record.recipientName),
+          recipientEmail: String(persistedRow.recipient_email || record.recipientEmail),
+          department: record.department,
+          subject: String(persistedRow.subject || record.subject),
+          bodyText: String(persistedRow.body_text || record.bodyText),
+          attemptCount: Math.max(1, Number(persistedRow.attempt_count || record.attemptCount)),
+          sentAt: String(persistedRow.sent_at || new Date().toISOString()),
+          confirmedByName: persistedRow.confirmed_by_name
+            ? String(persistedRow.confirmed_by_name)
+            : actor?.fullName || 'Administrator',
+          confirmedByEmail: persistedRow.confirmed_by_email
+            ? String(persistedRow.confirmed_by_email)
+            : actor?.email || null,
+        };
+
+        setManualConfirmations((prev) => [
+          confirmedRecord,
+          ...prev.filter(
+            (item) =>
+              buildFailedEmailKey(item.applicationId, item.recipientEmail, item.decisionStatus) !==
+              record.key,
+          ),
+        ]);
+        setLocalFailures(removeLocalFailedEmails([record.key]));
+        setManualOpenedMap(removeManualGmailOpened([record.key]));
+        setQueue((q) =>
+          q.map((x) =>
+            x.applicantId === record.applicantId && x.emailType === record.emailType
+              ? { ...x, status: 'sent', errorDetails: null }
+              : x,
+          ),
+        );
+        setMarkSentConfirmRecord(null);
+
+        pushToast({
+          tone: 'success',
+          title: 'Marked as Successfully Sent',
+          description: `${record.recipientName} was recorded as manually sent via Gmail and moved to Email History.`,
+        });
+        await refresh();
+      } catch (e) {
+        pushToast({
+          tone: 'error',
+          title: 'Could not mark email as sent',
+          description:
+            e instanceof Error
+              ? sanitizeEmailError(e.message)
+              : 'Database confirmation failed. Status remains Failed to Send.',
+        });
+      } finally {
+        inFlightKeysRef.current.delete(record.key);
+        setMarkingSentKey(null);
+      }
+    },
+    [actor?.email, actor?.fullName, canDispatch, pushToast, refresh],
   );
 
   const openHistoryFailedInGmail = useCallback(
@@ -1171,7 +1418,9 @@ export function EmailsDashboardView({
           canDispatch={canDispatch}
           retryingKey={retryingKey}
           openingGmailKey={openingGmailKey}
+          markingSentKey={markingSentKey}
           onOpenInGmail={(rec) => void openFailedInGmail(rec)}
+          onRequestMarkAsSent={(rec) => setMarkSentConfirmRecord(rec)}
           onRetryFailedEmail={(rec) => void retryFailedRecord(rec)}
         />
       )}
@@ -1223,6 +1472,25 @@ export function EmailsDashboardView({
         onChangeType={(t) => setConfirmState((p) => (p ? { ...p, emailType: t } : null))}
         onConfirm={confirmSend}
         onCancel={() => setConfirmState(null)}
+      />
+
+      <ConfirmDialog
+        open={Boolean(markSentConfirmRecord)}
+        title="Have you successfully sent this email through Gmail?"
+        description={
+          markSentConfirmRecord
+            ? `This records ${markSentConfirmRecord.recipientName} (${markSentConfirmRecord.recipientEmail}) as manually marked successful via Gmail under Email History and removes it from Failed to Send. Subject: "${markSentConfirmRecord.subject}"`
+            : ''
+        }
+        confirmLabel="Confirm"
+        cancelLabel="Cancel"
+        tone="primary"
+        onConfirm={() => {
+          if (markSentConfirmRecord) {
+            void confirmMarkFailedAsSent(markSentConfirmRecord);
+          }
+        }}
+        onCancel={() => setMarkSentConfirmRecord(null)}
       />
     </div>
   );

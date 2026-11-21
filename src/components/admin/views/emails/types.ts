@@ -22,6 +22,8 @@ export interface EmailApplicantRecord {
   signupLink?: string;
 }
 
+export type DeliveryMethod = 'automated' | 'manual_gmail';
+
 export interface EmailHistoryRecord {
   id: string;
   applicantId: string;
@@ -36,6 +38,26 @@ export interface EmailHistoryRecord {
   sentAt: string | null;
   lastAttemptAt: string;
   errorDetails: string | null;
+  deliveryMethod?: DeliveryMethod;
+  manuallyConfirmedAt?: string | null;
+  manuallyConfirmedByName?: string | null;
+  manuallyConfirmedByEmail?: string | null;
+}
+
+export interface ManualEmailConfirmationRecord {
+  id: string;
+  applicationId: string;
+  decisionStatus: EmailDecisionType;
+  serverDeliveryId: string | null;
+  recipientName: string;
+  recipientEmail: string;
+  department: string;
+  subject: string;
+  bodyText: string;
+  attemptCount: number;
+  sentAt: string;
+  confirmedByName: string | null;
+  confirmedByEmail: string | null;
 }
 
 export interface FailedEmailRecord {
