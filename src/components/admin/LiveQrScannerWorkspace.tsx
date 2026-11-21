@@ -53,6 +53,7 @@ export function LiveQrScannerWorkspace({
   const [rosterLoading, setRosterLoading] = useState<boolean>(true);
   const [rosterError, setRosterError] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [scanMode, setScanMode] = useState<'checkin' | 'checkout'>('checkin');
 
   const [manualToken, setManualToken] = useState<string>('');
   const [scanBusy, setScanBusy] = useState<boolean>(false);
@@ -194,15 +195,20 @@ export function LiveQrScannerWorkspace({
       setScanError('');
 
       try {
-        const res = await commitQrPassAttendance(cleanToken, 'Main Entrance', 'checkin', false);
+        let res = await commitQrPassAttendance(cleanToken, 'Main Entrance', scanMode, false);
+        if (res.ok && res.validation?.status === 'checkout_warning') {
+          const proceed = window.confirm(res.validation.message || 'This pass has been checked out before. Check out again?');
+          if (!proceed) return;
+          res = await commitQrPassAttendance(cleanToken, 'Main Entrance', 'checkout', true);
+        }
 
         if (!res.ok || !res.validation) {
-          const message = res.error || 'Unable to process QR check-in. Check connection and retry.';
+          const message = res.error || `Unable to process QR ${scanMode}. Check connection and retry.`;
           setValidation(null);
           setScanError(message);
           pushToast({
             tone: 'error',
-            title: 'Check-in failed',
+            title: `${scanMode === 'checkin' ? 'Check-in' : 'Check-out'} failed`,
             description: message,
           });
           return;
@@ -212,7 +218,11 @@ export function LiveQrScannerWorkspace({
         setValidation(v);
         setManualToken('');
 
-        if (v.status === 'valid' && v.committed) {
+        if (scanMode === 'checkout' && v.status === 'checked_out' && v.committed) {
+          void loadRoster(true);
+          pushToast({ tone: 'success', title: 'Checked out', description: `${v.holder_name || 'Attendee'} · ${v.role_label || v.category || 'Participant'}` });
+          notifyOtherScanners();
+        } else if (v.status === 'valid' && v.committed) {
           const checkInTimestamp = v.checked_in_at || v.scanned_at;
           if (v.pass_id) {
             setNotCheckedInList((prev) => prev.filter((item) => item.id !== v.pass_id));
@@ -261,7 +271,7 @@ export function LiveQrScannerWorkspace({
           });
         }
       } catch (err: any) {
-        const message = err?.message || 'Network error while recording check-in.';
+        const message = err?.message || `Network error while recording ${scanMode}.`; 
         setValidation(null);
         setScanError(message);
         pushToast({
@@ -274,7 +284,7 @@ export function LiveQrScannerWorkspace({
         setScanBusy(false);
       }
     },
-    [canScan, loadRoster, notifyOtherScanners, pushToast],
+    [canScan, loadRoster, notifyOtherScanners, pushToast, scanMode],
   );
 
   const handleManualSubmit = (event: FormEvent) => {
@@ -359,8 +369,12 @@ export function LiveQrScannerWorkspace({
                 QR Check-In Scanner
               </h1>
               <p className="text-[11px] text-[color:var(--wm-ink-muted)]">
-                Valid passes check in automatically upon scan.
+                {scanMode === 'checkin' ? 'Valid passes check in automatically upon scan.' : 'Scan an attendee who is currently checked in to record departure.'}
               </p>
+              <div className="mt-2 inline-flex rounded-md border border-[color:var(--wm-hairline-strong)] p-1">
+                <button type="button" onClick={() => setScanMode('checkin')} aria-pressed={scanMode === 'checkin'} className={`rounded px-3 py-1.5 text-[11px] font-semibold ${scanMode === 'checkin' ? 'bg-[color:var(--wm-emerald)] text-white' : 'text-[color:var(--wm-ink-muted)]'}`}>Check In</button>
+                <button type="button" onClick={() => setScanMode('checkout')} aria-pressed={scanMode === 'checkout'} className={`rounded px-3 py-1.5 text-[11px] font-semibold ${scanMode === 'checkout' ? 'bg-amber-700 text-white' : 'text-[color:var(--wm-ink-muted)]'}`}>Check Out</button>
+              </div>
             </div>
           </div>
 
@@ -399,7 +413,7 @@ export function LiveQrScannerWorkspace({
                 disabled={scanBusy || !manualToken.trim()}
                 className="min-h-[44px] rounded-md bg-[color:var(--wm-emerald)] px-5 text-xs font-semibold text-[#eef4ef] transition-colors hover:bg-[#357a5b] disabled:opacity-50 whitespace-nowrap"
               >
-                {scanBusy ? 'Checking In…' : 'Scan Pass'}
+                {scanBusy ? (scanMode === 'checkin' ? 'Checking In…' : 'Checking Out…') : (scanMode === 'checkin' ? 'Check In Pass' : 'Check Out Pass')}
               </button>
             </form>
           </div>
