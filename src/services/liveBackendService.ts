@@ -868,8 +868,6 @@ export function normalizeValidationResponse(
     checked_in_by_name: raw.checked_in_by_name ?? null,
     checked_out_at: raw.checked_out_at ?? null,
     checked_out_gate: raw.checked_out_gate ?? null,
-    checked_out_at: raw.checked_out_at ?? null,
-    checked_out_gate: raw.checked_out_gate ?? null,
     prior_checkout_count: Number(raw.prior_checkout_count ?? 0),
     gate_location: String(raw.gate_location || fallbackGate),
     scanned_at: String(raw.scanned_at || new Date().toISOString()),
