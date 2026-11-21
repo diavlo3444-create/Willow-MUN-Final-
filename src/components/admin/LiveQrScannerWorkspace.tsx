@@ -576,7 +576,7 @@ export function LiveQrScannerWorkspace({
                     </p>
                   </div>
                   <span className="shrink-0 font-mono text-[11px] text-[color:var(--wm-ink-muted)]">
-                    Not Checked In
+                    {attendee.checked_out_at ? `Checked Out · ${formatAttendanceTime(attendee.checked_out_at)}` : 'Not Checked In'}
                   </span>
                 </li>
               ))}
