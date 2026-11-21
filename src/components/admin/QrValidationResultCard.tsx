@@ -36,13 +36,14 @@ export function QrValidationResultCard({
           Ready to Scan
         </p>
         <p className="mt-1 max-w-xs text-xs leading-relaxed text-[color:var(--wm-ink-muted)]">
-          Scan a Willow MUN QR pass — valid attendees are checked in automatically.
+          Scan a Willow MUN QR pass using the selected Check In or Check Out mode.
         </p>
       </div>
     );
   }
 
-  const isSuccess = feedback.kind === 'checked_in';
+  const isSuccess = feedback.kind === 'checked_in' || feedback.kind === 'checked_out';
+  const isCheckout = feedback.kind === 'checked_out';
   const isDuplicate = feedback.kind === 'already_checked_in';
 
   const containerStyle = isSuccess
@@ -119,7 +120,7 @@ export function QrValidationResultCard({
 
           <div className="rounded-md border border-white/10 bg-black/25 px-3.5 py-2.5">
             <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--wm-ink-muted)]">
-              {isDuplicate ? 'Original Check-In Time' : 'Checked In At'}
+              {isCheckout ? 'Checked Out At' : isDuplicate ? 'Original Check-In Time' : 'Checked In At'}
             </p>
             <p
               className={`mt-0.5 font-mono text-xs font-semibold tabular-nums ${
