@@ -37,6 +37,7 @@ export function evaluateQrScan(
 export type QrScanFeedbackKind =
   | 'idle'
   | 'checked_in'
+  | 'checked_out'
   | 'already_checked_in'
   | 'invalid'
   | 'error';
@@ -105,6 +106,20 @@ export function classifyQrScanOutcome(
   const fullName = validation.holder_name || 'Unlisted Holder';
   const roleLabel = validation.role_label || validation.category || 'Conference Attendee';
   const departmentOrCommittee = validation.committee_name || validation.department_name || null;
+
+  if (validation.status === 'checked_out' && validation.committed) {
+    return {
+      kind: 'checked_out',
+      headline: 'CHECKED OUT',
+      message: validation.message || 'Check-out recorded successfully.',
+      fullName,
+      roleLabel,
+      category: validation.category,
+      departmentOrCommittee,
+      originalCheckedInAt: null,
+      checkedInAt: validation.checked_out_at || validation.scanned_at,
+    };
+  }
 
   if (validation.status === 'already_checked_in') {
     return {
