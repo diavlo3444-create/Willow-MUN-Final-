@@ -20,6 +20,19 @@ import {
 import { decodeLegacyExperienceMeta } from '../utils/applicationForm';
 import { conferenceDataService } from './mockDataService';
 
+async function getQrInvokeError(error: any, data: any, fallback: string): Promise<string> {
+  if (data?.error) return String(data.error);
+  const ctx = error?.context;
+  if (ctx && typeof ctx.json === 'function') {
+    try {
+      const body = await ctx.json();
+      if (body?.error) return String(body.error);
+      if (body?.message) return String(body.message);
+    } catch { /* response body unavailable or already consumed */ }
+  }
+  return error?.message || fallback;
+}
+
 export interface LiveFileRecord {
   id: string;
   name: string;
@@ -921,7 +934,7 @@ export async function verifyQrPassAttendance(
       attendance_action: attendanceAction,
     },
   });
-  if (error || data?.error) return { ok: false, error: data?.error || error?.message || 'Verification failed.' };
+  if (error || data?.error) return { ok: false, error: await getQrInvokeError(error, data, 'Verification failed.') };
   return { ok: true, validation: normalizeValidationResponse(data as Record<string, any>, trimmedGate || '', false) };
 }
 
@@ -941,7 +954,7 @@ export async function commitQrPassAttendance(
       confirm_repeat: confirmRepeatCheckout,
     },
   });
-  if (error || data?.error) return { ok: false, error: data?.error || error?.message || 'Attendance update failed.' };
+  if (error || data?.error) return { ok: false, error: await getQrInvokeError(error, data, 'Attendance update failed.') };
   return { ok: true, validation: normalizeValidationResponse(data as Record<string, any>, trimmedGate || '', true) };
 }
 
@@ -991,7 +1004,7 @@ export async function fetchQrAttendanceRoster(
       };
     }
 
-    const msg = String(data?.error || error?.message || 'Unable to load attendance roster.');
+    const msg = await getQrInvokeError(error, data, 'Unable to load attendance roster.');
     // Graceful compatibility fallback if an admin hits an older deployed edge function
     if (
       (actorRole === 'super_admin' || actorRole === 'admin') &&
