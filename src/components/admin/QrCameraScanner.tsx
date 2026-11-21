@@ -139,25 +139,9 @@ export function QrCameraScanner({
         return;
       }
 
-      // Check the browser's permission state when supported. This does not request access;
-      // getUserMedia below remains the actual user-initiated permission request.
-      try {
-        const permission = await navigator.permissions?.query({ name: 'camera' as PermissionName });
-        if (permission) {
-          setPermissionState(permission.state);
-          if (permission.state === 'denied') {
-            setPermissionHelp(getCameraPermissionHelp());
-            setCameraState('permission_denied');
-            setStatusError(
-              'Camera access is blocked for this website. Change the browser site permission to Allow, then return and retry. The browser will not show another permission popup while this site remains blocked.',
-            );
-            return;
-          }
-        }
-      } catch {
-        // Some browsers do not expose camera permission status. Continue with getUserMedia.
-      }
-
+      // Request camera access immediately from the user's click. Permission-query
+      // awaits before getUserMedia can consume the browser's activation and prevent
+      // some browsers (notably Huawei/Petal variants) from showing the prompt.
       setCameraState('requesting');
       const targetDevice = overrideDeviceId !== undefined ? overrideDeviceId : selectedDeviceId;
       const targetFacing = overrideFacing ?? facingMode;
@@ -247,9 +231,9 @@ export function QrCameraScanner({
   }, [stopStream]);
 
   useEffect(() => {
-    if (autoStart) {
-      void startCamera();
-    }
+    // Do not request camera permissions during page load. Some browsers suppress
+    // the permission prompt unless getUserMedia is called directly from a tap.
+    // autoStart remains accepted for compatibility but the user starts camera.
     return () => {
       stopStream();
     };
