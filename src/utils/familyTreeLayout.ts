@@ -125,6 +125,42 @@ export function formatObjectPosition(focus: [number, number] | null | undefined)
   return `${x}% ${y}%`;
 }
 
+function normalizePhotoPath(photo: string | null | undefined): string | null {
+  if (!photo || photo.trim().length === 0) return null;
+  const trimmed = photo.trim();
+  return trimmed.startsWith('/') ? trimmed.slice(1) : trimmed;
+}
+
+/**
+ * Maps `photos/<slug>.jpg` to the pre-encoded 96x96 WebP thumbnail (`/photos/thumbs/<slug>.webp`).
+ */
+export function resolveMemberThumbSrc(photo: string | null | undefined): string | null {
+  const norm = normalizePhotoPath(photo);
+  if (!norm) return null;
+  const file = norm.split('/').pop() ?? norm;
+  const base = file.replace(/\.[^.]+$/, '');
+  return `/photos/thumbs/${base}.webp`;
+}
+
+/**
+ * Maps `photos/<slug>.jpg` to the pre-encoded 240x240 WebP portrait (`/photos/portraits/<slug>.webp`).
+ */
+export function resolveMemberPortraitSrc(photo: string | null | undefined): string | null {
+  const norm = normalizePhotoPath(photo);
+  if (!norm) return null;
+  const file = norm.split('/').pop() ?? norm;
+  const base = file.replace(/\.[^.]+$/, '');
+  return `/photos/portraits/${base}.webp`;
+}
+
+/**
+ * Fallback original asset URL (`/photos/<slug>.jpg`).
+ */
+export function resolveMemberFallbackSrc(photo: string | null | undefined): string | null {
+  const norm = normalizePhotoPath(photo);
+  return norm ? `/${norm}` : null;
+}
+
 /**
  * Builds canonical ordered member list & side partitions directly from members.json:
  * secretariat (center), then left groups top-to-bottom, then right groups top-to-bottom.
@@ -1018,4 +1054,102 @@ export function generateLeafParticles(
 
   return particles;
 }
+
+export interface CameraTransformInput {
+  cardRect: Pick<RectBox, 'left' | 'top' | 'width' | 'height'>;
+  chartRect: Pick<RectBox, 'left' | 'top'>;
+  viewportWidth: number;
+  viewportHeight: number;
+  currentTx?: number;
+  currentTy?: number;
+  currentScale?: number;
+  targetScale?: number;
+}
+
+export interface CameraTransformResult {
+  tx: number;
+  ty: number;
+  scale: number;
+  transform: string;
+}
+
+/**
+ * Computes a single `translate3d(tx, ty, 0) scale(targetScale)` transform for a chart wrapper
+ * with `transform-origin: 0 0` so the target card ends up centered in the viewport.
+ */
+export function computeCenteredCameraTransform({
+  cardRect,
+  chartRect,
+  viewportWidth,
+  viewportHeight,
+  currentTx = 0,
+  currentTy = 0,
+  currentScale = 1,
+  targetScale = 1.5,
+}: CameraTransformInput): CameraTransformResult {
+  const safeCurScale = currentScale > 0 ? currentScale : 1;
+  const baseChartLeft = chartRect.left - currentTx;
+  const baseChartTop = chartRect.top - currentTy;
+
+  const localCardCx = (cardRect.left + cardRect.width / 2 - chartRect.left) / safeCurScale;
+  const localCardCy = (cardRect.top + cardRect.height / 2 - chartRect.top) / safeCurScale;
+
+  const tx = r1(viewportWidth / 2 - baseChartLeft - targetScale * localCardCx);
+  const ty = r1(viewportHeight / 2 - baseChartTop - targetScale * localCardCy);
+
+  return {
+    tx,
+    ty,
+    scale: targetScale,
+    transform: `translate3d(${tx}px, ${ty}px, 0) scale(${targetScale})`,
+  };
+}
+
+export interface FlipMetricsResult {
+  panelFromTransform: string;
+  panelToTransform: string;
+  cloneToTransform: string;
+  dx: number;
+  dy: number;
+  sx: number;
+  sy: number;
+}
+
+/**
+ * Computes FLIP transforms (around `50% 50%` center origin) between a fixed-position card rect
+ * and the final centered profile panel rect.
+ */
+export function computeFlipCardToPanel(
+  cardRect: Pick<RectBox, 'left' | 'top' | 'width' | 'height'>,
+  panelRect: Pick<RectBox, 'left' | 'top' | 'width' | 'height'>,
+): FlipMetricsResult {
+  const cardCx = cardRect.left + cardRect.width / 2;
+  const cardCy = cardRect.top + cardRect.height / 2;
+  const panelCx = panelRect.left + panelRect.width / 2;
+  const panelCy = panelRect.top + panelRect.height / 2;
+
+  const dx = r1(cardCx - panelCx);
+  const dy = r1(cardCy - panelCy);
+
+  const safePanelW = Math.max(1, panelRect.width);
+  const safePanelH = Math.max(1, panelRect.height);
+  const safeCardW = Math.max(1, cardRect.width);
+  const safeCardH = Math.max(1, cardRect.height);
+
+  const sx = Number((safeCardW / safePanelW).toFixed(4));
+  const sy = Number((safeCardH / safePanelH).toFixed(4));
+  const invSx = Number((safePanelW / safeCardW).toFixed(4));
+  const invSy = Number((safePanelH / safeCardH).toFixed(4));
+
+  return {
+    dx,
+    dy,
+    sx,
+    sy,
+    panelFromTransform: `translate3d(${dx}px, ${dy}px, 0) scale(${sx}, ${sy})`,
+    panelToTransform: 'translate3d(0, 0, 0) scale(1, 1)',
+    cloneToTransform: `translate3d(${r1(-dx)}px, ${r1(-dy)}px, 0) scale(${invSx}, ${invSy})`,
+  };
+}
+
 

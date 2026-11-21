@@ -401,13 +401,18 @@
   }
 }
 
+.ft-org-chart-container {
+  contain: layout paint;
+  transform-origin: 0 0;
+}
+
 .ft-member-box {
   position: relative;
   background-color: rgba(18, 22, 10, 0.94);
   border: 1px solid rgba(237, 230, 202, 0.24);
   transition:
-    border-color 180ms ease,
-    background-color 180ms ease;
+    transform 180ms ease,
+    opacity 180ms ease;
 }
 
 .ft-member-box::after {
@@ -417,15 +422,12 @@
   inset: -1px;
   border-radius: inherit;
   border: 1px solid rgba(212, 188, 116, 0.65);
+  background-color: rgba(212, 188, 116, 0.04);
   opacity: 0;
   transition: opacity 180ms ease;
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .ft-member-box:hover {
-    background-color: rgba(25, 31, 14, 0.98);
-  }
-
   .ft-member-box:hover::after {
     opacity: 1;
   }
@@ -433,6 +435,26 @@
 
 .ft-member-box:focus-visible::after {
   opacity: 1;
+}
+
+.ft-base-branches {
+  opacity: 1;
+  transition: opacity 0.2s ease;
+}
+
+.ft-stage.is-hovering .ft-base-branches {
+  opacity: 0.4;
+}
+
+.ft-hover-overlay-path {
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+
+.ft-stage.is-hovering .ft-hover-overlay-path,
+.ft-stage.is-zoomed .ft-hover-overlay-path {
+  opacity: 1;
+  transition: none;
 }
 
 .ft-connector-path {
@@ -672,6 +694,8 @@ body.intro-on * {
   .mun-link-underline::after,
   .ft-member-box,
   .ft-member-box::after,
+  .ft-base-branches,
+  .ft-hover-overlay-path,
   .ft-connector-path,
   .ft-node-fade,
   .willow-intro-backdrop,
@@ -943,6 +967,7 @@ html { scroll-padding-top: var(--nav-height, 72px); }
 
 /* Connected inter-section atmospheric surfaces and subtle tonal handoff */
 section.mun-scroll-section { position: relative; isolation: isolate; overflow: clip; }
+section.mun-scroll-section[data-chart-zoomed="true"] { overflow: visible; z-index: 25; }
 section.mun-scroll-section::before {
   position: absolute; z-index: -1; inset: 0; content: ""; pointer-events: none;
   opacity: 0.72;

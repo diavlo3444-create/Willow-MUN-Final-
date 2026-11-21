@@ -48,12 +48,6 @@
       "cluster": "Operations"
     },
     {
-      "id": "delegate-affairs",
-      "label": "Delegate Affairs",
-      "side": "right",
-      "cluster": "Operations"
-    },
-    {
       "id": "volunteers",
       "label": "Volunteers",
       "side": "right",
@@ -81,8 +75,8 @@
   "members": [
     {
       "id": "naya-almasr",
-      "name": "Naya Almasr",
-      "role": "Secretary-General",
+      "name": "Naya Almasri",
+      "role": "Operation Director",
       "group": "secretariat",
       "quote": "الحمدلله",
       "quoteBy": null,
@@ -155,19 +149,6 @@
       "focus": [
         75,
         40
-      ]
-    },
-    {
-      "id": "nasser-alqassem",
-      "name": "Nasser Alqassem",
-      "role": null,
-      "group": "secretariat",
-      "quote": "At the end of the day its night",
-      "quoteBy": null,
-      "photo": "photos/nasser-alqassem.jpg",
-      "focus": [
-        35,
-        45
       ]
     },
     {
@@ -415,19 +396,6 @@
       ]
     },
     {
-      "id": "lelas-almadi",
-      "name": "Lelas Almadi",
-      "role": "Head of Delegate Affairs",
-      "group": "delegate-affairs",
-      "quote": "Believe you can and you're halfway there.",
-      "quoteBy": "Theodore Roosevelt",
-      "photo": "photos/lelas-almadi.jpg",
-      "focus": [
-        25,
-        80
-      ]
-    },
-    {
       "id": "hayady-alsuwaigh",
       "name": "Hayady Alsuwaigh",
       "role": "Co-head of Volunteers",
@@ -438,6 +406,29 @@
       "focus": [
         55,
         35
+      ]
+    },
+    {
+      "id": "rayan-alsaoud",
+      "name": "Rayan Alsaoud",
+      "role": "Head of DCC",
+      "group": "dcc",
+      "quote": "",
+      "quoteBy": null,
+      "photo": null,
+      "focus": null
+    },
+    {
+      "id": "nasser-alqassem",
+      "name": "Nasser Alqassem",
+      "role": "Head of DCC",
+      "group": "dcc",
+      "quote": "At the end of the day its night",
+      "quoteBy": null,
+      "photo": "photos/nasser-alqassem.jpg",
+      "focus": [
+        35,
+        45
       ]
     },
     {
@@ -452,6 +443,16 @@
         50,
         30
       ]
+    },
+    {
+      "id": "maria",
+      "name": "Maria",
+      "role": "DCC",
+      "group": "dcc",
+      "quote": "",
+      "quoteBy": null,
+      "photo": null,
+      "focus": null
     },
     {
       "id": "muaz-elamir",

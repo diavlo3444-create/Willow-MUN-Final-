@@ -372,7 +372,7 @@ export function WillowBackground(_props: WillowBackgroundProps) {
       transition = 'none';
     }
 
-    return {
+      return {
       position: 'fixed',
       inset: 0,
       width: '100%',
@@ -381,6 +381,7 @@ export function WillowBackground(_props: WillowBackgroundProps) {
       objectPosition: isMobilePortrait ? '50% 18%' : '50% 45%',
       transform: `translate3d(0, 0, 0) scale(${scrollScaleRef.current})`,
       transformOrigin: isMobilePortrait ? '50% 34%' : '50% 48%',
+      willChange: 'transform',
       zIndex,
       pointerEvents: 'none',
       opacity,
@@ -397,6 +398,8 @@ export function WillowBackground(_props: WillowBackgroundProps) {
           position: 'fixed',
           inset: 0,
           backgroundColor: '#393f24',
+          transform: 'translate3d(0, 0, 0)',
+          willChange: 'transform',
           zIndex: -3,
           pointerEvents: 'none',
         }}
@@ -433,6 +436,8 @@ export function WillowBackground(_props: WillowBackgroundProps) {
           height: '100%',
           backgroundColor: '#14180a',
           opacity: HERO_SCRIM_OPACITY,
+          transform: 'translate3d(0, 0, 0)',
+          willChange: 'transform',
           zIndex: -1,
           pointerEvents: 'none',
         }}

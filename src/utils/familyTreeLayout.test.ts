@@ -2,9 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import membersData from '../data/members.json';
 import {
+  computeCenteredCameraTransform,
   computeDesktopGoldTravelPath,
   computeDesktopPedigreePaths,
   computeDesktopRootToMemberSegments,
+  computeFlipCardToPanel,
   computeMobileGoldTravelPath,
   computeMobileRootToMemberSegments,
   computeMobileTreePaths,
@@ -15,6 +17,9 @@ import {
   generateLeafParticles,
   generateTipLeafSpecs,
   organizeFamilyTree,
+  resolveMemberFallbackSrc,
+  resolveMemberPortraitSrc,
+  resolveMemberThumbSrc,
   resolveRole,
   type FamilyTreeData,
   type RectBox,
@@ -47,10 +52,10 @@ test('formatObjectPosition handles focus array and null defaults cleanly', () =>
 test('organizeFamilyTree orders secretariat -> left groups -> right groups canonically', () => {
   const tree = organizeFamilyTree(membersData as FamilyTreeData);
 
-  assert.equal(tree.orderedMembers.length, 31);
+  assert.equal(tree.orderedMembers.length, 32);
   assert.equal(tree.centerGroups.length, 1);
   assert.equal(tree.leftGroups.length, 4);
-  assert.equal(tree.rightGroups.length, 8);
+  assert.equal(tree.rightGroups.length, 7);
 
   const seenGroups: string[] = [];
   for (const m of tree.orderedMembers) {
@@ -67,7 +72,6 @@ test('organizeFamilyTree orders secretariat -> left groups -> right groups canon
     'security',
     'it',
     'hr',
-    'delegate-affairs',
     'volunteers',
     'dcc',
     'logistics',
@@ -75,12 +79,19 @@ test('organizeFamilyTree orders secretariat -> left groups -> right groups canon
   ]);
 
   assert.equal(tree.orderedMembers[0].id, 'naya-almasr');
+  assert.equal(tree.orderedMembers[0].name, 'Naya Almasri');
+  assert.equal(tree.orderedMembers[0].displayRole, 'Operation Director');
   assert.equal(tree.orderedMembers[1].id, 'lana-ahmed');
   assert.equal(tree.orderedMembers[2].id, 'loor-almasri');
 
   const nasserIdx = tree.indexById['nasser-alqassem'];
   assert.equal(typeof nasserIdx, 'number');
-  assert.equal(tree.orderedMembers[nasserIdx].displayRole, 'Executive Board');
+  assert.equal(tree.orderedMembers[nasserIdx].group, 'dcc');
+  assert.equal(tree.orderedMembers[nasserIdx].displayRole, 'Head of DCC');
+  assert.equal(tree.orderedMembers[tree.indexById['rayan-alsaoud']].group, 'dcc');
+  assert.equal(tree.orderedMembers[tree.indexById['rayan-alsaoud']].displayRole, 'Head of DCC');
+  assert.equal(tree.orderedMembers[tree.indexById['maria']].group, 'dcc');
+  assert.equal(tree.indexById['lelas-almadi'], undefined);
 
   assert.equal(tree.orderedMembers[tree.indexById['loor-almasri']].photo, 'photos/loor-almasri.jpg');
   assert.equal(tree.orderedMembers[tree.indexById['ward-ajaj']].photo, 'photos/ward-ajaj.jpg');
@@ -280,3 +291,55 @@ test('generateLaurelWreathData, generateTipLeafSpecs, and generateLeafParticles 
     assert.ok(p.gravityDy > p.dy);
   }
 });
+
+test('WebP photo resolvers map member jpg paths to 96x96 thumbs and 240x240 portraits', () => {
+  assert.equal(resolveMemberThumbSrc('photos/loor-almasri.jpg'), '/photos/thumbs/loor-almasri.webp');
+  assert.equal(resolveMemberPortraitSrc('/photos/loor-almasri.jpg'), '/photos/portraits/loor-almasri.webp');
+  assert.equal(resolveMemberFallbackSrc('photos/loor-almasri.jpg'), '/photos/loor-almasri.jpg');
+  assert.equal(resolveMemberThumbSrc(null), null);
+  assert.equal(resolveMemberPortraitSrc(''), null);
+});
+
+test('computeCenteredCameraTransform centers target card in viewport with transform-origin 0 0', () => {
+  // baseChartLeft = 140, baseChartTop = 200, card local center = (580, 150)
+  const cam = computeCenteredCameraTransform({
+    cardRect: box(140 + 480, 200 + 120, 200, 60),
+    chartRect: { left: 140, top: 200 },
+    viewportWidth: 1440,
+    viewportHeight: 900,
+    targetScale: 1.5,
+  });
+  assert.equal(cam.scale, 1.5);
+  assert.equal(cam.tx, -290);
+  assert.equal(cam.ty, 25);
+  assert.equal(cam.transform, 'translate3d(-290px, 25px, 0) scale(1.5)');
+
+  // Verify gliding from an already zoomed camera state computes identical target coordinates
+  const glideCam = computeCenteredCameraTransform({
+    cardRect: { left: 140 - 290 + 480 * 1.5, top: 200 + 25 + 120 * 1.5, width: 200 * 1.5, height: 60 * 1.5 },
+    chartRect: { left: 140 - 290, top: 200 + 25 },
+    viewportWidth: 1440,
+    viewportHeight: 900,
+    currentTx: -290,
+    currentTy: 25,
+    currentScale: 1.5,
+    targetScale: 1.5,
+  });
+  assert.equal(glideCam.tx, -290);
+  assert.equal(glideCam.ty, 25);
+});
+
+test('computeFlipCardToPanel calculates exact center-origin FLIP translation and scale ratios', () => {
+  const flip = computeFlipCardToPanel(
+    box(200, 100, 230, 62),
+    box(490, 140, 460, 620),
+  );
+  assert.equal(flip.dx, -405);
+  assert.equal(flip.dy, -319);
+  assert.equal(flip.sx, 0.5);
+  assert.equal(flip.sy, 0.1);
+  assert.equal(flip.panelFromTransform, 'translate3d(-405px, -319px, 0) scale(0.5, 0.1)');
+  assert.equal(flip.panelToTransform, 'translate3d(0, 0, 0) scale(1, 1)');
+  assert.equal(flip.cloneToTransform, 'translate3d(405px, 319px, 0) scale(2, 10)');
+});
+
