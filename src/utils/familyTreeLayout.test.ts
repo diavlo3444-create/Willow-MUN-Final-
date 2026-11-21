@@ -4,13 +4,16 @@ import membersData from '../data/members.json';
 import {
   computeDesktopGoldTravelPath,
   computeDesktopPedigreePaths,
+  computeDesktopRootToMemberSegments,
   computeMobileGoldTravelPath,
+  computeMobileRootToMemberSegments,
   computeMobileTreePaths,
   computeModalClipOrigin,
   computeZoomTransform,
   formatObjectPosition,
   generateLaurelWreathData,
   generateLeafParticles,
+  generateTipLeafSpecs,
   organizeFamilyTree,
   resolveRole,
   type FamilyTreeData,
@@ -49,7 +52,6 @@ test('organizeFamilyTree orders secretariat -> left groups -> right groups canon
   assert.equal(tree.leftGroups.length, 4);
   assert.equal(tree.rightGroups.length, 8);
 
-  // Check exact group traversal order across orderedMembers
   const seenGroups: string[] = [];
   for (const m of tree.orderedMembers) {
     if (seenGroups[seenGroups.length - 1] !== m.group) {
@@ -72,17 +74,14 @@ test('organizeFamilyTree orders secretariat -> left groups -> right groups canon
     'ceremonies',
   ]);
 
-  // Three Secretary-Generals appear first at the top of secretariat
   assert.equal(tree.orderedMembers[0].id, 'naya-almasr');
   assert.equal(tree.orderedMembers[1].id, 'lana-ahmed');
   assert.equal(tree.orderedMembers[2].id, 'loor-almasri');
 
-  // Nasser Alqassem (role: null) receives fallback displayRole "Executive Board"
   const nasserIdx = tree.indexById['nasser-alqassem'];
   assert.equal(typeof nasserIdx, 'number');
   assert.equal(tree.orderedMembers[nasserIdx].displayRole, 'Executive Board');
 
-  // Newly added and existing member photos/metadata
   assert.equal(tree.orderedMembers[tree.indexById['loor-almasri']].photo, 'photos/loor-almasri.jpg');
   assert.equal(tree.orderedMembers[tree.indexById['ward-ajaj']].photo, 'photos/ward-ajaj.jpg');
   assert.equal(tree.orderedMembers[tree.indexById['leila-krayani']].photo, 'photos/leila-krayani.jpg');
@@ -96,7 +95,7 @@ test('organizeFamilyTree orders secretariat -> left groups -> right groups canon
   assert.equal(tree.orderedMembers[tree.indexById['saleh-samaha']].photo, null);
 });
 
-test('computeDesktopPedigreePaths creates trunk, branches, bracket spines, and ticks', () => {
+test('computeDesktopPedigreePaths creates trunk, branches, bracket spines, ticks, levels, and tips', () => {
   const centerRects = [box(400, 100, 200, 60), box(400, 180, 200, 60)];
   const sideGroups = [
     {
@@ -104,44 +103,54 @@ test('computeDesktopPedigreePaths creates trunk, branches, bracket spines, and t
       side: 'left' as const,
       labelRect: box(260, 130, 80, 28),
       memberRects: [box(20, 90, 200, 56), box(20, 160, 200, 56)],
+      memberIds: ['alya-ismail', 'yousef-saifi'],
     },
     {
       groupId: 'security',
       side: 'right' as const,
       labelRect: box(660, 130, 80, 28),
       memberRects: [box(780, 90, 200, 56), box(780, 160, 200, 56)],
+      memberIds: ['wed', 'ward'],
     },
   ];
 
-  const paths = computeDesktopPedigreePaths(centerRects, sideGroups, 500);
+  const paths = computeDesktopPedigreePaths(centerRects, sideGroups, 500, {
+    centerMemberIds: ['naya-almasr', 'lana-ahmed'],
+    secretariatLabelRect: box(440, 50, 120, 24),
+  });
   const byId = new Map(paths.map((p) => [p.id, p]));
 
-  assert.equal(byId.get('desktop-trunk')?.d, 'M 500 130 V 210');
-  // Left group: trunk at 500 -> label right 340
+  assert.equal(byId.get('desktop-trunk')?.d, 'M 500 74 V 210');
+  assert.equal(byId.get('desktop-trunk')?.level, 0);
   assert.equal(byId.get('branch-media')?.d, 'M 500 144 H 340');
-  // Left spine at 220 + (260 - 220)*0.5 = 240, minCy = 118, maxCy = 188
+  assert.equal(byId.get('branch-media')?.level, 1);
   assert.equal(byId.get('spine-media')?.d, 'M 240 118 V 188');
   assert.equal(byId.get('tick-media-0')?.d, 'M 240 118 H 220');
-  assert.equal(byId.get('tick-media-1')?.d, 'M 240 188 H 220');
+  assert.equal(byId.get('tick-media-0')?.level, 2);
+  assert.equal(byId.get('tick-media-0')?.tip?.memberId, 'alya-ismail');
+  assert.equal(byId.get('tick-media-0')?.tip?.x, 220);
+  assert.equal(byId.get('tick-media-0')?.tip?.direction, -1);
 
-  // Right group: trunk at 500 -> label left 660; spine at 740 + (780 - 740)*0.5 = 760
   assert.equal(byId.get('branch-security')?.d, 'M 500 144 H 660');
   assert.equal(byId.get('spine-security')?.d, 'M 760 118 V 188');
   assert.equal(byId.get('tick-security-0')?.d, 'M 760 118 H 780');
+  assert.equal(byId.get('tick-security-0')?.tip?.direction, 1);
 });
 
-test('computeMobileTreePaths generates trunk, group branch, sub-trunk, and L-elbows', () => {
+test('computeMobileTreePaths generates trunk, group branch, sub-trunk, L-elbows, and tips', () => {
   const paths = computeMobileTreePaths(
     [
       {
         groupId: 'secretariat',
         labelRect: box(32, 20, 100, 24),
         memberRects: [box(64, 54, 240, 56), box(64, 120, 240, 56)],
+        memberIds: ['naya-almasr', 'lana-ahmed'],
       },
       {
         groupId: 'media',
         labelRect: box(32, 200, 80, 24),
         memberRects: [box(64, 234, 240, 56)],
+        memberIds: ['alya-ismail'],
       },
     ],
     10,
@@ -153,6 +162,7 @@ test('computeMobileTreePaths generates trunk, group branch, sub-trunk, and L-elb
   assert.equal(byId.get('mobile-subtrunk-secretariat')?.d, 'M 42 44 V 148');
   assert.equal(byId.get('mobile-l-secretariat-0')?.d, 'M 42 82 H 64');
   assert.equal(byId.get('mobile-l-secretariat-1')?.d, 'M 42 148 H 64');
+  assert.equal(byId.get('mobile-l-media-0')?.tip?.memberId, 'alya-ismail');
 });
 
 test('computeZoomTransform anchors origin at box center and scales 1.5x', () => {
@@ -161,7 +171,7 @@ test('computeZoomTransform anchors origin at box center and scales 1.5x', () => 
   assert.ok(res.transform.includes('scale(1.5)'));
 });
 
-test('computeDesktopGoldTravelPath & computeMobileGoldTravelPath trace from card toward SECRETARIAT', () => {
+test('computeDesktopRootToMemberSegments & computeMobileRootToMemberSegments trace from SECRETARIAT root down to card edge', () => {
   const centerRects = [box(400, 100, 200, 60), box(400, 180, 200, 60)];
   const secretariatBadge = box(440, 50, 120, 24);
   const sideGroups = [
@@ -179,7 +189,7 @@ test('computeDesktopGoldTravelPath & computeMobileGoldTravelPath trace from card
     },
   ];
 
-  const leftPath = computeDesktopGoldTravelPath(
+  const leftSeg = computeDesktopRootToMemberSegments(
     sideGroups[0].memberRects[0],
     'left',
     'media',
@@ -188,10 +198,11 @@ test('computeDesktopGoldTravelPath & computeMobileGoldTravelPath trace from card
     sideGroups,
     500,
   );
-  assert.ok(leftPath.startsWith('M 220 118 H 240'));
-  assert.ok(leftPath.endsWith('V 74'));
+  assert.equal(leftSeg.rootToLabelD, 'M 500 74 V 144 H 340');
+  assert.ok(leftSeg.labelToCardD.startsWith('M 260 144'));
+  assert.ok(leftSeg.labelToCardD.endsWith('V 118 H 220'));
 
-  const rightPath = computeDesktopGoldTravelPath(
+  const rightSeg = computeDesktopRootToMemberSegments(
     sideGroups[1].memberRects[1],
     'right',
     'security',
@@ -200,10 +211,23 @@ test('computeDesktopGoldTravelPath & computeMobileGoldTravelPath trace from card
     sideGroups,
     500,
   );
-  assert.ok(rightPath.startsWith('M 780 188 H 760'));
-  assert.ok(rightPath.endsWith('V 74'));
+  assert.equal(rightSeg.rootToLabelD, 'M 500 74 V 144 H 660');
+  assert.ok(rightSeg.labelToCardD.startsWith('M 740 144'));
+  assert.ok(rightSeg.labelToCardD.endsWith('V 188 H 780'));
 
-  const mobilePath = computeMobileGoldTravelPath(
+  // Legacy wrappers still return non-empty combined root-to-card strings
+  const legacyDesktop = computeDesktopGoldTravelPath(
+    sideGroups[0].memberRects[0],
+    'left',
+    'media',
+    centerRects,
+    secretariatBadge,
+    sideGroups,
+    500,
+  );
+  assert.ok(legacyDesktop.startsWith('M 500 74'));
+
+  const mobileSeg = computeMobileRootToMemberSegments(
     box(64, 234, 240, 56),
     'media',
     [
@@ -220,37 +244,39 @@ test('computeDesktopGoldTravelPath & computeMobileGoldTravelPath trace from card
     ],
     10,
   );
-  assert.equal(mobilePath, 'M 64 262 H 42 V 212 H 10 V 32');
+  assert.equal(mobileSeg.rootToLabelD, 'M 10 32 V 212 H 32');
+  assert.equal(mobileSeg.labelToCardD, 'M 42 224 V 262 H 64');
+  assert.ok(computeMobileGoldTravelPath(box(64, 234, 240, 56), 'media', [], 10).includes('H 64'));
 });
 
 test('computeModalClipOrigin maps viewport click point relative to fixed centered modal', () => {
-  // Desktop 1440x900: modal is 460x620 -> left=490, top=140
   const origin = computeModalClipOrigin({ x: 540, y: 200 }, 1440, 900);
   assert.equal(origin.x, 50);
   assert.equal(origin.y, 60);
   assert.ok(origin.fullRadiusPx > Math.hypot(410, 560));
 
-  // Corner/side click outside modal still reaches opposite corner
   const sideClick = computeModalClipOrigin({ x: 247, y: 93 }, 1440, 900);
   assert.ok(sideClick.fullRadiusPx >= Math.hypot(460 - sideClick.x, 620 - sideClick.y));
 
-  // Mobile 360x700: modal is 331.2x602 -> left=14.4, top=49
   const mobileOrigin = computeModalClipOrigin({ x: 180, y: 350 }, 360, 700);
   assert.equal(mobileOrigin.x, 166);
   assert.equal(mobileOrigin.y, 301);
 });
 
-test('generateLaurelWreathData and generateLeafParticles stay within bounds', () => {
+test('generateLaurelWreathData, generateTipLeafSpecs, and generateLeafParticles stay within bounds', () => {
   const wreath = generateLaurelWreathData(10);
   assert.equal(wreath.leftLeaves.length, 10);
   assert.equal(wreath.rightLeaves.length, 10);
   assert.ok(wreath.leftBranchPath.startsWith('M '));
   assert.ok(wreath.rightBranchPath.startsWith('M '));
 
-  const particles = generateLeafParticles({ x: 300, y: 400 }, 9, 42);
-  assert.equal(particles.length, 9);
+  const tipLeaves = generateTipLeafSpecs({ x: 220, y: 118, direction: -1, memberId: 'alya-ismail' });
+  assert.ok(tipLeaves.length >= 2 && tipLeaves.length <= 3);
+
+  const particles = generateLeafParticles({ x: 300, y: 400 }, 12, 42);
+  assert.equal(particles.length, 12);
   for (const p of particles) {
-    assert.equal(p.duration, 0.9);
+    assert.equal(p.duration, 1.05);
     assert.ok(p.gravityDy > p.dy);
   }
 });

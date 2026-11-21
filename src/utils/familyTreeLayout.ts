@@ -54,23 +54,53 @@ export interface RectBox {
   height: number;
 }
 
-export interface DesktopGroupMeasurement {
-  groupId: string;
-  side: 'left' | 'right';
-  labelRect: RectBox | null;
-  memberRects: RectBox[];
-}
-
-export interface MobileGroupMeasurement {
-  groupId: string;
-  labelRect: RectBox | null;
-  memberRects: RectBox[];
+export interface BranchTipPoint {
+  x: number;
+  y: number;
+  direction: -1 | 0 | 1;
+  memberId: string;
 }
 
 export interface SvgConnectorPath {
   id: string;
   d: string;
   stageOrder: number;
+  level: 0 | 1 | 2;
+  groupId: string;
+  memberId?: string;
+  swayDuration: number;
+  swayDelay: number;
+  swayOrigin: { x: number; y: number };
+  tip?: BranchTipPoint;
+}
+
+export interface DesktopGroupMeasurement {
+  groupId: string;
+  side: 'left' | 'right';
+  labelRect: RectBox | null;
+  memberRects: RectBox[];
+  memberIds?: string[];
+}
+
+export interface MobileGroupMeasurement {
+  groupId: string;
+  labelRect: RectBox | null;
+  memberRects: RectBox[];
+  memberIds?: string[];
+}
+
+export interface DesktopPedigreeOptions {
+  centerMemberIds?: string[];
+  secretariatLabelRect?: RectBox | null;
+}
+
+export interface RootToMemberSegments {
+  /** Path from SECRETARIAT root down trunk and out to the department label edge */
+  rootToLabelD: string;
+  /** Path from opposite department label edge through bracket spine and tick to the card edge */
+  labelToCardD: string;
+  /** Timing split ratio (0..1) so sap flows seamlessly across the label gap */
+  splitRatio: number;
 }
 
 /**
@@ -167,13 +197,20 @@ function r1(n: number): number {
   return Math.round(n * 10) / 10;
 }
 
+function seededUnit(seed: number): number {
+  const raw = Math.sin(seed * 91.3458 + 17.13) * 47453.5453;
+  return raw - Math.floor(raw);
+}
+
 /**
- * Computes orthogonal pedigree bracket and trunk SVG path descriptors from real DOM rects (>= 900px).
+ * Computes orthogonal pedigree bracket and trunk SVG path descriptors from real DOM rects (>= 900px)
+ * with grow-in hierarchy levels, deterministic idle sway timings, and branch-tip leaf coordinates.
  */
 export function computeDesktopPedigreePaths(
   centerMemberRects: RectBox[],
   sideGroups: DesktopGroupMeasurement[],
   fallbackTrunkX: number,
+  options?: DesktopPedigreeOptions,
 ): SvgConnectorPath[] {
   const paths: SvgConnectorPath[] = [];
 
@@ -189,7 +226,16 @@ export function computeDesktopPedigreePaths(
     }
   }
 
-  // Center vertical trunk: connects secretariat nodes vertically and extends to reach lowest/highest branches
+  const secretariatLabelRect = options?.secretariatLabelRect ?? null;
+  const rootAnchorY = secretariatLabelRect
+    ? secretariatLabelRect.bottom
+    : centerMemberRects.length > 0
+      ? Math.min(...centerMemberRects.map((r) => centerY(r)))
+      : branchYs.length > 0
+        ? Math.min(...branchYs)
+        : 0;
+
+  // Center vertical trunk: grows outward from SECRETARIAT root node
   if (centerMemberRects.length > 0 || branchYs.length > 0) {
     const centerTop =
       centerMemberRects.length > 0
@@ -200,33 +246,83 @@ export function computeDesktopPedigreePaths(
         ? Math.max(...centerMemberRects.map((r) => centerY(r)))
         : Math.max(...branchYs);
 
-    const minY = Math.min(centerTop, ...(branchYs.length > 0 ? branchYs : [centerTop]));
-    const maxY = Math.max(centerBottom, ...(branchYs.length > 0 ? branchYs : [centerBottom]));
+    const minY = Math.min(
+      centerTop,
+      ...(branchYs.length > 0 ? branchYs : [centerTop]),
+      ...(secretariatLabelRect ? [rootAnchorY] : []),
+    );
+    const maxY = Math.max(
+      centerBottom,
+      ...(branchYs.length > 0 ? branchYs : [centerBottom]),
+      ...(secretariatLabelRect ? [rootAnchorY] : []),
+    );
 
     if (maxY > minY) {
+      const startY = secretariatLabelRect ? Math.max(minY, Math.min(maxY, rootAnchorY)) : minY;
+      const trunkD =
+        secretariatLabelRect && startY > minY + 1
+          ? `M ${r1(trunkX)} ${r1(startY)} V ${r1(minY)} M ${r1(trunkX)} ${r1(startY)} V ${r1(maxY)}`
+          : `M ${r1(trunkX)} ${r1(minY)} V ${r1(maxY)}`;
+
       paths.push({
         id: 'desktop-trunk',
-        d: `M ${r1(trunkX)} ${r1(minY)} V ${r1(maxY)}`,
+        d: trunkD,
         stageOrder: 0,
+        level: 0,
+        groupId: 'secretariat',
+        swayDuration: 6.2,
+        swayDelay: 0.2,
+        swayOrigin: { x: r1(trunkX), y: r1(startY) },
       });
     }
   }
 
+  // Optional subtle center ticks / tip anchor points for center Secretariat members
+  const centerMemberIds = options?.centerMemberIds ?? [];
+  centerMemberRects.forEach((mRect, idx) => {
+    const mId = centerMemberIds[idx];
+    if (!mId) return;
+    paths.push({
+      id: `tick-secretariat-${idx}`,
+      d: `M ${r1(trunkX)} ${r1(Math.max(rootAnchorY, mRect.top - 10))} V ${r1(mRect.top)}`,
+      stageOrder: 0.45 + idx * 0.12,
+      level: 2,
+      groupId: 'secretariat',
+      memberId: mId,
+      swayDuration: 5.4,
+      swayDelay: idx * 0.35,
+      swayOrigin: { x: r1(trunkX), y: r1(mRect.top) },
+      tip: {
+        x: r1(trunkX),
+        y: r1(mRect.top),
+        direction: 0,
+        memberId: mId,
+      },
+    });
+  });
+
   // Side group horizontal branches -> label -> bracket spine -> member box ticks
   sideGroups.forEach((group, groupIdx) => {
-    const { groupId, side, labelRect, memberRects } = group;
+    const { groupId, side, labelRect, memberRects, memberIds } = group;
     if (!labelRect || memberRects.length === 0) return;
 
     const labelCy = centerY(labelRect);
+    const swayDuration = r1(4.2 + seededUnit(groupIdx + 3) * 2.6);
+    const swayDelay = r1(seededUnit(groupIdx + 19) * 2.4);
+    const swayOrigin = { x: r1(trunkX), y: r1(labelCy) };
     const baseOrder = 1 + groupIdx;
 
     if (side === 'left') {
-      // Branch from central trunk leftwards to label's right edge
       if (trunkX > labelRect.right) {
         paths.push({
           id: `branch-${groupId}`,
           d: `M ${r1(trunkX)} ${r1(labelCy)} H ${r1(labelRect.right)}`,
           stageOrder: baseOrder,
+          level: 1,
+          groupId,
+          swayDuration,
+          swayDelay,
+          swayOrigin,
         });
       }
 
@@ -237,46 +333,77 @@ export function computeDesktopPedigreePaths(
       const maxCy = Math.max(...memberCys);
       const bracketMidY = (minCy + maxCy) / 2;
 
-      // Stem from label left edge to bracket spine
       if (Math.abs(labelCy - bracketMidY) < 1.5) {
         paths.push({
           id: `stem-${groupId}`,
           d: `M ${r1(labelRect.left)} ${r1(labelCy)} H ${r1(spineX)}`,
           stageOrder: baseOrder + 1,
+          level: 2,
+          groupId,
+          swayDuration,
+          swayDelay,
+          swayOrigin,
         });
       } else {
         paths.push({
           id: `stem-${groupId}`,
           d: `M ${r1(labelRect.left)} ${r1(labelCy)} H ${r1((labelRect.left + spineX) / 2)} V ${r1(bracketMidY)} H ${r1(spineX)}`,
           stageOrder: baseOrder + 1,
+          level: 2,
+          groupId,
+          swayDuration,
+          swayDelay,
+          swayOrigin,
         });
       }
 
-      // Vertical bracket spine spanning top-to-bottom member centers
       if (maxCy - minCy > 1) {
         paths.push({
           id: `spine-${groupId}`,
           d: `M ${r1(spineX)} ${r1(minCy)} V ${r1(maxCy)}`,
-          stageOrder: baseOrder + 2,
+          stageOrder: baseOrder + 1.4,
+          level: 2,
+          groupId,
+          swayDuration,
+          swayDelay,
+          swayOrigin,
         });
       }
 
-      // Horizontal ticks into each member box's right edge
       memberRects.forEach((mRect, mIdx) => {
         const cy = centerY(mRect);
+        const mId = memberIds?.[mIdx];
         paths.push({
           id: `tick-${groupId}-${mIdx}`,
           d: `M ${r1(spineX)} ${r1(cy)} H ${r1(mRect.right)}`,
-          stageOrder: baseOrder + 3 + mIdx * 0.25,
+          stageOrder: baseOrder + 2 + mIdx * 0.25,
+          level: 2,
+          groupId,
+          memberId: mId,
+          swayDuration,
+          swayDelay,
+          swayOrigin,
+          tip: mId
+            ? {
+                x: r1(mRect.right),
+                y: r1(cy),
+                direction: -1,
+                memberId: mId,
+              }
+            : undefined,
         });
       });
     } else {
-      // side === 'right': Branch from central trunk rightwards to label's left edge
       if (labelRect.left > trunkX) {
         paths.push({
           id: `branch-${groupId}`,
           d: `M ${r1(trunkX)} ${r1(labelCy)} H ${r1(labelRect.left)}`,
           stageOrder: baseOrder,
+          level: 1,
+          groupId,
+          swayDuration,
+          swayDelay,
+          swayOrigin,
         });
       }
 
@@ -292,12 +419,22 @@ export function computeDesktopPedigreePaths(
           id: `stem-${groupId}`,
           d: `M ${r1(labelRect.right)} ${r1(labelCy)} H ${r1(spineX)}`,
           stageOrder: baseOrder + 1,
+          level: 2,
+          groupId,
+          swayDuration,
+          swayDelay,
+          swayOrigin,
         });
       } else {
         paths.push({
           id: `stem-${groupId}`,
           d: `M ${r1(labelRect.right)} ${r1(labelCy)} H ${r1((labelRect.right + spineX) / 2)} V ${r1(bracketMidY)} H ${r1(spineX)}`,
           stageOrder: baseOrder + 1,
+          level: 2,
+          groupId,
+          swayDuration,
+          swayDelay,
+          swayOrigin,
         });
       }
 
@@ -305,16 +442,36 @@ export function computeDesktopPedigreePaths(
         paths.push({
           id: `spine-${groupId}`,
           d: `M ${r1(spineX)} ${r1(minCy)} V ${r1(maxCy)}`,
-          stageOrder: baseOrder + 2,
+          stageOrder: baseOrder + 1.4,
+          level: 2,
+          groupId,
+          swayDuration,
+          swayDelay,
+          swayOrigin,
         });
       }
 
       memberRects.forEach((mRect, mIdx) => {
         const cy = centerY(mRect);
+        const mId = memberIds?.[mIdx];
         paths.push({
           id: `tick-${groupId}-${mIdx}`,
           d: `M ${r1(spineX)} ${r1(cy)} H ${r1(mRect.left)}`,
-          stageOrder: baseOrder + 3 + mIdx * 0.25,
+          stageOrder: baseOrder + 2 + mIdx * 0.25,
+          level: 2,
+          groupId,
+          memberId: mId,
+          swayDuration,
+          swayDelay,
+          swayOrigin,
+          tip: mId
+            ? {
+                x: r1(mRect.left),
+                y: r1(cy),
+                direction: 1,
+                memberId: mId,
+              }
+            : undefined,
         });
       });
     }
@@ -346,28 +503,39 @@ export function computeMobileTreePaths(
       id: 'mobile-trunk',
       d: `M ${r1(trunkX)} ${r1(minY)} V ${r1(maxY)}`,
       stageOrder: 0,
+      level: 0,
+      groupId: groups[0]?.groupId ?? 'secretariat',
+      swayDuration: 6.0,
+      swayDelay: 0.2,
+      swayOrigin: { x: r1(trunkX), y: r1(minY) },
     });
   }
 
   groups.forEach((group, groupIdx) => {
-    const { groupId, labelRect, memberRects } = group;
+    const { groupId, labelRect, memberRects, memberIds } = group;
     if (!labelRect) return;
 
     const labelCy = centerY(labelRect);
     const baseOrder = 1 + groupIdx * 0.5;
+    const swayDuration = r1(4.3 + seededUnit(groupIdx + 11) * 2.4);
+    const swayDelay = r1(seededUnit(groupIdx + 29) * 2.1);
+    const swayOrigin = { x: r1(trunkX), y: r1(labelCy) };
 
-    // Horizontal branch from main left trunk to group label left edge
     if (labelRect.left > trunkX) {
       paths.push({
         id: `mobile-branch-${groupId}`,
         d: `M ${r1(trunkX)} ${r1(labelCy)} H ${r1(labelRect.left)}`,
         stageOrder: baseOrder,
+        level: 1,
+        groupId,
+        swayDuration,
+        swayDelay,
+        swayOrigin,
       });
     }
 
     if (memberRects.length === 0) return;
 
-    // Vertical sub-trunk drops below label left edge and connects via L-shaped elbows to each member
     const minMemberLeft = Math.min(...memberRects.map((r) => r.left));
     const subX = Math.max(trunkX + 12, Math.min(minMemberLeft - 12, labelRect.left + 10));
     const lastMemberCy = centerY(memberRects[memberRects.length - 1]);
@@ -377,20 +545,206 @@ export function computeMobileTreePaths(
         id: `mobile-subtrunk-${groupId}`,
         d: `M ${r1(subX)} ${r1(labelRect.bottom)} V ${r1(lastMemberCy)}`,
         stageOrder: baseOrder + 0.2,
+        level: 2,
+        groupId,
+        swayDuration,
+        swayDelay,
+        swayOrigin,
       });
     }
 
     memberRects.forEach((mRect, mIdx) => {
       const mCy = centerY(mRect);
+      const mId = memberIds?.[mIdx];
       paths.push({
         id: `mobile-l-${groupId}-${mIdx}`,
         d: `M ${r1(subX)} ${r1(mCy)} H ${r1(mRect.left)}`,
         stageOrder: baseOrder + 0.4 + mIdx * 0.15,
+        level: 2,
+        groupId,
+        memberId: mId,
+        swayDuration,
+        swayDelay,
+        swayOrigin,
+        tip: mId
+          ? {
+              x: r1(mRect.left),
+              y: r1(mCy),
+              direction: 1,
+              memberId: mId,
+            }
+          : undefined,
       });
     });
   });
 
   return paths;
+}
+
+/**
+ * Traces the full root-to-card branch in TWO clean visible segments (trunk->label edge and label edge->card edge)
+ * so glowing sap/highlights never draw over transparent department text labels.
+ */
+export function computeDesktopRootToMemberSegments(
+  memberRect: RectBox,
+  side: GroupSide,
+  groupId: string,
+  centerMemberRects: RectBox[],
+  secretariatLabelRect: RectBox | null,
+  sideGroups: DesktopGroupMeasurement[],
+  fallbackTrunkX: number,
+): RootToMemberSegments {
+  const trunkX =
+    centerMemberRects.length > 0
+      ? centerMemberRects.reduce((acc, r) => acc + centerX(r), 0) / centerMemberRects.length
+      : fallbackTrunkX;
+
+  const rootY = secretariatLabelRect
+    ? secretariatLabelRect.bottom
+    : centerMemberRects.length > 0
+      ? Math.min(...centerMemberRects.map((r) => centerY(r)))
+      : memberRect.top;
+
+  const mCy = centerY(memberRect);
+
+  if (side === 'center') {
+    const endY = mCy > rootY ? memberRect.top : mCy;
+    return {
+      rootToLabelD: `M ${r1(trunkX)} ${r1(rootY)} V ${r1(endY)}`,
+      labelToCardD: '',
+      splitRatio: 1,
+    };
+  }
+
+  const group = sideGroups.find((g) => g.groupId === groupId);
+  if (!group || !group.labelRect || group.memberRects.length === 0) {
+    const endX = side === 'left' ? memberRect.right : memberRect.left;
+    return {
+      rootToLabelD: `M ${r1(trunkX)} ${r1(rootY)} V ${r1(mCy)} H ${r1(endX)}`,
+      labelToCardD: '',
+      splitRatio: 1,
+    };
+  }
+
+  const { labelRect, memberRects } = group;
+  const labelCy = centerY(labelRect);
+  const memberCys = memberRects.map(centerY);
+  const bracketMidY = (Math.min(...memberCys) + Math.max(...memberCys)) / 2;
+
+  if (side === 'left') {
+    const rootParts: string[] = [`M ${r1(trunkX)} ${r1(rootY)}`];
+    if (Math.abs(labelCy - rootY) >= 1) {
+      rootParts.push(`V ${r1(labelCy)}`);
+    }
+    if (trunkX > labelRect.right) {
+      rootParts.push(`H ${r1(labelRect.right)}`);
+    }
+
+    const maxMemberRight = Math.max(...memberRects.map((r) => r.right));
+    const spineX = maxMemberRight + (labelRect.left - maxMemberRight) * 0.5;
+    const cardParts: string[] = [`M ${r1(labelRect.left)} ${r1(labelCy)}`];
+
+    if (Math.abs(labelCy - bracketMidY) < 1.5) {
+      cardParts.push(`H ${r1(spineX)}`);
+    } else {
+      cardParts.push(
+        `H ${r1((labelRect.left + spineX) / 2)}`,
+        `V ${r1(bracketMidY)}`,
+        `H ${r1(spineX)}`,
+      );
+    }
+    if (Math.abs(mCy - bracketMidY) >= 1) {
+      cardParts.push(`V ${r1(mCy)}`);
+    }
+    cardParts.push(`H ${r1(memberRect.right)}`);
+
+    return {
+      rootToLabelD: rootParts.join(' '),
+      labelToCardD: cardParts.join(' '),
+      splitRatio: 0.48,
+    };
+  }
+
+  // side === 'right'
+  const rootParts: string[] = [`M ${r1(trunkX)} ${r1(rootY)}`];
+  if (Math.abs(labelCy - rootY) >= 1) {
+    rootParts.push(`V ${r1(labelCy)}`);
+  }
+  if (labelRect.left > trunkX) {
+    rootParts.push(`H ${r1(labelRect.left)}`);
+  }
+
+  const minMemberLeft = Math.min(...memberRects.map((r) => r.left));
+  const spineX = labelRect.right + (minMemberLeft - labelRect.right) * 0.5;
+  const cardParts: string[] = [`M ${r1(labelRect.right)} ${r1(labelCy)}`];
+
+  if (Math.abs(labelCy - bracketMidY) < 1.5) {
+    cardParts.push(`H ${r1(spineX)}`);
+  } else {
+    cardParts.push(
+      `H ${r1((labelRect.right + spineX) / 2)}`,
+      `V ${r1(bracketMidY)}`,
+      `H ${r1(spineX)}`,
+    );
+  }
+  if (Math.abs(mCy - bracketMidY) >= 1) {
+    cardParts.push(`V ${r1(mCy)}`);
+  }
+  cardParts.push(`H ${r1(memberRect.left)}`);
+
+  return {
+    rootToLabelD: rootParts.join(' '),
+    labelToCardD: cardParts.join(' '),
+    splitRatio: 0.48,
+  };
+}
+
+/**
+ * Traces the full mobile root-to-card branch in two segments (trunk->label left edge and label bottom->member left edge).
+ */
+export function computeMobileRootToMemberSegments(
+  memberRect: RectBox,
+  groupId: string,
+  mobileGroups: MobileGroupMeasurement[],
+  trunkX = 10,
+): RootToMemberSegments {
+  const secretariatGroup = mobileGroups[0];
+  const rootY = secretariatGroup?.labelRect ? centerY(secretariatGroup.labelRect) : 20;
+  const mCy = centerY(memberRect);
+
+  const group = mobileGroups.find((g) => g.groupId === groupId);
+  if (!group || !group.labelRect || group.memberRects.length === 0) {
+    return {
+      rootToLabelD: `M ${r1(trunkX)} ${r1(rootY)} V ${r1(mCy)} H ${r1(memberRect.left)}`,
+      labelToCardD: '',
+      splitRatio: 1,
+    };
+  }
+
+  const { labelRect, memberRects } = group;
+  const labelCy = centerY(labelRect);
+  const minMemberLeft = Math.min(...memberRects.map((r) => r.left));
+  const subX = Math.max(trunkX + 12, Math.min(minMemberLeft - 12, labelRect.left + 10));
+
+  const rootParts: string[] = [`M ${r1(trunkX)} ${r1(rootY)}`];
+  if (Math.abs(labelCy - rootY) >= 1) {
+    rootParts.push(`V ${r1(labelCy)}`);
+  }
+  if (labelRect.left > trunkX) {
+    rootParts.push(`H ${r1(labelRect.left)}`);
+  }
+
+  const cardParts: string[] = [
+    `M ${r1(subX)} ${r1(labelRect.bottom)}`,
+    `V ${r1(mCy)}`,
+    `H ${r1(memberRect.left)}`,
+  ];
+
+  return {
+    rootToLabelD: rootParts.join(' '),
+    labelToCardD: cardParts.join(' '),
+    splitRatio: 0.45,
+  };
 }
 
 /**
@@ -405,7 +759,6 @@ export function computeZoomTransform(
   const bx = centerX(boxRect);
   const by = centerY(boxRect);
 
-  // Pull slightly toward horizontal center so edge columns remain cleanly inside viewport at 1.5x
   const nudgeX = (stageWidth / 2 - bx) * 0.25;
   const nudgeY = Math.max(-80, Math.min(80, (stageHeight / 2 - by) * 0.12));
 
@@ -416,8 +769,7 @@ export function computeZoomTransform(
 }
 
 /**
- * Traces one continuous SVG path from a clicked desktop card back through its group bracket
- * and central trunk into the SECRETARIAT node header/top.
+ * Legacy-compatible single-string root-to-member helper (used in unit tests).
  */
 export function computeDesktopGoldTravelPath(
   memberRect: RectBox,
@@ -428,123 +780,26 @@ export function computeDesktopGoldTravelPath(
   sideGroups: DesktopGroupMeasurement[],
   fallbackTrunkX: number,
 ): string {
-  const trunkX =
-    centerMemberRects.length > 0
-      ? centerMemberRects.reduce((acc, r) => acc + centerX(r), 0) / centerMemberRects.length
-      : fallbackTrunkX;
-
-  const targetY = secretariatLabelRect
-    ? secretariatLabelRect.bottom
-    : centerMemberRects.length > 0
-      ? Math.min(...centerMemberRects.map((r) => centerY(r)))
-      : memberRect.top;
-
-  const mCy = centerY(memberRect);
-
-  if (side === 'center') {
-    const startY = mCy > targetY ? mCy : memberRect.bottom;
-    return `M ${r1(trunkX)} ${r1(startY)} V ${r1(targetY)}`;
-  }
-
-  const group = sideGroups.find((g) => g.groupId === groupId);
-  if (!group || !group.labelRect || group.memberRects.length === 0) {
-    const startX = side === 'left' ? memberRect.right : memberRect.left;
-    return `M ${r1(startX)} ${r1(mCy)} H ${r1(trunkX)} V ${r1(targetY)}`;
-  }
-
-  const { labelRect, memberRects } = group;
-  const labelCy = centerY(labelRect);
-  const memberCys = memberRects.map(centerY);
-  const bracketMidY = (Math.min(...memberCys) + Math.max(...memberCys)) / 2;
-
-  if (side === 'left') {
-    const maxMemberRight = Math.max(...memberRects.map((r) => r.right));
-    const spineX = maxMemberRight + (labelRect.left - maxMemberRight) * 0.5;
-    const segments: string[] = [`M ${r1(memberRect.right)} ${r1(mCy)}`, `H ${r1(spineX)}`];
-
-    if (Math.abs(mCy - bracketMidY) >= 1) {
-      segments.push(`V ${r1(bracketMidY)}`);
-    }
-
-    if (Math.abs(labelCy - bracketMidY) < 1.5) {
-      segments.push(`H ${r1(trunkX)}`);
-    } else {
-      segments.push(
-        `H ${r1((labelRect.left + spineX) / 2)}`,
-        `V ${r1(labelCy)}`,
-        `H ${r1(trunkX)}`,
-      );
-    }
-
-    if (Math.abs(labelCy - targetY) >= 1) {
-      segments.push(`V ${r1(targetY)}`);
-    }
-
-    return segments.join(' ');
-  }
-
-  // side === 'right'
-  const minMemberLeft = Math.min(...memberRects.map((r) => r.left));
-  const spineX = labelRect.right + (minMemberLeft - labelRect.right) * 0.5;
-  const segments: string[] = [`M ${r1(memberRect.left)} ${r1(mCy)}`, `H ${r1(spineX)}`];
-
-  if (Math.abs(mCy - bracketMidY) >= 1) {
-    segments.push(`V ${r1(bracketMidY)}`);
-  }
-
-  if (Math.abs(labelCy - bracketMidY) < 1.5) {
-    segments.push(`H ${r1(trunkX)}`);
-  } else {
-    segments.push(
-      `H ${r1((labelRect.right + spineX) / 2)}`,
-      `V ${r1(labelCy)}`,
-      `H ${r1(trunkX)}`,
-    );
-  }
-
-  if (Math.abs(labelCy - targetY) >= 1) {
-    segments.push(`V ${r1(targetY)}`);
-  }
-
-  return segments.join(' ');
+  const seg = computeDesktopRootToMemberSegments(
+    memberRect,
+    side,
+    groupId,
+    centerMemberRects,
+    secretariatLabelRect,
+    sideGroups,
+    fallbackTrunkX,
+  );
+  return seg.labelToCardD ? `${seg.rootToLabelD} ${seg.labelToCardD}` : seg.rootToLabelD;
 }
 
-/**
- * Traces one continuous SVG path from a clicked mobile card back through its group sub-trunk
- * and main vertical trunk into the SECRETARIAT header.
- */
 export function computeMobileGoldTravelPath(
   memberRect: RectBox,
   groupId: string,
   mobileGroups: MobileGroupMeasurement[],
   trunkX = 10,
 ): string {
-  const secretariatGroup = mobileGroups[0];
-  const targetY = secretariatGroup?.labelRect ? centerY(secretariatGroup.labelRect) : 20;
-  const mCy = centerY(memberRect);
-
-  const group = mobileGroups.find((g) => g.groupId === groupId);
-  if (!group || !group.labelRect || group.memberRects.length === 0) {
-    return `M ${r1(memberRect.left)} ${r1(mCy)} H ${r1(trunkX)} V ${r1(targetY)}`;
-  }
-
-  const { labelRect, memberRects } = group;
-  const labelCy = centerY(labelRect);
-  const minMemberLeft = Math.min(...memberRects.map((r) => r.left));
-  const subX = Math.max(trunkX + 12, Math.min(minMemberLeft - 12, labelRect.left + 10));
-
-  const segments: string[] = [
-    `M ${r1(memberRect.left)} ${r1(mCy)}`,
-    `H ${r1(subX)}`,
-    `V ${r1(labelCy)}`,
-    `H ${r1(trunkX)}`,
-  ];
-
-  if (Math.abs(labelCy - targetY) >= 1) {
-    segments.push(`V ${r1(targetY)}`);
-  }
-
-  return segments.join(' ');
+  const seg = computeMobileRootToMemberSegments(memberRect, groupId, mobileGroups, trunkX);
+  return seg.labelToCardD ? `${seg.rootToLabelD} ${seg.labelToCardD}` : seg.rootToLabelD;
 }
 
 /**
@@ -606,14 +861,12 @@ export function generateLaurelWreathData(leavesPerBranch = 10): LaurelWreathGeom
     };
   };
 
-  // Left branch: bottom-left (103deg) sweeping clockwise through left (180deg) to top-left (256deg)
   const leftStartDeg = 103;
   const leftEndDeg = 256;
   const ls = ptOnCircle(leftStartDeg);
   const le = ptOnCircle(leftEndDeg);
   const leftBranchPath = `M ${ls.x} ${ls.y} A ${radius} ${radius} 0 0 1 ${le.x} ${le.y}`;
 
-  // Right branch: bottom-right (77deg) sweeping counter-clockwise through right (0deg) to top-right (-76deg)
   const rightStartDeg = 77;
   const rightEndDeg = -76;
   const rs = ptOnCircle(rightStartDeg);
@@ -628,7 +881,6 @@ export function generateLaurelWreathData(leavesPerBranch = 10): LaurelWreathGeom
     const sideFlip = i % 2 === 0 ? 1 : -1;
     const scale = r1(0.88 + Math.sin(t * Math.PI) * 0.24);
 
-    // Left branch point + upward-following tangent angle
     const lDeg = leftStartDeg + (leftEndDeg - leftStartDeg) * t;
     const lp = ptOnCircle(lDeg);
     const lTangentDeg = lDeg + 90;
@@ -641,7 +893,6 @@ export function generateLaurelWreathData(leavesPerBranch = 10): LaurelWreathGeom
       orderIndex: i,
     });
 
-    // Right branch point + upward-following tangent angle
     const rDeg = rightStartDeg + (rightEndDeg - rightStartDeg) * t;
     const rp = ptOnCircle(rDeg);
     const rTangentDeg = rDeg - 90;
@@ -663,6 +914,56 @@ export function generateLaurelWreathData(leavesPerBranch = 10): LaurelWreathGeom
   };
 }
 
+export interface TipLeafSpec {
+  id: string;
+  rotate: number;
+  offsetX: number;
+  offsetY: number;
+  scale: number;
+  flutterDuration: number;
+  flutterDelay: number;
+}
+
+/**
+ * Generates 2-3 small olive leaf sprouts positioned around a branch tip point.
+ */
+export function generateTipLeafSpecs(tip: BranchTipPoint): TipLeafSpec[] {
+  const hash = seededUnit(tip.x * 0.13 + tip.y * 0.29);
+  const leafCount = hash > 0.42 ? 3 : 2;
+
+  const baseAngle =
+    tip.direction === -1
+      ? -90 // Left card right edge -> radiate slightly up/left/down around edge
+      : tip.direction === 1
+        ? 90 // Right card left edge -> radiate slightly around edge
+        : 0; // Center card top edge -> radiate upward
+
+  const angles = leafCount === 3 ? [-42, 0, 42] : [-28, 28];
+
+  return angles.map((offsetAngle, idx) => {
+    const u = seededUnit(tip.x + tip.y + idx * 7);
+    const rot = baseAngle + offsetAngle + (u - 0.5) * 14;
+    const offsetX = tip.direction === 0 ? 0 : r1(tip.direction * -4.5);
+    const offsetY =
+      tip.direction === 0
+        ? -3
+        : idx === 0
+          ? -1.5
+          : idx === 1
+            ? 1.5
+            : 0;
+    return {
+      id: `${tip.memberId}-tip-leaf-${idx}`,
+      rotate: r1(rot),
+      offsetX,
+      offsetY,
+      scale: r1(0.95 + u * 0.28),
+      flutterDuration: r1(3.8 + u * 2.4),
+      flutterDelay: r1(u * 2.0),
+    };
+  });
+}
+
 export interface LeafParticleSpec {
   id: string;
   x: number;
@@ -678,14 +979,14 @@ export interface LeafParticleSpec {
 }
 
 /**
- * Generates 8-10 outward-flying olive-leaf particle trajectories with slight gravity.
+ * Generates 10-14 outward-flying olive-leaf particle trajectories that drift downward with rotation and fade.
  */
 export function generateLeafParticles(
   origin: { x: number; y: number },
-  count = 9,
+  count = 12,
   seed = 1,
 ): LeafParticleSpec[] {
-  const clamped = Math.max(8, Math.min(10, count));
+  const clamped = Math.max(10, Math.min(14, count));
   const particles: LeafParticleSpec[] = [];
 
   for (let i = 0; i < clamped; i += 1) {
@@ -694,11 +995,11 @@ export function generateLeafParticles(
     const hash2 = Math.sin((seed + 3) * 45.164 + (i + 7) * 19.13) * 19283.17;
     const rand2 = hash2 - Math.floor(hash2);
 
-    const baseAngle = (Math.PI * 2 * i) / clamped + (rand - 0.5) * 0.45;
-    const speed = 58 + rand2 * 56;
+    const baseAngle = (Math.PI * 2 * i) / clamped + (rand - 0.5) * 0.42;
+    const speed = 64 + rand2 * 62;
     const dx = r1(Math.cos(baseAngle) * speed);
-    const initialDy = Math.sin(baseAngle) * speed - 22;
-    const gravityDy = r1(initialDy + 48 + rand * 26);
+    const initialDy = Math.sin(baseAngle) * speed * 0.72 - 24;
+    const gravityDy = r1(initialDy + 74 + rand * 38);
 
     particles.push({
       id: `leaf-p-${seed}-${i}`,
@@ -707,11 +1008,11 @@ export function generateLeafParticles(
       dx,
       dy: r1(initialDy),
       gravityDy,
-      rotateStart: Math.round((rand - 0.5) * 80),
-      rotateEnd: Math.round((rand - 0.5) * 80 + (i % 2 === 0 ? 190 : -190)),
-      scale: r1(0.75 + rand2 * 0.45),
-      delay: r1(i * 0.015),
-      duration: 0.9,
+      rotateStart: Math.round((rand - 0.5) * 90),
+      rotateEnd: Math.round((rand - 0.5) * 90 + (i % 2 === 0 ? 220 : -220)),
+      scale: r1(0.8 + rand2 * 0.48),
+      delay: r1(i * 0.014),
+      duration: 1.05,
     });
   }
 
