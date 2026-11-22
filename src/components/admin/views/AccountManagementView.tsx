@@ -838,7 +838,7 @@ export function AccountManagementView({
           <div className="divide-y divide-[color:var(--wm-hairline)]">
             {displayedAccounts.map((acc) => {
               const isSuperTarget = acc.role === 'super_admin';
-              const isPendingEntry = acc.user_id.startsWith('pending:');
+              const isPendingEntry = acc.user_id.startsWith('pending:') || acc.user_id.startsWith('pending-head-roster:');
               const busy = busyId === acc.user_id;
               const dept = acc.department_id ? deptByIdOrSlug.get(acc.department_id) : undefined;
               const resolvedPerms = resolveUserPermissions(
