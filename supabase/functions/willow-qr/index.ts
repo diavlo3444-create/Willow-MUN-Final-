@@ -908,9 +908,13 @@ Deno.serve(async (req: Request) => {
     }
 
     const canViewPass = isSuperAdmin || actorPermissions["qr.view_pass"] !== false;
+    const isDepartmentReviewer =
+      actor.role === "department_head" || actor.role === "executive_board";
+    // Ordinary department staff may retrieve only their own credential through
+    // my_pass. They must never receive a department-wide list of colleagues' QR tokens.
     const authorizedForSection =
       (isAdmin && canViewPass) ||
-      (canViewPass &&
+      (isDepartmentReviewer && canViewPass &&
         ((targetSection === "security" && (canScan || actorDeptSlug === "security")) ||
           (targetSection === "press_media" && (actorDeptSlug === "media" || actorDeptSlug === "press")) ||
           (targetSection === "volunteers" && actorDeptSlug === "volunteers")));
