@@ -324,17 +324,26 @@ Deno.serve(async (req: Request) => {
         return json({ error: "This EB entry has already been claimed and cannot be removed as a pending roster entry." }, 409);
       }
 
-      const { data: removedRows, error: deleteError } = await admin
+      // Use a minimal DELETE response (no RETURNING representation), then verify
+      // the row is gone. This avoids failures caused by PostgREST returning rows
+      // from DELETE while preserving the claimed-entry guard.
+      const { error: deleteError } = await admin
         .from("wm_eb_signup_allowlist")
         .delete()
         .eq("member_key", memberKey)
         .is("claimed_at", null)
-        .is("claimed_user_id", null)
-        .select("member_key,full_name");
+        .is("claimed_user_id", null);
       if (deleteError) throw deleteError;
-      if (!removedRows?.length) return json({ error: "Roster entry changed before deletion. Refresh and try again." }, 409);
-      if (removedRows.length !== 1) return json({ error: "Multiple rows were deleted for this key; refresh and review the roster." }, 409);
-      return json({ success: true, removed: removedRows[0].member_key, full_name: removedRows[0].full_name });
+
+      const { data: remainingRows, error: verifyError } = await admin
+        .from("wm_eb_signup_allowlist")
+        .select("member_key,claimed_at,claimed_user_id")
+        .eq("member_key", memberKey);
+      if (verifyError) throw verifyError;
+      if (remainingRows?.length) {
+        return json({ error: "Roster entry was not removed. It may have been claimed; refresh and try again." }, 409);
+      }
+      return json({ success: true, removed: memberKey, full_name: target.full_name });
     }
 
     if (action === "create_eb_invite") {
