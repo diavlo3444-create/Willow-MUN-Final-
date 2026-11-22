@@ -37,9 +37,7 @@ import { markAlyaIntroSeenInSession, shouldShowAlyaLoginEasterEgg } from './util
 import type { PortalKey } from './types/admin';
 import { isAdminRoute, usePathname } from './utils/router';
 
-function PublicWebsite({ pathname }: { pathname: string }) {
-  if (pathname === '/privacy') return <LegalPages page="privacy" />;
-  if (pathname === '/terms') return <LegalPages page="terms" />;
+function PublicWebsite() {
   const [showAnnouncement, setShowAnnouncement] = useState(true);
   // Always show the opening animation on a fresh public-site entry.
   const [introPlaying, setIntroPlaying] = useState(true);
@@ -268,7 +266,11 @@ export default function App() {
     }
   }, [inAdminPortal]);
 
-  if (!inAdminPortal) return <PublicWebsite pathname={pathname} />;
+  if (!inAdminPortal) {
+    if (pathname === '/privacy') return <LegalPages page="privacy" />;
+    if (pathname === '/terms') return <LegalPages page="terms" />;
+    return <PublicWebsite />;
+  }
 
   return (
     <AdminStoreProvider>
