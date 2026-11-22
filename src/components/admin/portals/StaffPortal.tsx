@@ -371,7 +371,21 @@ export function StaffPortal({ pathname, onNavigate }: StaffPortalProps) {
         </header>
 
         <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
-          <DepartmentQrSectionView section={qrSection} actor={currentUser} />
+          {departmentSlug === 'volunteers' ? (
+            <section className="mx-auto max-w-xl space-y-4">
+              <header className="border-b border-[color:var(--wm-hairline)] pb-4">
+                <h1 className="wm-serif text-2xl font-semibold text-[color:var(--wm-ink)] sm:text-3xl">
+                  My QR Code
+                </h1>
+                <p className="mt-1 text-xs text-[color:var(--wm-ink-secondary)]">
+                  Your personal Willow MUN 2027 access pass.
+                </p>
+              </header>
+              <MyQrCard actorOverride={currentUser} />
+            </section>
+          ) : (
+            <DepartmentQrSectionView section={qrSection} actor={currentUser} />
+          )}
         </main>
       </div>
     );
