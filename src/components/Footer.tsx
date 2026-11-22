@@ -112,17 +112,6 @@ export function Footer({ onReplayIntro }: FooterProps) {
                   </a>
                 </dd>
               </div>
-              <div className="flex items-baseline justify-between gap-4 border-b border-[#ede6ca]/10 pb-2">
-                <dt className="text-xs text-[#c9c2a6]/80">Email</dt>
-                <dd className="text-[#ede6ca] truncate">
-                  {published.footer.contactEmail &&
-                  published.footer.contactEmail !== 'TBA' ? (
-                    published.footer.contactEmail
-                  ) : (
-                    <TbaText text="TBA" className="text-base" />
-                  )}
-                </dd>
-              </div>
             </dl>
 
             <div className="pt-1 flex flex-wrap items-center gap-3">
