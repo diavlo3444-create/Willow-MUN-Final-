@@ -13,7 +13,6 @@ import { TbaText } from './TbaText';
  */
 export function UpdatesSection() {
   const { settings } = usePublishedWebsite();
-  const hasCustomDates = settings.datesText !== 'TBA';
   const hasCustomVenue = settings.venueText !== 'TBA';
 
   const handleJump = (event: MouseEvent<HTMLAnchorElement>, href: string) => {
@@ -52,7 +51,7 @@ export function UpdatesSection() {
                     Session Dates
                   </dt>
                   <dd className="font-serif text-xl text-[#ede6ca]">
-                    {hasCustomDates ? settings.datesText : <TbaText text="TBA" />}
+                    March 18, 19 & 20, 2027
                   </dd>
                 </div>
                 <div className="py-3.5 flex items-baseline justify-between gap-4">
