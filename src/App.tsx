@@ -25,6 +25,7 @@ import { HeadPasswordSetupView } from './components/admin/HeadPasswordSetupView'
 import { PortalErrorBoundary } from './components/admin/PortalErrorBoundary';
 import { AlyaLoginEasterEgg } from './components/admin/AlyaLoginEasterEgg';
 import { ToastViewport } from './components/admin/ToastViewport';
+import { LegalPages } from './components/LegalPages';
 import { AdminPortal } from './components/admin/portals/AdminPortal';
 import { DepartmentHeadPortal } from './components/admin/portals/DepartmentHeadPortal';
 import { SecurityScannerPortal } from './components/admin/portals/SecurityScannerPortal';
@@ -36,7 +37,9 @@ import { markAlyaIntroSeenInSession, shouldShowAlyaLoginEasterEgg } from './util
 import type { PortalKey } from './types/admin';
 import { isAdminRoute, usePathname } from './utils/router';
 
-function PublicWebsite() {
+function PublicWebsite({ pathname }: { pathname: string }) {
+  if (pathname === '/privacy') return <LegalPages page="privacy" />;
+  if (pathname === '/terms') return <LegalPages page="terms" />;
   const [showAnnouncement, setShowAnnouncement] = useState(true);
   // Always show the opening animation on a fresh public-site entry.
   const [introPlaying, setIntroPlaying] = useState(true);
@@ -265,7 +268,7 @@ export default function App() {
     }
   }, [inAdminPortal]);
 
-  if (!inAdminPortal) return <PublicWebsite />;
+  if (!inAdminPortal) return <PublicWebsite pathname={pathname} />;
 
   return (
     <AdminStoreProvider>
