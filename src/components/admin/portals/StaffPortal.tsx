@@ -391,7 +391,6 @@ export function StaffPortal({ pathname, onNavigate }: StaffPortalProps) {
   const canWorkspace = hasPermission(currentUser, 'departments.workspace', data.departments);
   const canTeams = hasPermission(currentUser, 'operations.teams', data.departments);
   const canShifts = hasPermission(currentUser, 'operations.shifts', data.departments);
-  const canQr = hasPermission(currentUser, 'qr.view_pass', data.departments);
 
   const belongsToDepartment = (itemDepartmentId: string | null | undefined) =>
     Boolean(
@@ -418,7 +417,7 @@ export function StaffPortal({ pathname, onNavigate }: StaffPortalProps) {
     { id: 'workspace' as const, label: copy.workspaceLabel, path: `${basePath}/workspace`, icon: FileText, allowed: canWorkspace },
     { id: 'teams' as const, label: copy.teamsLabel, path: `${basePath}/teams`, icon: Users, allowed: canTeams },
     { id: 'shifts' as const, label: copy.shiftsLabel, path: `${basePath}/shifts`, icon: CalendarClock, allowed: canShifts },
-    { id: 'qr' as const, label: 'My QR', path: `${basePath}/qr`, icon: QrCode, allowed: canQr },
+    { id: 'qr' as const, label: 'My QR', path: `${basePath}/qr`, icon: QrCode, allowed: true },
   ].filter((item) => item.allowed);
 
   const section = parsedRoute.section;
@@ -427,7 +426,7 @@ export function StaffPortal({ pathname, onNavigate }: StaffPortalProps) {
     (section === 'workspace' && canWorkspace) ||
     (section === 'teams' && canTeams) ||
     (section === 'shifts' && canShifts) ||
-    (section === 'qr' && canQr);
+    section === 'qr';
 
   const activeNav = nav.find((item) => item.id === section) ?? nav[0];
 
