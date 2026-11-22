@@ -31,7 +31,7 @@ type HeadRow = {
 };
 
 export function HeadAccountsView() {
-  const { data, currentUser, pushToast, enterDepartmentTestMode } = useAdminStore();
+  const { data, currentUser, pushToast, enterDepartmentTestMode, deleteAccount } = useAdminStore();
   const canManage = currentUser?.role === 'super_admin';
   const [serverHeads, setServerHeads] = useState<ServerHead[]>([]);
   const [loading, setLoading] = useState(true);
@@ -186,6 +186,22 @@ export function HeadAccountsView() {
     await load();
   };
 
+  const removeHead = async (row: HeadRow) => {
+    if (!window.confirm(row.source === 'roster' ? 'Remove pending head entry for ' + row.fullName + ' (' + row.email + ')?' : 'Permanently delete account for ' + row.fullName + ' (' + row.email + ')?')) return;
+    setBusyId(row.id);
+    if (row.source === 'roster') {
+      const success = deleteAccount(row.id);
+      setBusyId(null);
+      if (success) pushToast({ tone: 'success', title: 'Pending head removed', description: row.fullName + ' removed from roster.' });
+      return;
+    }
+    const { data: result, error } = await supabase.functions.invoke('willow-staff-admin', { body: { action: 'delete', user_id: row.user_id } });
+    setBusyId(null);
+    if (error || result?.error) { pushToast({ tone: 'error', title: 'Delete failed', description: result?.error || error?.message }); return; }
+    pushToast({ tone: 'success', title: 'Head account deleted', description: row.fullName + ' removed.' });
+    await load();
+  };
+
   const copyLink = async () => {
     if (!setupLink) return;
     try {
@@ -314,6 +330,8 @@ export function HeadAccountsView() {
                           </button>
                         )}
                         {row.source === 'roster' ? (
+                          <>
+                            <button type="button" disabled={busy} onClick={() => void removeHead(row)} className="inline-flex h-8 items-center gap-1.5 rounded-md border border-rose-400/30 px-3 text-[10px] text-rose-200 hover:bg-rose-500/10 disabled:opacity-40"><UserX className="h-3 w-3" aria-hidden="true" />{busy ? 'Removing…' : 'Delete'}</button>
                           <button
                             type="button"
                             disabled={busy || !row.email || !department}
@@ -352,6 +370,7 @@ export function HeadAccountsView() {
                                 </>
                               )}
                             </button>
+                            <button type="button" disabled={busy} onClick={() => void removeHead(row)} className="inline-flex h-8 items-center gap-1.5 rounded-md border border-rose-400/30 px-3 text-[10px] text-rose-200 hover:bg-rose-500/10 disabled:opacity-40"><UserX className="h-3 w-3" aria-hidden="true" />{busy ? 'Deleting…' : 'Delete'}</button>
                           </>
                         )}
                       </>
