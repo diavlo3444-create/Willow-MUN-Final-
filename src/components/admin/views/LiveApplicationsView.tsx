@@ -347,11 +347,11 @@ function ApplicationCard({
         </div>
         <div>
           <span className="text-[10px] font-mono uppercase tracking-wider text-[color:var(--wm-ink-muted)]">
-            Conference &amp; Rehearsal
+            Conference Attendance (Mar 18–20)
           </span>
           <p className="mt-0.5 text-[color:var(--wm-ink)]">
             {app.attendsAllDays === true
-              ? 'Yes — available all days'
+              ? 'Yes — all 3 days (March 18, 19 & 20, 2027)'
               : app.attendsAllDays === false
                 ? `Conflict: ${app.absenceReason || 'See notes'}`
                 : 'See responses'}

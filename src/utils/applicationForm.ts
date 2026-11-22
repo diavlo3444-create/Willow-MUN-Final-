@@ -35,8 +35,20 @@ export interface RoleQuestionDefinition {
   minLength: number;
 }
 
+export const CONFERENCE_DAYS = [
+  { id: '2027-03-18', label: 'Day 1 — March 18, 2027', shortLabel: 'March 18, 2027' },
+  { id: '2027-03-19', label: 'Day 2 — March 19, 2027', shortLabel: 'March 19, 2027' },
+  { id: '2027-03-20', label: 'Day 3 — March 20, 2027', shortLabel: 'March 20, 2027' },
+] as const;
+
+export type ConferenceDayId = (typeof CONFERENCE_DAYS)[number]['id'];
+
+export const ALL_CONFERENCE_DAY_IDS: readonly ConferenceDayId[] = CONFERENCE_DAYS.map(
+  (day) => day.id,
+);
+
 export const ATTENDANCE_QUESTION_LABEL =
-  'Will you be able to attend all three days of WILLOW MUN, including the two conference days and the additional rehearsal day? If not, explain why.';
+  'Will you be able to attend all three days of WILLOW MUN (March 18, March 19, and March 20, 2027)? If not, select which day(s) you can attend and explain why.';
 
 export const MEDIA_QUESTIONS: readonly RoleQuestionDefinition[] = [
   {
@@ -194,6 +206,7 @@ export interface TrackDraft {
   // Step 3: Role Questions
   roleAnswers: Record<string, string>;
   attendsAllDays: 'yes' | 'no' | '';
+  availableDays: ConferenceDayId[];
   absenceReason: string;
 
   // Step 4: Mandatory Legal Consent (always starts unchecked)
@@ -224,6 +237,7 @@ export function createEmptyDraft(): TrackDraft {
 
     roleAnswers: {},
     attendsAllDays: '',
+    availableDays: [],
     absenceReason: '',
 
     privacyAccepted: false,
@@ -324,10 +338,6 @@ export function validateStep(
   }
 
   if (step === 2) {
-    if (draft.experience.trim().length < 5) {
-      errors.experience =
-        'Please describe your previous experience (or note if this is your first MUN/organizing role).';
-    }
 
     const uploadingAny = [
       ...draft.proofFiles,
@@ -379,10 +389,10 @@ export function validateStep(
     if (track !== 'security') {
       if (draft.attendsAllDays !== 'yes' && draft.attendsAllDays !== 'no') {
         errors.attendsAllDays =
-          'Please indicate whether you can attend both conference days and the extra rehearsal day.';
+          'Please indicate whether you can attend all three conference days (March 18, March 19, and March 20, 2027).';
       } else if (draft.attendsAllDays === 'no' && draft.absenceReason.trim().length < 5) {
         errors.absenceReason =
-          'Please explain why you are unable to attend both conference days and the rehearsal day.';
+          'Please explain which conference day(s) (March 18–20, 2027) you cannot attend and why.';
       }
     }
   }
@@ -423,6 +433,20 @@ export interface StructuredAnswerEntry {
   answer: string;
 }
 
+export function buildAvailabilitySummary(draft: TrackDraft): string {
+  if (draft.attendsAllDays === 'yes') {
+    return 'All 3 conference days (March 18, March 19 & March 20, 2027)';
+  }
+  const selectedDayLabels = CONFERENCE_DAYS.filter((day) =>
+    draft.availableDays.includes(day.id),
+  ).map((day) => day.shortLabel);
+  const reason = draft.absenceReason.trim();
+  if (selectedDayLabels.length > 0) {
+    return `Partial availability (${selectedDayLabels.join(', ')}) — Schedule note: ${reason}`;
+  }
+  return `Conflict on conference schedule (March 18–20, 2027): ${reason}`;
+}
+
 export function buildStructuredAnswers(
   draft: TrackDraft,
   track: ApplicationTrack,
@@ -439,12 +463,15 @@ export function buildStructuredAnswers(
     });
   }
 
-  items.push({
-    questionId: 'experience_summary',
-    section: 'Experience',
-    label: 'Previous Experience',
-    answer: draft.experience.trim(),
-  });
+  const trimmedExperience = draft.experience.trim();
+  if (trimmedExperience !== '') {
+    items.push({
+      questionId: 'experience_summary',
+      section: 'Experience',
+      label: 'Previous Experience',
+      answer: trimmedExperience,
+    });
+  }
 
   if (draft.portfolio_url.trim()) {
     items.push({
@@ -468,10 +495,15 @@ export function buildStructuredAnswers(
   });
 
   if (draft.attendsAllDays === 'yes' || draft.attendsAllDays === 'no') {
+    const selectedDayLabels = CONFERENCE_DAYS.filter((day) =>
+      draft.availableDays.includes(day.id),
+    ).map((day) => day.shortLabel);
     const answerText =
       draft.attendsAllDays === 'yes'
-        ? 'Yes — available for both conference days and the extra rehearsal day.'
-        : `No — ${draft.absenceReason.trim()}`;
+        ? 'Yes — available for all three conference days (March 18, March 19, and March 20, 2027).'
+        : selectedDayLabels.length > 0
+          ? `No — available on ${selectedDayLabels.join(', ')}; reason: ${draft.absenceReason.trim()}`
+          : `No — ${draft.absenceReason.trim()}`;
     items.push({
       questionId: 'attendance_confirmation',
       section: 'Attendance',
@@ -492,6 +524,7 @@ export interface EncodedNonMedicalMeta {
   guardianPhone: string;
   cameraModel?: string | null;
   attendsAllDays?: boolean | null;
+  availableDays?: ConferenceDayId[];
   absenceReason?: string | null;
   answers: StructuredAnswerEntry[];
   proofFiles?: UploadedApplicationFile[];
@@ -536,6 +569,12 @@ export function buildLegacySafeExperienceField(
         : draft.attendsAllDays === 'no'
           ? false
           : null,
+    availableDays:
+      track === 'security'
+        ? undefined
+        : draft.attendsAllDays === 'yes'
+          ? [...ALL_CONFERENCE_DAY_IDS]
+          : draft.availableDays,
     absenceReason:
       draft.attendsAllDays === 'no' ? draft.absenceReason.trim() : null,
     answers: buildStructuredAnswers(draft, track),
@@ -544,7 +583,9 @@ export function buildLegacySafeExperienceField(
     writingSamples: track === 'press' ? stripLocalBlob(draft.writingSamples) : [],
   };
 
-  return `${draft.experience.trim()}\n\n${WM_META_PREFIX}${JSON.stringify(meta)}${WM_META_SUFFIX}`;
+  const cleanExperience = draft.experience.trim();
+  const encoded = `${WM_META_PREFIX}${JSON.stringify(meta)}${WM_META_SUFFIX}`;
+  return cleanExperience ? `${cleanExperience}\n\n${encoded}` : encoded;
 }
 
 export function decodeLegacyExperienceMeta(rawExperience: string | null | undefined): {

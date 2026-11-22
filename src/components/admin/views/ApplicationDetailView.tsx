@@ -268,9 +268,10 @@ export function ApplicationDetailView({
                 <div className="flex items-start gap-3 p-4 sm:border-b border-[color:var(--wm-hairline)]">
                   <MapPin className="h-4 w-4 text-[color:var(--wm-accent)] mt-0.5 shrink-0" aria-hidden="true" />
                   <div>
-                    <dt className="wm-section-kicker">Location & Experience</dt>
+                    <dt className="wm-section-kicker">Location &amp; Experience</dt>
                     <dd className="mt-1 font-medium text-[color:var(--wm-ink)]">
-                      {application.city}, {application.country} · {application.experienceLevel}
+                      {application.city || application.country ? `${[application.city, application.country].filter(Boolean).join(', ')} · ` : ''}
+                      {application.experienceLevel?.trim() ? application.experienceLevel : 'None provided'}
                     </dd>
                   </div>
                 </div>

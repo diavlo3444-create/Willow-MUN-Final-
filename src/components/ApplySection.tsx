@@ -18,11 +18,14 @@ import { fetchPublicApplicationAvailability } from '../services/applicationAvail
 
 const TRACK_DEPARTMENT_SLUG: Record<string, string> = { media: 'media', press: 'press', volunteer: 'volunteers', security: 'security' };
 import {
+  ALL_CONFERENCE_DAY_IDS,
   ATTENDANCE_QUESTION_LABEL,
+  CONFERENCE_DAYS,
   GRADE_OPTIONS,
   PRIVACY_POLICY_VERSION,
   PUBLIC_APPLICATION_TRACKS,
   TERMS_AND_CONDITIONS_VERSION,
+  buildAvailabilitySummary,
   buildLegacySafeExperienceField,
   buildStructuredAnswers,
   createEmptyDraft,
@@ -31,6 +34,7 @@ import {
   validateAllSteps,
   validateStep,
   type ApplicationTrack,
+  type ConferenceDayId,
   type FieldErrors,
   type TrackDraft,
   type UploadedApplicationFile,
@@ -173,6 +177,11 @@ function loadStoredDrafts(): { drafts: DraftMap; activeTrack: ApplicationTrack }
             saved.roleAnswers && typeof saved.roleAnswers === 'object'
               ? saved.roleAnswers
               : {},
+          availableDays: Array.isArray(saved.availableDays)
+            ? saved.availableDays.filter((id): id is ConferenceDayId =>
+                ALL_CONFERENCE_DAY_IDS.includes(id as ConferenceDayId),
+              )
+            : [],
           // Legal consent checkboxes must always start unchecked and require explicit confirmation each session
           privacyAccepted: false,
           termsAccepted: false,
@@ -585,9 +594,7 @@ export function ApplySection() {
       availability:
         selectedTrack === 'security'
           ? null
-          : currentDraft.attendsAllDays === 'yes'
-            ? 'Both conference days + extra rehearsal day'
-            : `Conflict on conference/rehearsal schedule: ${currentDraft.absenceReason.trim()}`,
+          : buildAvailabilitySummary(currentDraft),
       attends_all_days:
         selectedTrack === 'security'
           ? null
@@ -1336,15 +1343,15 @@ export function ApplySection() {
                             htmlFor="apply-experience"
                             className="mb-1.5 block text-xs font-medium text-[#c9c2a6]"
                           >
-                            Previous experience *
+                            Previous experience{' '}
+                            <span className="font-normal text-[#c9c2a6]/70">(optional)</span>
                           </label>
                           <textarea
                             id="apply-experience"
                             rows={1}
-                            required
                             value={currentDraft.experience}
                             onChange={(e) => updateField('experience', e.target.value)}
-                            placeholder="Summarize past MUN conferences, photography/writing clubs, leadership positions, or events you supported. If this is your first time, share relevant school skills."
+                            placeholder="Summarize past MUN conferences, photography/writing clubs, leadership positions, or events you supported — or enter 0 or leave blank if this is your first time."
                             className="w-full rounded-[2px] border border-[#ede6ca]/24 bg-[#0e1208] px-3.5 py-2.5 text-sm text-[#ede6ca] outline-none placeholder:text-[#8d8a73] focus:border-[#ede6ca] resize-y"
                           />
                           {errors.experience && (
@@ -1512,7 +1519,7 @@ export function ApplySection() {
                           );
                         })}
 
-                        {/* Question 5: Attendance including extra rehearsal day */}
+                        {/* Question 5: Attendance across all 3 conference days (March 18, 19 & 20, 2027) */}
                         {selectedTrack !== 'security' && (
                         <div className="willow-folio-inset rounded-[3px] p-4 sm:p-5 space-y-3.5">
                           <span
@@ -1529,8 +1536,8 @@ export function ApplySection() {
                             className="grid grid-cols-1 sm:grid-cols-2 gap-2.5"
                           >
                             {([
-                              ['yes', 'Yes, I can attend all 3 days (including rehearsal)'],
-                              ['no', 'No, I may miss part of it'],
+                              ['yes', 'Yes, all 3 days (March 18, 19 & 20, 2027)'],
+                              ['no', 'No, I may miss one or more days'],
                             ] as const).map(([val, label]) => {
                               const selected = currentDraft.attendsAllDays === val;
                               return (
@@ -1539,7 +1546,29 @@ export function ApplySection() {
                                   type="button"
                                   role="radio"
                                   aria-checked={selected}
-                                  onClick={() => updateField('attendsAllDays', val)}
+                                  onClick={() => {
+                                    setDrafts((prev) => ({
+                                      ...prev,
+                                      [selectedTrack]: {
+                                        ...prev[selectedTrack],
+                                        attendsAllDays: val,
+                                        availableDays:
+                                          val === 'yes'
+                                            ? [...ALL_CONFERENCE_DAY_IDS]
+                                            : prev[selectedTrack].attendsAllDays === 'yes'
+                                              ? []
+                                              : prev[selectedTrack].availableDays,
+                                      },
+                                    }));
+                                    if (errors.attendsAllDays || errors.general) {
+                                      setErrors((prev) => {
+                                        const next = { ...prev };
+                                        delete next.attendsAllDays;
+                                        delete next.general;
+                                        return next;
+                                      });
+                                    }
+                                  }}
                                   className={`min-h-[44px] rounded-[2px] border px-3.5 py-2 text-left text-xs sm:text-sm font-medium transition-colors duration-150 cursor-pointer flex items-center justify-between gap-2 ${
                                     selected
                                       ? 'border-[#ede6ca] bg-[#ede6ca]/[0.12] text-[#ede6ca]'
@@ -1567,27 +1596,81 @@ export function ApplySection() {
                           )}
 
                           {currentDraft.attendsAllDays === 'no' && (
-                            <div className="mun-step-enter space-y-1.5 pt-1">
-                              <label
-                                htmlFor="apply-absence-reason"
-                                className="block text-xs font-medium text-[#c9c2a6]"
-                              >
-                                Explain why you cannot attend *
-                              </label>
-                              <textarea
-                                id="apply-absence-reason"
-                                rows={3}
-                                required
-                                value={currentDraft.absenceReason}
-                                onChange={(e) => updateField('absenceReason', e.target.value)}
-                                placeholder="Specify which day or hours conflict and why."
-                                className="w-full rounded-[2px] border border-[#ede6ca]/24 bg-[#0e1208] px-3.5 py-2.5 text-sm text-[#ede6ca] outline-none placeholder:text-[#8d8a73] focus:border-[#ede6ca] resize-y"
-                              />
-                              {errors.absenceReason && (
-                                <p role="alert" className="mt-1.5 text-xs text-rose-300">
-                                  {errors.absenceReason}
-                                </p>
-                              )}
+                            <div className="mun-step-enter space-y-3 pt-1">
+                              <div className="space-y-2">
+                                <span className="block text-xs font-medium text-[#c9c2a6]">
+                                  Which conference days can you attend?{' '}
+                                  <span className="font-normal text-[#c9c2a6]/70">(select all that apply)</span>
+                                </span>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                  {CONFERENCE_DAYS.map((day) => {
+                                    const checked = currentDraft.availableDays.includes(day.id);
+                                    return (
+                                      <button
+                                        key={day.id}
+                                        type="button"
+                                        role="checkbox"
+                                        aria-checked={checked}
+                                        onClick={() => {
+                                          setDrafts((prev) => {
+                                            const existing = prev[selectedTrack].availableDays;
+                                            const next = existing.includes(day.id)
+                                              ? existing.filter((d) => d !== day.id)
+                                              : [...existing, day.id];
+                                            return {
+                                              ...prev,
+                                              [selectedTrack]: {
+                                                ...prev[selectedTrack],
+                                                availableDays: next,
+                                              },
+                                            };
+                                          });
+                                        }}
+                                        className={`min-h-[44px] rounded-[2px] border px-3 py-2 text-left text-xs font-medium transition-colors duration-150 cursor-pointer flex items-center gap-2.5 ${
+                                          checked
+                                            ? 'border-[#a9b47e]/65 bg-[#a9b47e]/[0.12] text-[#ede6ca]'
+                                            : 'border-[#ede6ca]/20 bg-[#0e1208] text-[#c9c2a6] hover:border-[#ede6ca]/40'
+                                        }`}
+                                      >
+                                        <span
+                                          aria-hidden="true"
+                                          className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-[2px] border ${
+                                            checked
+                                              ? 'border-[#a9b47e] bg-[#a9b47e] text-[#14180a]'
+                                              : 'border-[#ede6ca]/40 bg-[#12160a] text-transparent'
+                                          }`}
+                                        >
+                                          <Check className="h-3 w-3 stroke-[3]" />
+                                        </span>
+                                        <span>{day.label}</span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+
+                              <div className="space-y-1.5">
+                                <label
+                                  htmlFor="apply-absence-reason"
+                                  className="block text-xs font-medium text-[#c9c2a6]"
+                                >
+                                  Explain why you cannot attend *
+                                </label>
+                                <textarea
+                                  id="apply-absence-reason"
+                                  rows={3}
+                                  required
+                                  value={currentDraft.absenceReason}
+                                  onChange={(e) => updateField('absenceReason', e.target.value)}
+                                  placeholder="Specify which day(s) from March 18–20, 2027 or hours conflict and why."
+                                  className="w-full rounded-[2px] border border-[#ede6ca]/24 bg-[#0e1208] px-3.5 py-2.5 text-sm text-[#ede6ca] outline-none placeholder:text-[#8d8a73] focus:border-[#ede6ca] resize-y"
+                                />
+                                {errors.absenceReason && (
+                                  <p role="alert" className="mt-1.5 text-xs text-rose-300">
+                                    {errors.absenceReason}
+                                  </p>
+                                )}
+                              </div>
                             </div>
                           )}
                         </div>
@@ -1679,7 +1762,7 @@ export function ApplySection() {
                             <div>
                               <p className="text-[#c9c2a6]/75">Previous Experience</p>
                               <p className="mt-1 whitespace-pre-wrap text-[#ede6ca] leading-relaxed">
-                                {currentDraft.experience}
+                                {currentDraft.experience.trim() !== '' ? currentDraft.experience : 'None provided'}
                               </p>
                             </div>
 

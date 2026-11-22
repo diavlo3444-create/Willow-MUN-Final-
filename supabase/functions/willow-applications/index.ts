@@ -338,11 +338,8 @@ Deno.serve(async (req: Request) => {
     if (typeof body?.has_medical_condition !== "boolean") {
       return json({ error: "Please indicate whether you have any medical conditions or regular medication." }, 400);
     }
-    if (experience.length < 5) {
-      return json({ error: "Please summarize your previous experience (or note if first-time applicant)." }, 400);
-    }
     if (attendsAllDays === false && absenceReason.length < 5) {
-      return json({ error: "Please explain why you cannot attend both conference days and the rehearsal day." }, 400);
+      return json({ error: "Please explain why you cannot attend all three conference days (March 18, March 19, and March 20, 2027)." }, 400);
     }
 
     const privacyPolicyAccepted = body?.privacy_policy_accepted === true;
