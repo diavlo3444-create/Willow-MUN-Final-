@@ -207,9 +207,15 @@ export function organizeFamilyTree(data: FamilyTreeData): OrganizedFamilyTree {
     groupMap.set(group.id, { group, members: hydrated });
   }
 
-  const centerGroups = centerRaw.map((g) => groupMap.get(g.id)!);
-  const leftGroups = leftRaw.map((g) => groupMap.get(g.id)!);
-  const rightGroups = rightRaw.map((g) => groupMap.get(g.id)!);
+  const centerGroups = centerRaw
+    .map((g) => groupMap.get(g.id)!)
+    .filter((gw) => gw.members.length > 0);
+  const leftGroups = leftRaw
+    .map((g) => groupMap.get(g.id)!)
+    .filter((gw) => gw.members.length > 0);
+  const rightGroups = rightRaw
+    .map((g) => groupMap.get(g.id)!)
+    .filter((gw) => gw.members.length > 0);
 
   return {
     centerGroups,

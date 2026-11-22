@@ -376,40 +376,17 @@
       ]
     },
     {
-      "id": "muaz-tagelsir",
-      "name": "Muaz Tagelsir",
-      "role": "Head of HR",
-      "group": "hr",
-      "quote": "Hi",
-      "quoteBy": null,
-      "photo": "photos/muaz-tagelsir.jpg",
-      "focus": [
-        60,
-        45
-      ]
-    },
-    {
-      "id": "ahmed-jamiel",
-      "name": "Ahmed Jamiel",
-      "role": "Head of HR",
-      "group": "hr",
-      "quote": "Hi",
-      "quoteBy": null,
-      "photo": "photos/ahmed-jamiel.jpg",
-      "focus": [
-        50,
-        45
-      ]
-    },
-    {
       "id": "bushra",
       "name": "Bushra",
       "role": "Head of Volunteers",
       "group": "volunteers",
       "quote": "",
       "quoteBy": null,
-      "photo": null,
-      "focus": null
+      "photo": "photos/bushra.jpg",
+      "focus": [
+        50,
+        42
+      ]
     },
     {
       "id": "abdulhadi",
@@ -469,16 +446,6 @@
         50,
         30
       ]
-    },
-    {
-      "id": "maria",
-      "name": "Maria",
-      "role": "DCC",
-      "group": "dcc",
-      "quote": "",
-      "quoteBy": null,
-      "photo": null,
-      "focus": null
     },
     {
       "id": "muaz-elamir",

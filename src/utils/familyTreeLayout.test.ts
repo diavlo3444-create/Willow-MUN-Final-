@@ -52,10 +52,10 @@ test('formatObjectPosition handles focus array and null defaults cleanly', () =>
 test('organizeFamilyTree orders secretariat -> left groups -> right groups canonically', () => {
   const tree = organizeFamilyTree(membersData as FamilyTreeData);
 
-  assert.equal(tree.orderedMembers.length, 35);
+  assert.equal(tree.orderedMembers.length, 32);
   assert.equal(tree.centerGroups.length, 1);
   assert.equal(tree.leftGroups.length, 5);
-  assert.equal(tree.rightGroups.length, 7);
+  assert.equal(tree.rightGroups.length, 6);
 
   const seenGroups: string[] = [];
   for (const m of tree.orderedMembers) {
@@ -72,7 +72,6 @@ test('organizeFamilyTree orders secretariat -> left groups -> right groups canon
     'pr',
     'security',
     'it',
-    'hr',
     'volunteers',
     'dcc',
     'logistics',
@@ -90,6 +89,7 @@ test('organizeFamilyTree orders secretariat -> left groups -> right groups canon
 
   assert.equal(tree.orderedMembers[tree.indexById['bushra']].group, 'volunteers');
   assert.equal(tree.orderedMembers[tree.indexById['bushra']].displayRole, 'Head of Volunteers');
+  assert.equal(tree.orderedMembers[tree.indexById['bushra']].photo, 'photos/bushra.jpg');
   assert.equal(tree.orderedMembers[tree.indexById['abdulhadi']].group, 'volunteers');
   assert.equal(tree.orderedMembers[tree.indexById['abdulhadi']].displayRole, 'Head of Volunteers');
 
@@ -99,7 +99,9 @@ test('organizeFamilyTree orders secretariat -> left groups -> right groups canon
   assert.equal(tree.orderedMembers[nasserIdx].displayRole, 'Head of DCC');
   assert.equal(tree.orderedMembers[tree.indexById['rayan-alsaoud']].group, 'dcc');
   assert.equal(tree.orderedMembers[tree.indexById['rayan-alsaoud']].displayRole, 'Head of DCC');
-  assert.equal(tree.orderedMembers[tree.indexById['maria']].group, 'dcc');
+  assert.equal(tree.indexById['muaz-tagelsir'], undefined);
+  assert.equal(tree.indexById['ahmed-jamiel'], undefined);
+  assert.equal(tree.indexById['maria'], undefined);
   assert.equal(tree.indexById['lelas-almadi'], undefined);
 
   const lilyIdx = tree.indexById['lily-rabia'];
