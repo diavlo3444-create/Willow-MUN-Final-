@@ -25,7 +25,6 @@ import {
 } from '../../../utils/adminPermissions';
 import { MyQrCard } from '../MyQrModal';
 import { PortalAuthView } from '../PortalAuthView';
-import { DepartmentQrSectionView } from '../views/DepartmentQrSectionView';
 
 interface StaffPortalProps {
   pathname: string;
@@ -339,7 +338,6 @@ export function StaffPortal({ pathname, onNavigate }: StaffPortalProps) {
     departmentSlug === 'volunteers';
 
   if (isSimplifiedQrStaffDepartment) {
-    const qrSection = departmentSlug === 'volunteers' ? 'volunteers' : 'press_media';
     const portalSubtitle = departmentSlug === 'volunteers' ? 'Volunteering' : 'Press & Media';
     return (
       <div className="wm-admin min-h-[100dvh] bg-[color:var(--wm-canvas)] text-[color:var(--wm-ink)]">
