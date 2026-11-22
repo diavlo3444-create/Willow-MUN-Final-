@@ -272,6 +272,7 @@ export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePorta
   const westPortalSections = new Set([
     'dashboard',
     'applications',
+    'recommendations',
     'application-management',
     'hr-accepted',
     'staff-apps',
