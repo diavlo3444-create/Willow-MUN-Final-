@@ -151,7 +151,11 @@ export function Footer({ onReplayIntro }: FooterProps) {
         </div>
 
         <div className="pt-5 flex flex-wrap items-center justify-between gap-4 text-xs text-[#c9c2a6]">
-          <p>{published.footer.copyrightText || CONFERENCE_DATA.footer.copyright}</p>
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+            <p>{published.footer.copyrightText || CONFERENCE_DATA.footer.copyright}</p>
+            <a href="/privacy" className="text-[#c9c2a6] underline underline-offset-4 hover:text-[#ede6ca]">Privacy</a>
+            <a href="/terms" className="text-[#c9c2a6] underline underline-offset-4 hover:text-[#ede6ca]">Terms</a>
+          </div>
           <p className="font-mono text-[11px] text-[#a9b47e]/85">
             Inaugural Session · Diplomatic Conference
           </p>
