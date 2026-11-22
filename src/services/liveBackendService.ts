@@ -85,6 +85,11 @@ export interface LiveApplicationRow {
   decision_by?: string | null;
   decision_by_name?: string | null;
   decision_at?: string | null;
+  privacy_policy_accepted?: boolean | null;
+  terms_accepted?: boolean | null;
+  privacy_policy_version?: string | null;
+  terms_version?: string | null;
+  consent_accepted_at?: string | null;
   created_at: string;
   updated_at?: string | null;
 }
@@ -284,6 +289,14 @@ export function mapLiveRowToApplication(
     answers: structuredAnswers,
     documents: [...mediaDocs, ...writingDocs, ...proofDocs],
     notes: [],
+    legalConsent: {
+      privacyPolicyAccepted:
+        typeof row.privacy_policy_accepted === 'boolean' ? row.privacy_policy_accepted : null,
+      termsAccepted: typeof row.terms_accepted === 'boolean' ? row.terms_accepted : null,
+      privacyPolicyVersion: row.privacy_policy_version ?? null,
+      termsVersion: row.terms_version ?? null,
+      consentAcceptedAt: row.consent_accepted_at ?? null,
+    },
     history: row.decision_at
       ? [
           {

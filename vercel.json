@@ -1,11 +1,7 @@
 {
   "rewrites": [
     {
-      "source": "/privacy",
-      "destination": "/index.html"
-    },
-    {
-      "source": "/terms",
+      "source": "/((?!assets/|photos/|api/|.*\\.[a-zA-Z0-9]+$).*)",
       "destination": "/index.html"
     }
   ]

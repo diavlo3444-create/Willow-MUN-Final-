@@ -9,6 +9,8 @@ import {
   mapTrackToDepartmentSlug,
   MEDIA_QUESTIONS,
   PRESS_QUESTIONS,
+  PRIVACY_POLICY_VERSION,
+  TERMS_AND_CONDITIONS_VERSION,
   VOLUNTEER_QUESTIONS,
   validateAllSteps,
   validateStep,
@@ -71,6 +73,14 @@ describe('countryCodes and applicationForm helpers', () => {
     assert.equal(mapTrackToDepartmentSlug('security'), 'security');
   });
 
+  it('initializes legal consent checkboxes unchecked and exports policy/terms versions', () => {
+    const draft = createEmptyDraft();
+    assert.equal(draft.privacyAccepted, false);
+    assert.equal(draft.termsAccepted, false);
+    assert.ok(PRIVACY_POLICY_VERSION.length >= 4);
+    assert.ok(TERMS_AND_CONDITIONS_VERSION.length >= 4);
+  });
+
   it('validates Step 1 personal details, phones, and medical selection', () => {
     const draft = createEmptyDraft();
     const errs = validateStep(1, draft, 'media');
@@ -113,7 +123,30 @@ describe('countryCodes and applicationForm helpers', () => {
     assert.ok(errOver15.mediaPhotos);
   });
 
-  it('validates all 5 role questions & conditional rehearsal day reason for Press and Volunteers', () => {
+  it('enforces both Privacy Policy and Terms & Conditions checkboxes independently on Step 4', () => {
+    const draft = createEmptyDraft();
+    const bothMissing = validateStep(4, draft, 'volunteer');
+    assert.ok(bothMissing.privacyAccepted);
+    assert.ok(bothMissing.termsAccepted);
+
+    draft.privacyAccepted = true;
+    draft.termsAccepted = false;
+    const onlyPrivacy = validateStep(4, draft, 'volunteer');
+    assert.equal(onlyPrivacy.privacyAccepted, undefined);
+    assert.ok(onlyPrivacy.termsAccepted);
+
+    draft.privacyAccepted = false;
+    draft.termsAccepted = true;
+    const onlyTerms = validateStep(4, draft, 'volunteer');
+    assert.ok(onlyTerms.privacyAccepted);
+    assert.equal(onlyTerms.termsAccepted, undefined);
+
+    draft.privacyAccepted = true;
+    draft.termsAccepted = true;
+    assert.deepEqual(validateStep(4, draft, 'volunteer'), {});
+  });
+
+  it('validates all role questions, attendance, and Step 4 consent for full submission', () => {
     assert.equal(MEDIA_QUESTIONS.length, 4);
     assert.equal(PRESS_QUESTIONS.length, 4);
     assert.equal(VOLUNTEER_QUESTIONS.length, 4);
@@ -143,6 +176,15 @@ describe('countryCodes and applicationForm helpers', () => {
       assert.ok(missingAbsence.absenceReason);
 
       draft.absenceReason = 'I have a morning chemistry exam on rehearsal day, arriving at 13:00.';
+
+      // Step 4 still rejects until both checkboxes are confirmed
+      const missingConsent = validateAllSteps(draft, track);
+      assert.equal(missingConsent.firstInvalidStep, 4);
+      assert.ok(missingConsent.errors.privacyAccepted);
+      assert.ok(missingConsent.errors.termsAccepted);
+
+      draft.privacyAccepted = true;
+      draft.termsAccepted = true;
       assert.deepEqual(validateAllSteps(draft, track), {
         firstInvalidStep: null,
         errors: {},

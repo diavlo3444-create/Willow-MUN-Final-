@@ -1,3 +1,4 @@
+import { useLayoutEffect, type MouseEvent } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { navigateTo } from '../utils/router';
 
@@ -12,15 +13,44 @@ const heading = 'font-serif text-3xl sm:text-4xl font-medium text-[#ede6ca]';
 const subheading = 'mt-8 font-serif text-xl text-[#ede6ca]';
 const paragraph = 'mt-3 max-w-3xl text-sm leading-7 text-[#c9c2a6]';
 
+function handleSpaAnchor(event: MouseEvent<HTMLAnchorElement>, path: string) {
+  if (
+    event.defaultPrevented ||
+    event.button !== 0 ||
+    event.metaKey ||
+    event.ctrlKey ||
+    event.shiftKey ||
+    event.altKey
+  ) {
+    return;
+  }
+  event.preventDefault();
+  navigateTo(path);
+}
+
 export function LegalPages({ page }: LegalPagesProps) {
   const isPrivacy = page === 'privacy';
+
+  useLayoutEffect(() => {
+    document.body.classList.remove('intro-on', 'intro-transitioning');
+    document.body.style.overflow = '';
+    window.scrollTo({ top: 0, behavior: 'auto' });
+    const prevTitle = document.title;
+    document.title = isPrivacy
+      ? 'Privacy Policy | Willow MUN 2027'
+      : 'Terms and Conditions | Willow MUN 2027';
+    return () => {
+      document.title = prevTitle;
+    };
+  }, [isPrivacy]);
+
   return (
     <main className={pageShell}>
       <div className="mx-auto max-w-4xl">
         <button
           type="button"
           onClick={() => navigateTo('/')}
-          className="mb-10 inline-flex min-h-10 items-center gap-2 text-sm text-[#a9b47e] hover:text-[#ede6ca]"
+          className="mb-10 inline-flex min-h-10 items-center gap-2 text-sm text-[#a9b47e] hover:text-[#ede6ca] cursor-pointer"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           Back to Willow MUN
@@ -82,7 +112,7 @@ export function LegalPages({ page }: LegalPagesProps) {
               <p className={paragraph}>
                 Subject to applicable Saudi law, individuals may have rights to be informed about processing, access their personal data, request a readable copy, correct or complete inaccurate data, and request destruction when the data is no longer needed, subject to legal exceptions. To raise a privacy question or request, contact the official Willow MUN account at{' '}
                 <a className="text-[#a9b47e] underline underline-offset-4" href="https://www.instagram.com/willow.mun/" target="_blank" rel="noopener noreferrer">@willow.mun</a>.
-                A verified responsible data-controller contact must be added before applications open.
+                {' '}A verified responsible data-controller contact must be added before applications open.
               </p>
             </section>
             <section>
@@ -147,14 +177,18 @@ export function LegalPages({ page }: LegalPagesProps) {
               <p className={paragraph}>
                 Questions about this website may be sent through the official{' '}
                 <a className="text-[#a9b47e] underline underline-offset-4" href="https://www.instagram.com/willow.mun/" target="_blank" rel="noopener noreferrer">Willow MUN Instagram account</a>.
-                These terms do not waive rights that cannot legally be waived, do not exclude liability where exclusion is unlawful, and do not replace applicable law or professional legal advice.
+                {' '}These terms do not waive rights that cannot legally be waived, do not exclude liability where exclusion is unlawful, and do not replace applicable law or professional legal advice.
               </p>
             </section>
           </>
         )}
 
         <div className="mt-12 border-t border-[#ede6ca]/15 pt-6 text-sm text-[#a9b47e]">
-          <a href={isPrivacy ? '/terms' : '/privacy'} className="underline underline-offset-4">
+          <a
+            href={isPrivacy ? '/terms' : '/privacy'}
+            onClick={(e) => handleSpaAnchor(e, isPrivacy ? '/terms' : '/privacy')}
+            className="underline underline-offset-4 hover:text-[#ede6ca]"
+          >
             {isPrivacy ? 'Read Website & Application Terms' : 'Read Privacy Notice'}
           </a>
         </div>

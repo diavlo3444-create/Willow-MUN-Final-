@@ -2,15 +2,23 @@ import { useCallback, useEffect, useState } from 'react';
 
 const NAV_EVENT = 'willowmun:navigate';
 
+export function normalizePathname(path: string | null | undefined): string {
+  const raw = (path || '/').trim();
+  if (!raw || raw === '/') return '/';
+  const withoutTrailing = raw.replace(/\/+$/, '');
+  const withLeading = withoutTrailing.startsWith('/') ? withoutTrailing : `/${withoutTrailing}`;
+  return withLeading || '/';
+}
+
 export function getCurrentPathname(): string {
   if (typeof window === 'undefined') return '/';
-  return window.location.pathname || '/';
+  return normalizePathname(window.location.pathname || '/');
 }
 
 export function navigateTo(path: string): void {
   if (typeof window === 'undefined') return;
-  const normalized = path.startsWith('/') ? path : `/${path}`;
-  if (window.location.pathname !== normalized) {
+  const normalized = normalizePathname(path);
+  if (getCurrentPathname() !== normalized) {
     window.history.pushState({}, '', normalized);
     window.dispatchEvent(new CustomEvent(NAV_EVENT, { detail: normalized }));
   }
@@ -37,21 +45,29 @@ export function usePathname(): [string, (path: string) => void] {
   return [pathname, navigate];
 }
 
+export function getLegalRouteKind(pathname: string): 'privacy' | 'terms' | null {
+  const clean = normalizePathname(pathname);
+  if (clean === '/privacy') return 'privacy';
+  if (clean === '/terms') return 'terms';
+  return null;
+}
+
 export function isAdminRoute(pathname: string): boolean {
+  const clean = normalizePathname(pathname);
   return (
-    pathname === '/portal' ||
-    pathname.startsWith('/portal/') ||
-    pathname === '/super-admin' ||
-    pathname.startsWith('/super-admin/') ||
-    pathname === '/admin' ||
-    pathname.startsWith('/admin/') ||
-    pathname === '/head' ||
-    pathname.startsWith('/head/') ||
-    pathname === '/security' ||
-    pathname.startsWith('/security/') ||
-    pathname === '/staff' ||
-    pathname.startsWith('/staff/') ||
-    pathname === '/eb' || pathname.startsWith('/eb/') ||
-    pathname === '/admin-login' || pathname === '/eb-login' || pathname === '/head-login' || pathname === '/super-admin-login' || pathname === '/security-login' || pathname === '/staff-login' || pathname === '/eb-signup' || pathname === '/team-signup' || pathname === '/head-setup'
+    clean === '/portal' ||
+    clean.startsWith('/portal/') ||
+    clean === '/super-admin' ||
+    clean.startsWith('/super-admin/') ||
+    clean === '/admin' ||
+    clean.startsWith('/admin/') ||
+    clean === '/head' ||
+    clean.startsWith('/head/') ||
+    clean === '/security' ||
+    clean.startsWith('/security/') ||
+    clean === '/staff' ||
+    clean.startsWith('/staff/') ||
+    clean === '/eb' || clean.startsWith('/eb/') ||
+    clean === '/admin-login' || clean === '/eb-login' || clean === '/head-login' || clean === '/super-admin-login' || clean === '/security-login' || clean === '/staff-login' || clean === '/eb-signup' || clean === '/team-signup' || clean === '/head-setup'
   );
 }

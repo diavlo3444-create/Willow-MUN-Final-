@@ -48,6 +48,8 @@ const ALLOWED_EXTENSIONS = new Set([
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const PHONE_E164_REGEX = /^\+[1-9]\d{6,14}$/;
+const CURRENT_PRIVACY_POLICY_VERSION = "2026-11-22";
+const CURRENT_TERMS_VERSION = "2026-11-22";
 
 function mapDepartment(appType: string, explicitDept?: string | null): string {
   const cleanExplicit = String(explicitDept || "").trim().toLowerCase();
@@ -343,6 +345,43 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Please explain why you cannot attend both conference days and the rehearsal day." }, 400);
     }
 
+    const privacyPolicyAccepted = body?.privacy_policy_accepted === true;
+    const termsAccepted = body?.terms_accepted === true;
+    if (!privacyPolicyAccepted && !termsAccepted) {
+      return json(
+        {
+          error:
+            "You must confirm that you have read and understood the Privacy Policy and agree to the Terms and Conditions before submitting.",
+        },
+        400,
+      );
+    }
+    if (!privacyPolicyAccepted) {
+      return json(
+        { error: "Please confirm that you have read and understood the Privacy Policy before submitting." },
+        400,
+      );
+    }
+    if (!termsAccepted) {
+      return json(
+        { error: "Please confirm that you have read and agree to the Terms and Conditions before submitting." },
+        400,
+      );
+    }
+
+    const privacyPolicyVersion =
+      String(body?.privacy_policy_version || "").trim().slice(0, 64) ||
+      CURRENT_PRIVACY_POLICY_VERSION;
+    const termsVersion =
+      String(body?.terms_version || "").trim().slice(0, 64) ||
+      CURRENT_TERMS_VERSION;
+    const rawConsentAcceptedAt =
+      typeof body?.consent_accepted_at === "string" ? body.consent_accepted_at.trim() : "";
+    const parsedConsentTime = rawConsentAcceptedAt ? Date.parse(rawConsentAcceptedAt) : NaN;
+    const consentAcceptedAt = Number.isFinite(parsedConsentTime)
+      ? new Date(parsedConsentTime).toISOString()
+      : new Date().toISOString();
+
     const answers = sanitizeAnswers(body?.answers);
     const proofFiles = normalizeUploadedFiles(body?.proof_files, applicationType, "other");
     const mediaPhotos = normalizeUploadedFiles(body?.media_photos, applicationType, "photo");
@@ -419,9 +458,14 @@ Deno.serve(async (req: Request) => {
         proof_files: proofFiles,
         media_photos: applicationType === "media" ? mediaPhotos : [],
         writing_samples: applicationType === "press" ? writingSamples : [],
+        privacy_policy_accepted: true,
+        terms_accepted: true,
+        privacy_policy_version: privacyPolicyVersion,
+        terms_version: termsVersion,
+        consent_accepted_at: consentAcceptedAt,
         status: "pending",
       })
-      .select("id,application_type,department_id,applicant_name,gender,status,created_at")
+      .select("id,application_type,department_id,applicant_name,gender,status,privacy_policy_accepted,terms_accepted,privacy_policy_version,terms_version,consent_accepted_at,created_at")
       .single();
 
     if (error || !inserted) return json({ error: error?.message || "Could not submit application." }, 400);

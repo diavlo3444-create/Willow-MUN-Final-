@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Component, useCallback, useEffect, useLayoutEffect, useRef, useState, type ErrorInfo, type ReactNode } from 'react';
 import { MotionConfig } from 'motion/react';
 import { AboutSection } from './components/AboutSection';
 import { AnnouncementBar } from './components/AnnouncementBar';
@@ -35,7 +35,67 @@ import { AdminStoreProvider, useAdminStore } from './context/AdminStoreContext';
 import { canAccessPortal, getPortalHomeRouteForUser } from './utils/adminPermissions';
 import { markAlyaIntroSeenInSession, shouldShowAlyaLoginEasterEgg } from './utils/alyaEasterEgg';
 import type { PortalKey } from './types/admin';
-import { isAdminRoute, usePathname } from './utils/router';
+import { getLegalRouteKind, isAdminRoute, normalizePathname, usePathname } from './utils/router';
+
+class AppErrorBoundary extends Component<
+  { children: ReactNode; resetKey: string; onNavigate: (path: string) => void },
+  { hasError: boolean; message: string }
+> {
+  state = { hasError: false, message: '' };
+
+  static getDerivedStateFromError(error: Error) {
+    return {
+      hasError: true,
+      message: error?.message || 'An unexpected error occurred while rendering this page.',
+    };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    if (typeof document !== 'undefined') {
+      document.body.classList.remove('intro-on', 'intro-transitioning');
+      document.body.style.overflow = '';
+    }
+    console.error('Willow MUN render error:', error, info.componentStack);
+  }
+
+  componentDidUpdate(prevProps: { resetKey: string }) {
+    if (this.state.hasError && prevProps.resetKey !== this.props.resetKey) {
+      this.setState({ hasError: false, message: '' });
+    }
+  }
+
+  render() {
+    if (!this.state.hasError) return this.props.children;
+    return (
+      <div className="min-h-screen grid place-items-center bg-[#101408] p-6 text-[#ede6ca]">
+        <div role="alert" className="w-full max-w-md rounded-[4px] border border-[#ede6ca]/25 bg-[#161b0c] p-6 text-center shadow-2xl">
+          <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-[#a9b47e]">Willow MUN</p>
+          <h1 className="mt-2 font-serif text-2xl font-medium text-[#ede6ca]">We hit a rendering snag</h1>
+          <p className="mt-2 text-xs leading-relaxed text-[#c9c2a6]">{this.state.message}</p>
+          <div className="mt-5 flex flex-wrap justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                this.setState({ hasError: false, message: '' });
+                this.props.onNavigate('/');
+              }}
+              className="min-h-10 rounded-[2px] bg-[#ede6ca] px-4 py-2 text-xs font-semibold text-[#181c0d] hover:bg-[#dad3b4] cursor-pointer"
+            >
+              Return Home
+            </button>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="min-h-10 rounded-[2px] border border-[#ede6ca]/30 px-4 py-2 text-xs font-medium text-[#ede6ca] hover:border-[#ede6ca] cursor-pointer"
+            >
+              Reload Page
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+}
 
 function PublicWebsite() {
   const [showAnnouncement, setShowAnnouncement] = useState(true);
@@ -257,24 +317,29 @@ function AdminRouter({ pathname, navigate }: { pathname: string; navigate: (path
 }
 
 export default function App() {
-  const [pathname, navigate] = usePathname();
+  const [rawPathname, navigate] = usePathname();
+  const pathname = normalizePathname(rawPathname);
   const inAdminPortal = isAdminRoute(pathname);
+  const legalPage = inAdminPortal ? null : getLegalRouteKind(pathname);
 
   useLayoutEffect(() => {
-    if (inAdminPortal) {
+    document.body.style.overflow = '';
+    if (inAdminPortal || legalPage !== null) {
       document.body.classList.remove('intro-on', 'intro-transitioning');
     }
-  }, [inAdminPortal]);
-
-  if (!inAdminPortal) {
-    if (pathname === '/privacy') return <LegalPages page="privacy" />;
-    if (pathname === '/terms') return <LegalPages page="terms" />;
-    return <PublicWebsite />;
-  }
+  }, [inAdminPortal, legalPage, pathname]);
 
   return (
-    <AdminStoreProvider>
-      <AdminRouter pathname={pathname} navigate={navigate} />
-    </AdminStoreProvider>
+    <AppErrorBoundary resetKey={pathname} onNavigate={navigate}>
+      {inAdminPortal ? (
+        <AdminStoreProvider>
+          <AdminRouter pathname={pathname} navigate={navigate} />
+        </AdminStoreProvider>
+      ) : legalPage ? (
+        <LegalPages page={legalPage} />
+      ) : (
+        <PublicWebsite />
+      )}
+    </AppErrorBoundary>
   );
 }

@@ -20,7 +20,9 @@ const TRACK_DEPARTMENT_SLUG: Record<string, string> = { media: 'media', press: '
 import {
   ATTENDANCE_QUESTION_LABEL,
   GRADE_OPTIONS,
+  PRIVACY_POLICY_VERSION,
   PUBLIC_APPLICATION_TRACKS,
+  TERMS_AND_CONDITIONS_VERSION,
   buildLegacySafeExperienceField,
   buildStructuredAnswers,
   createEmptyDraft,
@@ -171,6 +173,9 @@ function loadStoredDrafts(): { drafts: DraftMap; activeTrack: ApplicationTrack }
             saved.roleAnswers && typeof saved.roleAnswers === 'object'
               ? saved.roleAnswers
               : {},
+          // Legal consent checkboxes must always start unchecked and require explicit confirmation each session
+          privacyAccepted: false,
+          termsAccepted: false,
         };
       }
     });
@@ -277,6 +282,8 @@ export function ApplySection() {
           proofFiles: compactFiles(d.proofFiles),
           mediaPhotos: compactFiles(d.mediaPhotos),
           writingSamples: compactFiles(d.writingSamples),
+          privacyAccepted: false,
+          termsAccepted: false,
         };
       });
       window.sessionStorage.setItem(
@@ -499,8 +506,32 @@ export function ApplySection() {
       selectedTrack,
     );
     if (firstInvalidStep !== null) {
-      setErrors(allErrors);
+      const nextErrors: FieldErrors =
+        firstInvalidStep === 4
+          ? {
+              ...allErrors,
+              general:
+                'Please confirm both the Privacy Policy and the Terms and Conditions before submitting your application.',
+            }
+          : allErrors;
+      setErrors(nextErrors);
       setStep(firstInvalidStep);
+      scrollBodyTop();
+      return;
+    }
+
+    if (currentDraft.privacyAccepted !== true || currentDraft.termsAccepted !== true) {
+      setErrors({
+        ...(currentDraft.privacyAccepted !== true
+          ? { privacyAccepted: 'Please confirm that you have read and understood the Privacy Policy.' }
+          : {}),
+        ...(currentDraft.termsAccepted !== true
+          ? { termsAccepted: 'Please confirm that you have read and agree to the Terms and Conditions.' }
+          : {}),
+        general:
+          'Please confirm both the Privacy Policy and the Terms and Conditions before submitting your application.',
+      });
+      setStep(4);
       scrollBodyTop();
       return;
     }
@@ -533,6 +564,8 @@ export function ApplySection() {
     const safeExperienceValue = usesFallbackFiles
       ? buildLegacySafeExperienceField(currentDraft, selectedTrack)
       : currentDraft.experience.trim();
+
+    const consentAcceptedAt = new Date().toISOString();
 
     const payloadBody = {
       action: 'submit',
@@ -576,6 +609,11 @@ export function ApplySection() {
         selectedTrack === 'media' ? toSubmitFileMetadata(currentDraft.mediaPhotos) : [],
       writing_samples:
         selectedTrack === 'press' ? toSubmitFileMetadata(currentDraft.writingSamples) : [],
+      privacy_policy_accepted: true,
+      terms_accepted: true,
+      privacy_policy_version: PRIVACY_POLICY_VERSION,
+      terms_version: TERMS_AND_CONDITIONS_VERSION,
+      consent_accepted_at: consentAcceptedAt,
     };
 
     try {
@@ -1763,6 +1801,138 @@ export function ApplySection() {
                               ))}
                           </div>
                         </section>
+
+                        {/* Section 4 Legal Acknowledgements & Consent */}
+                        <section
+                          aria-labelledby="apply-consent-heading"
+                          className="willow-folio-inset rounded-[3px] p-4 sm:p-5 space-y-3.5"
+                        >
+                          <div className="border-b border-[#ede6ca]/12 pb-2">
+                            <p
+                              id="apply-consent-heading"
+                              className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#a9b47e]"
+                            >
+                              04 · Policy &amp; Terms Confirmation *
+                            </p>
+                            <p className="mt-1 text-xs text-[#c9c2a6]">
+                              Please review and check both confirmations below to submit your application.
+                            </p>
+                          </div>
+
+                          <div className="space-y-3">
+                            <div>
+                              <div
+                                className={`flex items-start gap-3 rounded-[3px] border px-3.5 py-3 min-h-[44px] transition-colors ${
+                                  errors.privacyAccepted
+                                    ? 'border-rose-400/50 bg-rose-950/20'
+                                    : currentDraft.privacyAccepted
+                                      ? 'border-[#a9b47e]/55 bg-[#a9b47e]/[0.08]'
+                                      : 'border-[#ede6ca]/22 bg-[#0e1208]/85 hover:border-[#ede6ca]/40'
+                                }`}
+                              >
+                                <span className="relative mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center">
+                                  <input
+                                    id="apply-privacy-consent"
+                                    type="checkbox"
+                                    required
+                                    checked={currentDraft.privacyAccepted === true}
+                                    onChange={(e) => updateField('privacyAccepted', e.target.checked)}
+                                    aria-invalid={Boolean(errors.privacyAccepted)}
+                                    className="peer sr-only"
+                                  />
+                                  <label
+                                    htmlFor="apply-privacy-consent"
+                                    aria-hidden="true"
+                                    className="flex h-5 w-5 cursor-pointer items-center justify-center rounded-[2px] border border-[#ede6ca]/45 bg-[#12160a] text-transparent transition-colors peer-checked:border-[#a9b47e] peer-checked:bg-[#a9b47e] peer-checked:text-[#14180a] peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-[#ede6ca]"
+                                  >
+                                    <Check className="h-3.5 w-3.5 stroke-[3]" />
+                                  </label>
+                                </span>
+                                <span className="text-xs sm:text-[13px] leading-relaxed text-[#ede6ca]">
+                                  <label htmlFor="apply-privacy-consent" className="cursor-pointer">
+                                    I have read and understood the{' '}
+                                  </label>
+                                  <a
+                                    href="/privacy"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="font-medium text-[#a9b47e] underline underline-offset-4 hover:text-[#ede6ca]"
+                                  >
+                                    Privacy Policy
+                                  </a>
+                                  <label htmlFor="apply-privacy-consent" className="cursor-pointer">
+                                    .
+                                  </label>
+                                </span>
+                              </div>
+                              {errors.privacyAccepted && (
+                                <p role="alert" className="mt-1.5 text-xs text-rose-300">
+                                  {errors.privacyAccepted}
+                                </p>
+                              )}
+                            </div>
+
+                            <div>
+                              <div
+                                className={`flex items-start gap-3 rounded-[3px] border px-3.5 py-3 min-h-[44px] transition-colors ${
+                                  errors.termsAccepted
+                                    ? 'border-rose-400/50 bg-rose-950/20'
+                                    : currentDraft.termsAccepted
+                                      ? 'border-[#a9b47e]/55 bg-[#a9b47e]/[0.08]'
+                                      : 'border-[#ede6ca]/22 bg-[#0e1208]/85 hover:border-[#ede6ca]/40'
+                                }`}
+                              >
+                                <span className="relative mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center">
+                                  <input
+                                    id="apply-terms-consent"
+                                    type="checkbox"
+                                    required
+                                    checked={currentDraft.termsAccepted === true}
+                                    onChange={(e) => updateField('termsAccepted', e.target.checked)}
+                                    aria-invalid={Boolean(errors.termsAccepted)}
+                                    className="peer sr-only"
+                                  />
+                                  <label
+                                    htmlFor="apply-terms-consent"
+                                    aria-hidden="true"
+                                    className="flex h-5 w-5 cursor-pointer items-center justify-center rounded-[2px] border border-[#ede6ca]/45 bg-[#12160a] text-transparent transition-colors peer-checked:border-[#a9b47e] peer-checked:bg-[#a9b47e] peer-checked:text-[#14180a] peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-[#ede6ca]"
+                                  >
+                                    <Check className="h-3.5 w-3.5 stroke-[3]" />
+                                  </label>
+                                </span>
+                                <span className="text-xs sm:text-[13px] leading-relaxed text-[#ede6ca]">
+                                  <label htmlFor="apply-terms-consent" className="cursor-pointer">
+                                    I have read and agree to the{' '}
+                                  </label>
+                                  <a
+                                    href="/terms"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="font-medium text-[#a9b47e] underline underline-offset-4 hover:text-[#ede6ca]"
+                                  >
+                                    Terms and Conditions
+                                  </a>
+                                  <label htmlFor="apply-terms-consent" className="cursor-pointer">
+                                    .
+                                  </label>
+                                </span>
+                              </div>
+                              {errors.termsAccepted && (
+                                <p role="alert" className="mt-1.5 text-xs text-rose-300">
+                                  {errors.termsAccepted}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          {(!currentDraft.privacyAccepted || !currentDraft.termsAccepted) && (
+                            <p className="text-[11px] leading-relaxed text-[#c9c2a6]/80">
+                              Both boxes must be checked to enable the Submit Application button.
+                            </p>
+                          )}
+                        </section>
                       </div>
                     )}
 
@@ -1815,8 +1985,17 @@ export function ApplySection() {
                       key="btn-submit"
                       type="submit"
                       form="willow-application-form"
-                      disabled={busy}
-                      className="mun-btn-interactive inline-flex min-h-[44px] items-center justify-center gap-2 rounded-[2px] bg-[#ede6ca] px-6 py-2.5 text-xs sm:text-sm font-semibold text-[#181c0d] hover:bg-[#dad3b4] disabled:opacity-50 cursor-pointer whitespace-nowrap"
+                      disabled={
+                        busy ||
+                        currentDraft.privacyAccepted !== true ||
+                        currentDraft.termsAccepted !== true
+                      }
+                      aria-disabled={
+                        busy ||
+                        currentDraft.privacyAccepted !== true ||
+                        currentDraft.termsAccepted !== true
+                      }
+                      className="mun-btn-interactive inline-flex min-h-[44px] items-center justify-center gap-2 rounded-[2px] bg-[#ede6ca] px-6 py-2.5 text-xs sm:text-sm font-semibold text-[#181c0d] hover:bg-[#dad3b4] disabled:opacity-45 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap"
                     >
                       {busy ? (
                         <>

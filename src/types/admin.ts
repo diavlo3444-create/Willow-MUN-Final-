@@ -234,6 +234,13 @@ export interface Application {
   documents: UploadedDocument[];
   notes: InternalNote[];
   history: ApplicationHistoryEntry[];
+  legalConsent?: {
+    privacyPolicyAccepted: boolean | null;
+    termsAccepted: boolean | null;
+    privacyPolicyVersion: string | null;
+    termsVersion: string | null;
+    consentAcceptedAt: string | null;
+  };
 }
 
 export type FormQuestionType =

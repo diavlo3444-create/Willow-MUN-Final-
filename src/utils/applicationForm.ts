@@ -2,6 +2,9 @@ import { DEFAULT_COUNTRY_ISO, formatAndValidatePhone } from '../data/countryCode
 
 export type ApplicationTrack = 'media' | 'press' | 'volunteer' | 'security';
 
+export const PRIVACY_POLICY_VERSION = '2026-11-22';
+export const TERMS_AND_CONDITIONS_VERSION = '2026-11-22';
+
 export const PUBLIC_APPLICATION_TRACKS: readonly ApplicationTrack[] = [
   'media',
   'press',
@@ -192,6 +195,10 @@ export interface TrackDraft {
   roleAnswers: Record<string, string>;
   attendsAllDays: 'yes' | 'no' | '';
   absenceReason: string;
+
+  // Step 4: Mandatory Legal Consent (always starts unchecked)
+  privacyAccepted: boolean;
+  termsAccepted: boolean;
 }
 
 export function createEmptyDraft(): TrackDraft {
@@ -218,6 +225,9 @@ export function createEmptyDraft(): TrackDraft {
     roleAnswers: {},
     attendsAllDays: '',
     absenceReason: '',
+
+    privacyAccepted: false,
+    termsAccepted: false,
   };
 }
 
@@ -377,19 +387,32 @@ export function validateStep(
     }
   }
 
+  if (step === 4) {
+    if (draft.privacyAccepted !== true) {
+      errors.privacyAccepted =
+        'Please confirm that you have read and understood the Privacy Policy.';
+    }
+    if (draft.termsAccepted !== true) {
+      errors.termsAccepted =
+        'Please confirm that you have read and agree to the Terms and Conditions.';
+    }
+  }
+
   return errors;
 }
 
 export function validateAllSteps(
   draft: TrackDraft,
   track: ApplicationTrack,
-): { firstInvalidStep: 1 | 2 | 3 | null; errors: FieldErrors } {
+): { firstInvalidStep: 1 | 2 | 3 | 4 | null; errors: FieldErrors } {
   const s1 = validateStep(1, draft, track);
   if (Object.keys(s1).length > 0) return { firstInvalidStep: 1, errors: s1 };
   const s2 = validateStep(2, draft, track);
   if (Object.keys(s2).length > 0) return { firstInvalidStep: 2, errors: s2 };
   const s3 = validateStep(3, draft, track);
   if (Object.keys(s3).length > 0) return { firstInvalidStep: 3, errors: s3 };
+  const s4 = validateStep(4, draft, track);
+  if (Object.keys(s4).length > 0) return { firstInvalidStep: 4, errors: s4 };
   return { firstInvalidStep: null, errors: {} };
 }
 
