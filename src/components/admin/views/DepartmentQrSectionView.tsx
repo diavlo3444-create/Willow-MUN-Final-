@@ -197,68 +197,70 @@ export function DepartmentQrSectionView({
         </section>
       )}
 
-      <section aria-label={copy.qrHeading} className="space-y-4">
-        {section === 'security' && (
-          <h2 className="wm-serif text-lg font-semibold text-[color:var(--wm-ink)]">
-            {copy.qrHeading}
-          </h2>
-        )}
-
-        {loading ? (
-          <WmSkeleton variant="cards" rows={4} />
-        ) : loadError ? (
-          <div
-            role="alert"
-            className="wm-surface-panel flex flex-wrap items-center justify-between gap-3 border-rose-400/45 bg-rose-950/30 p-5 text-xs text-rose-100"
-          >
-            <div className="flex items-center gap-2.5">
-              <AlertCircle className="h-4 w-4 shrink-0 text-rose-300" aria-hidden="true" />
-              <span>{loadError}</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => void loadPasses()}
-              className="inline-flex min-h-[38px] items-center gap-1.5 rounded-md border border-rose-300/40 bg-black/25 px-3.5 text-xs font-medium text-rose-100 hover:bg-black/40"
+      {canViewQrList && (
+        <section aria-label={copy.qrHeading} className="space-y-4">
+          {section === 'security' && (
+            <h2 className="wm-serif text-lg font-semibold text-[color:var(--wm-ink)]">
+              {copy.qrHeading}
+            </h2>
+          )}
+  
+          {loading ? (
+            <WmSkeleton variant="cards" rows={4} />
+          ) : loadError ? (
+            <div
+              role="alert"
+              className="wm-surface-panel flex flex-wrap items-center justify-between gap-3 border-rose-400/45 bg-rose-950/30 p-5 text-xs text-rose-100"
             >
-              <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
-              Retry
-            </button>
-          </div>
-        ) : passes.length === 0 ? (
-          <div className="wm-surface-panel p-10 text-center">
-            <QrCode className="mx-auto h-9 w-9 text-[color:var(--wm-ink-muted)]" aria-hidden="true" />
-            <p className="mt-3 text-xs text-[color:var(--wm-ink-secondary)]">
-              {copy.emptyLabel}
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {passes.map((pass) => (
+              <div className="flex items-center gap-2.5">
+                <AlertCircle className="h-4 w-4 shrink-0 text-rose-300" aria-hidden="true" />
+                <span>{loadError}</span>
+              </div>
               <button
-                key={pass.id}
                 type="button"
-                onClick={() => setEnlargedPass(pass)}
-                aria-label={`View QR code for ${pass.holder_name}`}
-                className="wm-surface-panel group flex flex-col items-center p-5 text-center transition-colors hover:border-[color:var(--wm-accent)]/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--wm-accent)]"
+                onClick={() => void loadPasses()}
+                className="inline-flex min-h-[38px] items-center gap-1.5 rounded-md border border-rose-300/40 bg-black/25 px-3.5 text-xs font-medium text-rose-100 hover:bg-black/40"
               >
-                <div className="rounded-xl bg-white p-3.5 shadow-md transition-transform duration-150 group-hover:scale-[1.02]">
-                  <QRCodeSVG
-                    value={pass.token_value}
-                    size={184}
-                    level="H"
-                    includeMargin={false}
-                    bgColor="#ffffff"
-                    fgColor="#06110c"
-                  />
-                </div>
-                <p className="wm-serif mt-4 text-lg font-semibold text-[color:var(--wm-ink)]">
-                  {pass.holder_name}
-                </p>
+                <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
+                Retry
               </button>
-            ))}
-          </div>
-        )}
-      </section>
+            </div>
+          ) : passes.length === 0 ? (
+            <div className="wm-surface-panel p-10 text-center">
+              <QrCode className="mx-auto h-9 w-9 text-[color:var(--wm-ink-muted)]" aria-hidden="true" />
+              <p className="mt-3 text-xs text-[color:var(--wm-ink-secondary)]">
+                {copy.emptyLabel}
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {passes.map((pass) => (
+                <button
+                  key={pass.id}
+                  type="button"
+                  onClick={() => setEnlargedPass(pass)}
+                  aria-label={`View QR code for ${pass.holder_name}`}
+                  className="wm-surface-panel group flex flex-col items-center p-5 text-center transition-colors hover:border-[color:var(--wm-accent)]/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--wm-accent)]"
+                >
+                  <div className="rounded-xl bg-white p-3.5 shadow-md transition-transform duration-150 group-hover:scale-[1.02]">
+                    <QRCodeSVG
+                      value={pass.token_value}
+                      size={184}
+                      level="H"
+                      includeMargin={false}
+                      bgColor="#ffffff"
+                      fgColor="#06110c"
+                    />
+                  </div>
+                  <p className="wm-serif mt-4 text-lg font-semibold text-[color:var(--wm-ink)]">
+                    {pass.holder_name}
+                  </p>
+                </button>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       {enlargedPass && (
         <div
