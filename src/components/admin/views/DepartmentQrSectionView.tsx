@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { AlertCircle, Minimize2, QrCode, RefreshCw, ScanLine } from 'lucide-react';
+import { AlertCircle, Clock3, Minimize2, QrCode, RefreshCw, ScanLine } from 'lucide-react';
 import { useAdminStore } from '../../../context/AdminStoreContext';
 import {
   commitQrPassAttendance,
   fetchDepartmentQrPasses,
+  fetchMySecurityScans,
+  type LiveQrScanEvent,
   type LiveQrPassExtended,
   type LiveQrValidationResponse,
 } from '../../../services/liveBackendService';
@@ -63,6 +65,10 @@ export function DepartmentQrSectionView({
   const [scanBusy, setScanBusy] = useState(false);
   const [validation, setValidation] = useState<LiveQrValidationResponse | null>(null);
   const [scanError, setScanError] = useState('');
+  const [attendanceAction, setAttendanceAction] = useState<'checkin' | 'checkout'>('checkin');
+  const [myScans, setMyScans] = useState<LiveQrScanEvent[]>([]);
+  const [scansLoading, setScansLoading] = useState(false);
+  const [scansError, setScansError] = useState('');
   const scanInFlightRef = useRef(false);
 
   const canScan =
@@ -99,6 +105,19 @@ export function DepartmentQrSectionView({
     void loadPasses();
   }, [loadPasses]);
 
+  const loadMyScans = useCallback(async () => {
+    if (section !== 'security' || !canScan) return;
+    setScansLoading(true);
+    const result = await fetchMySecurityScans();
+    setMyScans(result.scans);
+    setScansError(result.error || '');
+    setScansLoading(false);
+  }, [canScan, section]);
+
+  useEffect(() => {
+    void loadMyScans();
+  }, [loadMyScans]);
+
   useEffect(() => {
     if (!enlargedPass) return;
     const onKeyDown = (e: KeyboardEvent) => {
@@ -122,13 +141,14 @@ export function DepartmentQrSectionView({
       setScanError('');
 
       try {
-        const res = await commitQrPassAttendance(cleanToken, 'Main Entrance', 'checkin', false);
+        const res = await commitQrPassAttendance(cleanToken, 'Main Entrance', attendanceAction, false);
         if (!res.ok || !res.validation) {
           setValidation(null);
           setScanError(res.error || 'Unable to verify QR code. Check connection and try again.');
           return;
         }
         setValidation(res.validation);
+        void loadMyScans();
       } catch (err: any) {
         setValidation(null);
         setScanError(err?.message || 'Network error while validating QR code.');
@@ -137,7 +157,7 @@ export function DepartmentQrSectionView({
         setScanBusy(false);
       }
     },
-    [canScan],
+    [attendanceAction, canScan, loadMyScans],
   );
 
   return (
@@ -160,8 +180,16 @@ export function DepartmentQrSectionView({
                 QR Code Scanner
               </h2>
               <p className="text-[11px] text-[color:var(--wm-ink-muted)]">
-                Scan any Willow MUN member QR code with your camera to check validity, department, and check-in status.
+                Scan a Willow MUN member QR code to record attendance.
               </p>
+              <div className="mt-3 inline-flex rounded-lg border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-inset)] p-1" role="group" aria-label="Attendance action">
+                <button type="button" aria-pressed={attendanceAction === 'checkin'} onClick={() => { setAttendanceAction('checkin'); setValidation(null); setScanError(''); }} className={`min-h-[36px] rounded-md px-4 text-xs font-semibold transition-colors ${attendanceAction === 'checkin' ? 'bg-[color:var(--wm-emerald)] text-white' : 'text-[color:var(--wm-ink-secondary)] hover:text-[color:var(--wm-ink)]'}`}>
+                  Check In
+                </button>
+                <button type="button" aria-pressed={attendanceAction === 'checkout'} onClick={() => { setAttendanceAction('checkout'); setValidation(null); setScanError(''); }} className={`min-h-[36px] rounded-md px-4 text-xs font-semibold transition-colors ${attendanceAction === 'checkout' ? 'bg-[color:var(--wm-emerald)] text-white' : 'text-[color:var(--wm-ink-secondary)] hover:text-[color:var(--wm-ink)]'}`}>
+                  Check Out
+                </button>
+              </div>
             </div>
           </div>
 
@@ -192,6 +220,45 @@ export function DepartmentQrSectionView({
                     : undefined
                 }
               />
+            </div>
+          )}
+        </section>
+      )}
+
+      {section === 'security' && canScan && (
+        <section aria-label="My Scans" className="wm-surface-panel overflow-hidden">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[color:var(--wm-hairline)] px-4 py-3.5 sm:px-5">
+            <div className="flex items-center gap-2.5">
+              <Clock3 className="h-4 w-4 text-[color:var(--wm-accent)]" aria-hidden="true" />
+              <div>
+                <h2 className="wm-serif text-lg font-semibold text-[color:var(--wm-ink)]">My Scans</h2>
+                <p className="text-[11px] text-[color:var(--wm-ink-muted)]">Your recent QR scans only.</p>
+              </div>
+            </div>
+            <button type="button" onClick={() => void loadMyScans()} disabled={scansLoading} className="inline-flex min-h-[36px] items-center gap-1.5 rounded-md border border-[color:var(--wm-hairline-strong)] px-3 text-[11px] text-[color:var(--wm-ink-secondary)] hover:text-[color:var(--wm-ink)] disabled:opacity-50">
+              <RefreshCw className={`h-3 w-3 ${scansLoading ? 'animate-spin' : ''}`} aria-hidden="true" /> Refresh
+            </button>
+          </div>
+          {scansError ? (
+            <p role="alert" className="p-4 text-xs text-rose-200">{scansError}</p>
+          ) : scansLoading && myScans.length === 0 ? (
+            <WmSkeleton variant="rows" rows={3} />
+          ) : myScans.length === 0 ? (
+            <p className="p-6 text-center text-xs text-[color:var(--wm-ink-muted)]">No scans recorded yet. Your scans will appear here.</p>
+          ) : (
+            <div className="divide-y divide-[color:var(--wm-hairline)]">
+              {myScans.map((scan) => (
+                <div key={scan.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5 sm:px-5">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-[color:var(--wm-ink)]">{scan.holder_name || 'Unrecognized QR pass'}</p>
+                    <p className="mt-0.5 text-[11px] text-[color:var(--wm-ink-muted)]">{scan.department_name || 'Department unavailable'} · {scan.gate_location || 'Gate not recorded'}</p>
+                    <p className="mt-1 font-mono text-[10px] text-[color:var(--wm-ink-muted)]">{new Date(scan.scanned_at).toLocaleString()}</p>
+                  </div>
+                  <span className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide ${/check.?out/i.test(scan.result) ? 'border-sky-400/40 bg-sky-950/30 text-sky-200' : /check.?in|valid/i.test(scan.result) ? 'border-emerald-400/40 bg-emerald-950/30 text-emerald-200' : 'border-amber-400/40 bg-amber-950/30 text-amber-200'}`}>
+                    {String(scan.result || 'scanned').replaceAll('_', ' ')}
+                  </span>
+                </div>
+              ))}
             </div>
           )}
         </section>
