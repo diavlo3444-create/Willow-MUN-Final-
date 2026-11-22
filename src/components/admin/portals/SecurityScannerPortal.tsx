@@ -11,9 +11,9 @@ import {
   hasPermission,
   isSecurityAccount,
 } from '../../../utils/adminPermissions';
-import { LiveQrScannerWorkspace } from '../LiveQrScannerWorkspace';
 import { MyQrCard, MyQrModal } from '../MyQrModal';
 import { PortalAuthView } from '../PortalAuthView';
+import { DepartmentQrSectionView } from '../views/DepartmentQrSectionView';
 
 interface SecurityScannerPortalProps {
   pathname: string;
@@ -136,7 +136,7 @@ export function SecurityScannerPortal({
             <MyQrCard actorOverride={currentUser} />
           </div>
         ) : (
-          <LiveQrScannerWorkspace actor={currentUser} autoStartCamera />
+          <DepartmentQrSectionView section="security" actor={currentUser} autoStartCamera />
         )}
       </main>
 

@@ -1010,6 +1010,15 @@ export function getNavigationGroups(
         { id: 'attendance', label: 'Check-In Records', path: base + '/attendance', requiredPermission: 'qr.manage' },
       ],
     },
+    {
+      id: 'department-sections',
+      label: 'Departments',
+      items: [
+        { id: 'press-media', label: 'Press & Media', path: base + '/press-media', requiredPermission: 'qr.view_pass' },
+        { id: 'volunteering', label: 'Volunteering', path: base + '/volunteering', requiredPermission: 'qr.view_pass' },
+        { id: 'security', label: 'Security', path: base + '/security', requiredPermission: 'qr.scan' },
+      ],
+    },
     ...(isSuper
       ? [
           {

@@ -25,6 +25,11 @@ import {
 } from '../utils/applicationFilters';
 export { normalizeHeadRecommendation };
 import { conferenceDataService } from './mockDataService';
+import {
+  filterAndSortDepartmentQrPasses,
+  type DepartmentQrMatchInput,
+  type DepartmentQrSectionKey,
+} from '../utils/departmentQr';
 
 async function getQrInvokeError(error: any, data: any, fallback: string): Promise<string> {
   if (data?.error) return String(data.error);
@@ -1193,6 +1198,117 @@ export async function fetchAdminQrDashboard(): Promise<{
     metrics: (listRes.data?.metrics as AdminQrRegistryMetrics) || fallbackMetrics,
     error: listRes.data?.error || listRes.error?.message || scanRes.data?.error || scanRes.error?.message,
   };
+}
+
+export async function fetchDepartmentQrPasses(
+  section: DepartmentQrSectionKey,
+  departments: Array<Pick<Department, 'id' | 'slug' | 'name'>> = [],
+  actorRole?: AdminUser['role'] | null,
+): Promise<{
+  ok: boolean;
+  passes: LiveQrPassExtended[];
+  error?: string;
+}> {
+  try {
+    const { data, error } = await supabase.functions.invoke('willow-qr', {
+      body: { action: 'department_passes', section },
+    });
+
+    if (!error && data && !data.error && Array.isArray(data.passes)) {
+      const passes = filterAndSortDepartmentQrPasses(
+        data.passes as LiveQrPassExtended[],
+        section,
+        departments,
+      );
+      return { ok: true, passes };
+    }
+
+    const edgeMsg = await getQrInvokeError(error, data, 'Unable to load department QR passes.');
+    const isAdminActor = actorRole === 'super_admin' || actorRole === 'admin';
+
+    // Graceful compatibility fallback for Admins / Super Admins when remote edge function
+    // has not yet been redeployed with department_passes.
+    if (isAdminActor) {
+      const listRes = await supabase.functions.invoke('willow-qr', {
+        body: { action: 'list' },
+      });
+      if (!listRes.error && listRes.data && !listRes.data.error && Array.isArray(listRes.data.passes)) {
+        const passes = filterAndSortDepartmentQrPasses(
+          listRes.data.passes as LiveQrPassExtended[],
+          section,
+          departments,
+        );
+        return { ok: true, passes };
+      }
+
+      // Direct RLS fallback (Admins can SELECT wm_qr_passes)
+      const [passesRes, deptsRes] = await Promise.all([
+        supabase
+          .from('wm_qr_passes')
+          .select('id,user_id,application_id,token_value,holder_name,role_label,category,department_id,active,checked_in_at,checked_in_gate,created_at')
+          .eq('active', true)
+          .order('holder_name', { ascending: true }),
+        supabase
+          .from('wm_departments')
+          .select('id,slug,name'),
+      ]);
+
+      if (!passesRes.error && Array.isArray(passesRes.data)) {
+        const resolvedDepts = (deptsRes.data as Array<Pick<Department, 'id' | 'slug' | 'name'>> | null) || departments;
+        const rawPasses = passesRes.data as Array<LiveQrPassExtended & Partial<DepartmentQrMatchInput>>;
+
+        const appIds = Array.from(new Set(rawPasses.map((p) => p.application_id).filter((id): id is string => Boolean(id))));
+        const appMap = new Map<string, { application_type?: string | null; department_id?: string | null; status?: string | null }>();
+        if (appIds.length > 0) {
+          const { data: appRows } = await supabase
+            .from('wm_applications')
+            .select('id,application_type,department_id,status')
+            .in('id', appIds);
+          for (const a of appRows || []) {
+            appMap.set(String(a.id), a);
+          }
+        }
+
+        const userIds = Array.from(new Set(rawPasses.map((p) => p.user_id).filter((id): id is string => Boolean(id))));
+        const profileMap = new Map<string, { department_id?: string | null; is_active?: boolean | null }>();
+        if (userIds.length > 0) {
+          const { data: profRows } = await supabase
+            .from('wm_profiles')
+            .select('user_id,department_id,is_active')
+            .in('user_id', userIds);
+          for (const prof of profRows || []) {
+            profileMap.set(String(prof.user_id), prof);
+          }
+        }
+
+        const enriched = rawPasses.map((p) => {
+          const app = p.application_id ? appMap.get(String(p.application_id)) : undefined;
+          const prof = p.user_id ? profileMap.get(String(p.user_id)) : undefined;
+          return {
+            ...p,
+            application_type: app?.application_type ?? null,
+            application_department_id: app?.department_id ?? null,
+            application_status: app?.status ?? null,
+            profile_department_id: prof?.department_id ?? null,
+            profile_is_active: prof?.is_active ?? null,
+          };
+        });
+
+        return {
+          ok: true,
+          passes: filterAndSortDepartmentQrPasses(enriched, section, resolvedDepts),
+        };
+      }
+    }
+
+    return { ok: false, passes: [], error: edgeMsg };
+  } catch (err: any) {
+    return {
+      ok: false,
+      passes: [],
+      error: err?.message || 'Network error while loading department QR passes.',
+    };
+  }
 }
 
 export async function correctQrCheckinRecord(payload: {

@@ -44,6 +44,7 @@ import { WebsiteCmsView } from '../views/WebsiteCmsView';
 import { WorkspaceModulesView } from '../views/WorkspaceModulesView';
 import { ExecutiveBoardAccountsView } from '../views/ExecutiveBoardAccountsView';
 import { EbSignupLinkView } from '../views/EbSignupLinkView';
+import { DepartmentQrSectionView } from '../views/DepartmentQrSectionView';
 
 interface ExecutivePortalProps {
   portal: 'super_admin' | 'admin';
@@ -244,6 +245,18 @@ const SECTION_META: Record<string, { title: string; subtitle: string }> = {
     title: 'Department Access Testing Mode',
     subtitle: 'Preview /head isolated as any selected Department Head or EB Head account.',
   },
+  'press-media': {
+    title: 'Press & Media',
+    subtitle: 'QR codes assigned to Press & Media members.',
+  },
+  volunteering: {
+    title: 'Volunteering',
+    subtitle: 'QR codes assigned to Volunteer members.',
+  },
+  security: {
+    title: 'Security',
+    subtitle: 'Security QR scanner and QR codes assigned to Security members.',
+  },
 };
 
 export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePortalProps) {
@@ -298,6 +311,9 @@ export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePorta
     'eb-accounts',
     'eb-signup-link',
     'testing',
+    'press-media',
+    'volunteering',
+    'security',
   ]);
   const unsupportedPortalSection = !westPortalSections.has(section);
 
@@ -550,6 +566,12 @@ export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePorta
         isSuperAdmin ? <EbSignupLinkView /> : renderDenied('Only the Super Admin can access the EB signup link.')
       ) : section === 'testing' ? (
         <DepartmentTestingView />
+      ) : section === 'press-media' ? (
+        <DepartmentQrSectionView section="press_media" />
+      ) : section === 'volunteering' ? (
+        <DepartmentQrSectionView section="volunteers" />
+      ) : section === 'security' ? (
+        <DepartmentQrSectionView section="security" autoStartCamera />
       ) : (
         <OverviewDashboardView
           onFilterApplications={navigateFilteredApps}

@@ -50,6 +50,11 @@ export interface QrScanFeedbackState {
   roleLabel: string | null;
   category: string | null;
   departmentOrCommittee: string | null;
+  departmentName: string | null;
+  isValid: boolean | null;
+  validityLabel: 'Valid QR Code' | 'Invalid QR Code' | null;
+  alreadyCheckedIn: boolean;
+  checkInStatusLabel: string | null;
   originalCheckedInAt: string | null;
   checkedInAt: string | null;
 }
@@ -84,6 +89,11 @@ export function classifyQrScanOutcome(
       roleLabel: null,
       category: null,
       departmentOrCommittee: null,
+      departmentName: null,
+      isValid: null,
+      validityLabel: null,
+      alreadyCheckedIn: false,
+      checkInStatusLabel: 'Verification Error',
       originalCheckedInAt: null,
       checkedInAt: null,
     };
@@ -98,6 +108,11 @@ export function classifyQrScanOutcome(
       roleLabel: null,
       category: null,
       departmentOrCommittee: null,
+      departmentName: null,
+      isValid: null,
+      validityLabel: null,
+      alreadyCheckedIn: false,
+      checkInStatusLabel: null,
       originalCheckedInAt: null,
       checkedInAt: null,
     };
@@ -105,6 +120,7 @@ export function classifyQrScanOutcome(
 
   const fullName = validation.holder_name || 'Unlisted Holder';
   const roleLabel = validation.role_label || validation.category || 'Conference Attendee';
+  const departmentName = validation.department_name || validation.committee_name || null;
   const departmentOrCommittee = validation.committee_name || validation.department_name || null;
 
   if (validation.status === 'checked_out' && validation.committed) {
@@ -116,6 +132,11 @@ export function classifyQrScanOutcome(
       roleLabel,
       category: validation.category,
       departmentOrCommittee,
+      departmentName,
+      isValid: true,
+      validityLabel: 'Valid QR Code',
+      alreadyCheckedIn: false,
+      checkInStatusLabel: 'Checked Out',
       originalCheckedInAt: null,
       checkedInAt: validation.checked_out_at || validation.scanned_at,
     };
@@ -132,6 +153,11 @@ export function classifyQrScanOutcome(
       roleLabel,
       category: validation.category,
       departmentOrCommittee,
+      departmentName,
+      isValid: true,
+      validityLabel: 'Valid QR Code',
+      alreadyCheckedIn: true,
+      checkInStatusLabel: 'Already Checked In',
       originalCheckedInAt: validation.checked_in_at,
       checkedInAt: validation.checked_in_at,
     };
@@ -146,6 +172,11 @@ export function classifyQrScanOutcome(
       roleLabel,
       category: validation.category,
       departmentOrCommittee,
+      departmentName,
+      isValid: true,
+      validityLabel: 'Valid QR Code',
+      alreadyCheckedIn: false,
+      checkInStatusLabel: 'Checked In (First Scan)',
       originalCheckedInAt: null,
       checkedInAt: validation.checked_in_at || validation.scanned_at,
     };
@@ -160,6 +191,11 @@ export function classifyQrScanOutcome(
       roleLabel: validation.role_label,
       category: validation.category,
       departmentOrCommittee,
+      departmentName,
+      isValid: false,
+      validityLabel: 'Invalid QR Code',
+      alreadyCheckedIn: false,
+      checkInStatusLabel: 'Pass Revoked',
       originalCheckedInAt: null,
       checkedInAt: null,
     };
@@ -174,6 +210,11 @@ export function classifyQrScanOutcome(
       roleLabel: validation.role_label,
       category: validation.category,
       departmentOrCommittee,
+      departmentName,
+      isValid: false,
+      validityLabel: 'Invalid QR Code',
+      alreadyCheckedIn: false,
+      checkInStatusLabel: 'Not Checked In (Not Eligible)',
       originalCheckedInAt: null,
       checkedInAt: null,
     };
@@ -187,6 +228,11 @@ export function classifyQrScanOutcome(
     roleLabel: null,
     category: null,
     departmentOrCommittee: null,
+    departmentName: null,
+    isValid: false,
+    validityLabel: 'Invalid QR Code',
+    alreadyCheckedIn: false,
+    checkInStatusLabel: 'Not Checked In (Invalid Pass)',
     originalCheckedInAt: null,
     checkedInAt: null,
   };

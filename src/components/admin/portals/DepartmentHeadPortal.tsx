@@ -17,7 +17,7 @@ import { CommitteesManagementView } from '../views/CommitteesManagementView';
 import { HeadApplicationsView } from '../views/HeadApplicationsView';
 import { HrAcceptedApplicantsView } from '../views/HrAcceptedApplicantsView';
 import { EmailsDashboardView } from '../views/EmailsDashboardView';
-import { QrAttendanceView } from '../views/QrAttendanceView';
+import { DepartmentQrSectionView } from '../views/DepartmentQrSectionView';
 
 interface DepartmentHeadPortalProps {
   pathname: string;
@@ -214,7 +214,7 @@ export function DepartmentHeadPortal({ pathname, onNavigate }: DepartmentHeadPor
           </button>
         </div>
       ) : activeNavId === 'scanner' ? (
-        <QrAttendanceView mode="qr" actingUserOverride={effectiveHead} />
+        <DepartmentQrSectionView section="security" actor={effectiveHead} autoStartCamera />
       ) : activeNavId === 'emails' ? (
         <EmailsDashboardView actingUserOverride={effectiveHead} />
       ) : activeNavId === 'hr-accepted' ? (

@@ -67,6 +67,7 @@ interface QrCameraScannerProps {
   size?: 'panel' | 'hero';
   autoStart?: boolean;
   pauseWhenLocked?: boolean;
+  showManualHint?: boolean;
 }
 
 export function QrCameraScanner({
@@ -75,6 +76,7 @@ export function QrCameraScanner({
   size = 'panel',
   autoStart = false,
   pauseWhenLocked = false,
+  showManualHint = true,
 }: QrCameraScannerProps) {
   const [cameraState, setCameraState] = useState<CameraScannerState>('idle');
   const [statusError, setStatusError] = useState<string>('');
@@ -90,6 +92,7 @@ export function QrCameraScanner({
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number | null>(null);
   const lastReadRef = useRef<{ token: string; at: number }>({ token: '', at: 0 });
+  const mountedRef = useRef<boolean>(true);
   const busyRef = useRef(busy);
   busyRef.current = busy;
   const pausedRef = useRef(pauseWhenLocked);
@@ -134,7 +137,9 @@ export function QrCameraScanner({
       ) {
         setCameraState('error');
         setStatusError(
-          'Live camera access requires a modern browser over HTTPS (or localhost). Use manual token entry below as fallback.',
+          showManualHint
+            ? 'Live camera access requires a modern browser over HTTPS (or localhost). Use manual token entry below as fallback.'
+            : 'Camera access is unavailable in this browser context. Open this page over HTTPS (or localhost) with a device camera.',
         );
         return;
       }
@@ -164,7 +169,13 @@ export function QrCameraScanner({
           audio: false,
         });
 
+        if (!mountedRef.current) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+
         streamRef.current = stream;
+        setPermissionState('granted');
         setCameraState('active');
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
@@ -208,7 +219,9 @@ export function QrCameraScanner({
           }
           setCameraState('no_camera');
           setStatusError(
-            'No usable camera was detected on this device. Enter the QR pass code manually below.',
+            showManualHint
+              ? 'No usable camera was detected on this device. Enter the QR pass code manually below.'
+              : 'No usable camera was detected on this device. Connect or enable a camera to scan Willow MUN QR codes.',
           );
         } else if (name === 'NotReadableError' || name === 'TrackStartError') {
           setCameraState('error');
@@ -221,7 +234,7 @@ export function QrCameraScanner({
         }
       }
     },
-    [facingMode, refreshCameraList, selectedDeviceId, stopStream],
+    [facingMode, refreshCameraList, selectedDeviceId, showManualHint, stopStream],
   );
 
   const stopCamera = useCallback(() => {
@@ -231,10 +244,33 @@ export function QrCameraScanner({
   }, [stopStream]);
 
   useEffect(() => {
-    // Do not request camera permissions during page load. Some browsers suppress
-    // the permission prompt unless getUserMedia is called directly from a tap.
-    // autoStart remains accepted for compatibility but the user starts camera.
+    mountedRef.current = true;
+    let permStatus: PermissionStatus | null = null;
+    if (typeof navigator !== 'undefined' && navigator.permissions?.query) {
+      navigator.permissions
+        .query({ name: 'camera' as PermissionName })
+        .then((status) => {
+          if (!mountedRef.current) return;
+          permStatus = status;
+          setPermissionState(status.state);
+          status.onchange = () => {
+            if (mountedRef.current) {
+              setPermissionState(status.state);
+            }
+          };
+        })
+        .catch(() => undefined);
+    }
+
+    if (autoStart) {
+      void startCamera();
+    }
+
     return () => {
+      mountedRef.current = false;
+      if (permStatus) {
+        permStatus.onchange = null;
+      }
       stopStream();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -509,7 +545,9 @@ export function QrCameraScanner({
                   Camera Scanner Standby
                 </p>
                 <p className="mt-1 max-w-sm text-[11px] leading-relaxed text-[color:var(--wm-ink-muted)]">
-                  Works on mobile rear cameras and desktop webcams. Tap Start Camera Scanner above or enter a token manually below.
+                  {showManualHint
+                    ? 'Works on mobile rear cameras and desktop webcams. Tap Start Camera Scanner above or enter a token manually below.'
+                    : 'Works on mobile rear cameras and desktop webcams. Tap Start Camera Scanner above to begin scanning.'}
                 </p>
               </>
             )}

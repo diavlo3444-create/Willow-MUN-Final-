@@ -15,12 +15,14 @@ interface QrValidationResultCardProps {
   validation: LiveQrValidationResponse | null;
   requestError?: string;
   onDismiss?: () => void;
+  idleSubtitle?: string;
 }
 
 export function QrValidationResultCard({
   validation,
   requestError = '',
   onDismiss,
+  idleSubtitle = 'Point the camera at a Willow MUN QR code to verify validity, department, and check-in status.',
 }: QrValidationResultCardProps) {
   const feedback = classifyQrScanOutcome(validation, requestError);
 
@@ -36,7 +38,7 @@ export function QrValidationResultCard({
           Ready to Scan
         </p>
         <p className="mt-1 max-w-xs text-xs leading-relaxed text-[color:var(--wm-ink-muted)]">
-          Scan a Willow MUN QR pass using the selected Check In or Check Out mode.
+          {idleSubtitle}
         </p>
       </div>
     );
@@ -57,6 +59,12 @@ export function QrValidationResultCard({
     : isDuplicate
       ? 'text-amber-200'
       : 'text-rose-200';
+
+  const checkInTimestamp = isDuplicate
+    ? formatAttendanceDateTime(feedback.originalCheckedInAt)
+    : feedback.checkedInAt
+      ? formatAttendanceDateTime(feedback.checkedInAt)
+      : null;
 
   return (
     <div
@@ -97,43 +105,68 @@ export function QrValidationResultCard({
         )}
       </div>
 
-      {feedback.fullName && (
-        <div className="mt-4 grid gap-2.5 border-t border-white/10 pt-3.5 sm:grid-cols-2">
-          <div className="rounded-md border border-white/10 bg-black/25 px-3.5 py-2.5 sm:col-span-2">
-            <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--wm-ink-muted)]">
-              Full Name
-            </p>
-            <p className="wm-serif mt-0.5 text-xl font-semibold text-[color:var(--wm-ink)]">
-              {feedback.fullName}
-            </p>
-          </div>
+      <div className="mt-4 grid gap-2.5 border-t border-white/10 pt-3.5 sm:grid-cols-2">
+        <div className="rounded-md border border-white/10 bg-black/25 px-3.5 py-2.5 sm:col-span-2">
+          <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--wm-ink-muted)]">
+            Member Name
+          </p>
+          <p className="wm-serif mt-0.5 text-xl font-semibold text-[color:var(--wm-ink)]">
+            {feedback.fullName || 'Unrecognized QR Pass'}
+          </p>
+        </div>
 
-          <div className="rounded-md border border-white/10 bg-black/25 px-3.5 py-2.5">
-            <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--wm-ink-muted)]">
-              Role
-            </p>
-            <p className="mt-0.5 text-xs font-medium text-[color:var(--wm-ink)]">
-              {feedback.roleLabel || 'Participant'}
-              {feedback.departmentOrCommittee ? ` · ${feedback.departmentOrCommittee}` : ''}
-            </p>
-          </div>
+        <div className="rounded-md border border-white/10 bg-black/25 px-3.5 py-2.5">
+          <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--wm-ink-muted)]">
+            Assigned Department
+          </p>
+          <p className="mt-0.5 text-xs font-semibold text-[color:var(--wm-ink)]">
+            {feedback.departmentName || (feedback.fullName ? 'Unassigned' : '—')}
+          </p>
+        </div>
 
-          <div className="rounded-md border border-white/10 bg-black/25 px-3.5 py-2.5">
-            <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--wm-ink-muted)]">
-              {isCheckout ? 'Checked Out At' : isDuplicate ? 'Original Check-In Time' : 'Checked In At'}
-            </p>
-            <p
-              className={`mt-0.5 font-mono text-xs font-semibold tabular-nums ${
-                isDuplicate ? 'text-amber-200' : 'text-[color:var(--wm-ink)]'
+        <div className="rounded-md border border-white/10 bg-black/25 px-3.5 py-2.5">
+          <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--wm-ink-muted)]">
+            QR Code Validity
+          </p>
+          <p
+            className={`mt-0.5 text-xs font-semibold ${
+              feedback.isValid === true
+                ? 'text-emerald-200'
+                : feedback.isValid === false
+                  ? 'text-rose-200'
+                  : 'text-[color:var(--wm-ink)]'
+            }`}
+          >
+            {feedback.validityLabel || 'Verification Error'}
+          </p>
+        </div>
+
+        <div className="rounded-md border border-white/10 bg-black/25 px-3.5 py-2.5 sm:col-span-2">
+          <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-[color:var(--wm-ink-muted)]">
+            {isCheckout ? 'Check-Out Status' : 'Check-In Status'}
+          </p>
+          <div className="mt-0.5 flex flex-wrap items-baseline justify-between gap-2">
+            <span
+              className={`text-xs font-semibold ${
+                isDuplicate
+                  ? 'text-amber-200'
+                  : isSuccess
+                    ? 'text-emerald-200'
+                    : 'text-rose-200'
               }`}
             >
-              {isDuplicate
-                ? formatAttendanceDateTime(feedback.originalCheckedInAt)
-                : formatAttendanceDateTime(feedback.checkedInAt)}
-            </p>
+              {feedback.alreadyCheckedIn
+                ? 'Already Checked In'
+                : feedback.checkInStatusLabel || 'Not Checked In'}
+            </span>
+            {checkInTimestamp && (
+              <span className="font-mono text-[11px] tabular-nums text-[color:var(--wm-ink-secondary)]">
+                {checkInTimestamp}
+              </span>
+            )}
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }

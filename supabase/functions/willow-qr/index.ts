@@ -303,7 +303,36 @@ Deno.serve(async (req: Request) => {
     });
 
     if (!rpcError && rpcResult) {
-      return json(sanitizePayload(rpcResult as Record<string, any>));
+      const payload = { ...(rpcResult as Record<string, any>) };
+      if (payload.pass_id && !payload.department_name) {
+        const { data: passMeta } = await admin
+          .from("wm_qr_passes")
+          .select("department_id,user_id,application_id")
+          .eq("id", payload.pass_id)
+          .maybeSingle();
+        let resolvedDept =
+          (passMeta?.department_id &&
+            (deptByKey.get(String(passMeta.department_id))?.name ||
+              deptByKey.get(normalizeDeptSlug(String(passMeta.department_id)))?.name)) ||
+          null;
+        if (!resolvedDept && passMeta?.user_id) {
+          const { data: profMeta } = await admin
+            .from("wm_profiles")
+            .select("department_id")
+            .eq("user_id", passMeta.user_id)
+            .maybeSingle();
+          if (profMeta?.department_id) {
+            resolvedDept =
+              deptByKey.get(String(profMeta.department_id))?.name ||
+              deptByKey.get(normalizeDeptSlug(String(profMeta.department_id)))?.name ||
+              null;
+          }
+        }
+        if (resolvedDept) {
+          payload.department_name = resolvedDept;
+        }
+      }
+      return json(sanitizePayload(payload));
     }
 
     if (rpcError && !isRpcMissingError(rpcError)) {
@@ -831,6 +860,150 @@ Deno.serve(async (req: Request) => {
       can_reset: isSuperAdmin,
       synced_at: new Date().toISOString(),
     });
+  }
+
+  // --------------------------------------------------------------------------
+  // 3c. Scoped Department QR Passes (Press & Media, Volunteering, Security)
+  //     Returns real active QR passes assigned to members of the requested
+  //     department section without exposing unrelated management features.
+  // --------------------------------------------------------------------------
+  if (action === "department_passes") {
+    const rawSection = String(body?.section || "").trim().toLowerCase().replace(/[_\s]+/g, "-");
+    const targetSection =
+      rawSection === "press-media" || rawSection === "media-press" || rawSection === "media" || rawSection === "press"
+        ? "press_media"
+        : rawSection === "volunteers" || rawSection === "volunteer" || rawSection === "volunteering"
+          ? "volunteers"
+          : rawSection === "security"
+            ? "security"
+            : "";
+
+    if (!targetSection) {
+      return json({ error: "Invalid department section." }, 400);
+    }
+
+    const authorizedForSection =
+      isAdmin ||
+      (targetSection === "security" && (canScan || actorDeptSlug === "security")) ||
+      (targetSection === "press_media" && (actorDeptSlug === "media" || actorDeptSlug === "press")) ||
+      (targetSection === "volunteers" && actorDeptSlug === "volunteers");
+
+    if (!authorizedForSection) {
+      return json({ error: "You do not have permission to view QR passes for this department." }, 403);
+    }
+
+    const { data: rawPasses, error: passErr } = await admin
+      .from("wm_qr_passes")
+      .select("id,user_id,application_id,token_value,holder_name,role_label,category,department_id,active,checked_in_at,checked_in_gate,created_at")
+      .eq("active", true)
+      .order("holder_name", { ascending: true });
+
+    if (passErr) return json({ error: passErr.message }, 400);
+
+    const passesList = rawPasses || [];
+    const appIds = Array.from(new Set(passesList.map((p) => p.application_id).filter((id): id is string => Boolean(id))));
+    const appById = new Map<string, any>();
+    if (appIds.length > 0) {
+      const { data: apps } = await admin
+        .from("wm_applications")
+        .select("id,application_code,application_type,department_id,position,status")
+        .in("id", appIds);
+      for (const a of apps || []) {
+        appById.set(String(a.id), a);
+      }
+    }
+
+    const userIds = Array.from(new Set(passesList.map((p) => p.user_id).filter((id): id is string => Boolean(id))));
+    const profileById = new Map<string, any>();
+    if (userIds.length > 0) {
+      const { data: profs } = await admin
+        .from("wm_profiles")
+        .select("user_id,department_id,is_active")
+        .in("user_id", userIds);
+      for (const prof of profs || []) {
+        profileById.set(String(prof.user_id), prof);
+      }
+    }
+
+    const slugToSection = (raw: string | null | undefined): string | null => {
+      const norm = normalizeDeptSlug(raw);
+      if (!norm) return null;
+      if (norm === "media" || norm === "press" || norm === "media-press" || norm === "press-media") return "press_media";
+      if (norm === "volunteers" || norm === "volunteer" || norm === "volunteering") return "volunteers";
+      if (norm === "security") return "security";
+      return `other:${norm}`;
+    };
+
+    const resolveDeptSection = (raw: string | null | undefined): string | null => {
+      if (!raw) return null;
+      const direct = slugToSection(raw);
+      if (direct && !direct.startsWith("other:")) return direct;
+      const found = deptByKey.get(String(raw)) || deptByKey.get(String(raw).toLowerCase());
+      if (found) return slugToSection(found.slug) || slugToSection(found.name);
+      return direct;
+    };
+
+    const matched = passesList
+      .filter((p) => {
+        if (p.active !== true || !String(p.token_value || "").trim()) return false;
+        const app = p.application_id ? appById.get(String(p.application_id)) : null;
+        if (p.application_id && (!app || String(app.status || "").toLowerCase() !== "accepted")) {
+          return false;
+        }
+        const prof = p.user_id ? profileById.get(String(p.user_id)) : null;
+        if (p.user_id && prof && prof.is_active !== true) {
+          return false;
+        }
+
+        const keys = [p.department_id, app?.department_id, app?.application_type, prof?.department_id];
+        for (const key of keys) {
+          const resolved = resolveDeptSection(key);
+          if (resolved) {
+            return resolved === targetSection;
+          }
+        }
+
+        const roleText = String(p.role_label || "").toLowerCase();
+        if (String(p.category || "").toLowerCase() === "delegate") return false;
+        if (targetSection === "press_media") {
+          return /\b(press|media|journalist|photographer|videographer|cameraman|reporter)\b/.test(roleText);
+        }
+        if (targetSection === "volunteers") {
+          return /\b(volunteer|volunteers|volunteering)\b/.test(roleText);
+        }
+        if (targetSection === "security") {
+          return /\b(security|guard)\b/.test(roleText);
+        }
+        return false;
+      })
+      .map((p) => {
+        const app = p.application_id ? appById.get(String(p.application_id)) : null;
+        const prof = p.user_id ? profileById.get(String(p.user_id)) : null;
+        const deptRecord =
+          (p.department_id && (deptByKey.get(String(p.department_id)) || deptByKey.get(normalizeDeptSlug(String(p.department_id))))) ||
+          (app?.department_id && (deptByKey.get(String(app.department_id)) || deptByKey.get(normalizeDeptSlug(String(app.department_id))))) ||
+          (app?.application_type && deptByKey.get(normalizeDeptSlug(String(app.application_type)))) ||
+          (prof?.department_id && (deptByKey.get(String(prof.department_id)) || deptByKey.get(normalizeDeptSlug(String(prof.department_id))))) ||
+          null;
+
+        return {
+          id: String(p.id),
+          user_id: p.user_id ?? null,
+          application_id: p.application_id ?? null,
+          token_value: String(p.token_value),
+          holder_name: String(p.holder_name || "Willow MUN Member"),
+          role_label: String(p.role_label || p.category || "Staff"),
+          category: String(p.category || "Staff"),
+          department_id: p.department_id ?? prof?.department_id ?? app?.department_id ?? null,
+          department_name: deptRecord?.name ?? null,
+          active: true,
+          checked_in_at: p.checked_in_at ?? null,
+          checked_in_gate: p.checked_in_gate ?? null,
+          created_at: p.created_at ?? null,
+        };
+      });
+
+    return json({ passes: matched, section: targetSection });
   }
 
   if (action === "reset_all_attendance") {

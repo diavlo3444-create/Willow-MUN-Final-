@@ -36,6 +36,10 @@ test('classifyQrScanOutcome handles fresh auto check-in, duplicate warning, inva
   assert.equal(fresh.headline, 'CHECKED IN');
   assert.equal(fresh.fullName, 'Layla Al-Mansoor');
   assert.equal(fresh.roleLabel, 'Delegate');
+  assert.equal(fresh.departmentName, 'Security Council');
+  assert.equal(fresh.isValid, true);
+  assert.equal(fresh.validityLabel, 'Valid QR Code');
+  assert.equal(fresh.alreadyCheckedIn, false);
   assert.equal(fresh.checkedInAt, '2026-11-20T09:15:00.000Z');
 
   const duplicate = classifyQrScanOutcome(
@@ -52,6 +56,10 @@ test('classifyQrScanOutcome handles fresh auto check-in, duplicate warning, inva
   assert.equal(duplicate.headline, 'ALREADY CHECKED IN');
   assert.equal(duplicate.originalCheckedInAt, '2026-11-20T08:05:12.000Z');
   assert.equal(duplicate.fullName, 'Layla Al-Mansoor');
+  assert.equal(duplicate.departmentName, 'Security Council');
+  assert.equal(duplicate.isValid, true);
+  assert.equal(duplicate.alreadyCheckedIn, true);
+  assert.equal(duplicate.checkInStatusLabel, 'Already Checked In');
 
   const invalid = classifyQrScanOutcome(
     makeValidation({
@@ -61,16 +69,22 @@ test('classifyQrScanOutcome handles fresh auto check-in, duplicate warning, inva
       pass_id: null,
       holder_name: null,
       role_label: null,
+      department_name: null,
+      committee_name: null,
       committed: false,
     }),
   );
   assert.equal(invalid.kind, 'invalid');
   assert.equal(invalid.headline, 'INVALID QR CODE');
+  assert.equal(invalid.isValid, false);
+  assert.equal(invalid.validityLabel, 'Invalid QR Code');
+  assert.equal(invalid.alreadyCheckedIn, false);
 
   const networkFail = classifyQrScanOutcome(null, 'Network request timed out.');
   assert.equal(networkFail.kind, 'error');
   assert.equal(networkFail.headline, 'CHECK-IN FAILED');
   assert.equal(networkFail.message, 'Network request timed out.');
+  assert.equal(networkFail.isValid, null);
 });
 
 test('canResetAllAttendance restricts reset strictly to super_admin', () => {

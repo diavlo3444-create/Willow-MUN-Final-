@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { AnimatePresence, MotionConfig, motion } from 'motion/react';
 import {
-  Activity, Award, BarChart3, BookOpen, Building2, Calendar, ClipboardCheck,
+  Activity, Award, BarChart3, BookOpen, Building2, Calendar, Camera, ClipboardCheck,
   ClipboardList, Clock, ExternalLink, FileCode, FileText, FlaskConical,
   FolderKanban, Globe, HelpCircle, History, Image as ImageIcon, Inbox,
   KeyRound, LayoutDashboard, Lock, LogOut, Mail, MapPin, Megaphone, Menu, Link2,
@@ -42,6 +42,7 @@ const NAV_ICONS: Record<string, typeof LayoutDashboard> = {
   reports: BarChart3, logs: Activity, settings: Settings, monitoring: Server,
   admins: Shield, heads: UserCog, 'account-management': UserCog, roles: KeyRound, 'permission-defs': Lock,
   testing: FlaskConical, 'eb-accounts': Users, 'eb-signup-link': Link2,
+  'press-media': Camera, volunteering: Users, security: Shield,
 };
 
 function initials(name?: string | null, email?: string | null) {
