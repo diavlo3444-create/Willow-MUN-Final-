@@ -61,7 +61,7 @@ const TRACKS: readonly TrackConfig[] = [
     wing: 'Communications & Creative',
     detail:
       'Photography, videography, committee reels, and visual storytelling across every session of the conference.',
-    deliverable: 'Camera gear details, 10–15 sample photographs & 5 role questions',
+    deliverable: 'MUN experience details, optional supporting documents & 4 role questions',
   },
   {
     id: 'press',
@@ -1368,8 +1368,10 @@ export function ApplySection() {
                           draftSessionId={draftSessionId}
                           files={currentDraft.proofFiles}
                           onFilesChange={(updater) => updateFilesField('proofFiles', updater)}
-                          title="Proof of previous experience"
-                          description="Upload up to 20 supporting files, including certificates, letters, event badges, or screenshots. Experience listed without supporting proof will not be counted during evaluation."
+                          title={selectedTrack === 'media' ? 'Upload proof of previous MUN experience (optional)' : 'Proof of previous experience'}
+                          description={selectedTrack === 'media'
+                            ? 'Upload any supporting MUN records you have, such as participation certificates, staff or EB appointment letters, conference badges, or official experience documents. This is optional; there is no minimum number of files.'
+                            : 'Upload up to 20 supporting files, including certificates, letters, event badges, or screenshots. Experience listed without supporting proof will not be counted during evaluation.'}
                           accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.webp,.heic,.heif"
                           acceptedFormatsLabel="PDF, DOC, DOCX, TXT, JPG, PNG, WEBP, HEIC"
                           category="other"
@@ -1402,25 +1404,6 @@ export function ApplySection() {
                                 </p>
                               )}
                             </div>
-
-                            <ApplicationFileUploader
-                              id="apply-media-photos"
-                              track="media"
-                              fieldKind="media_photos"
-                              draftSessionId={draftSessionId}
-                              files={currentDraft.mediaPhotos}
-                              onFilesChange={(updater) => updateFilesField('mediaPhotos', updater)}
-                              title="Upload 10–15 examples of photographs you have taken previously"
-                              description="Showcase event coverage, portraits, lighting control, or candid framing you shot yourself. You can add images in batches, replace any photo, or remove shots before continuing."
-                              accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.heic,.heif"
-                              acceptedFormatsLabel="JPG, PNG, WEBP, HEIC"
-                              category="photo"
-                              isImageGallery
-                              minFiles={10}
-                              maxFiles={15}
-                              required
-                              error={errors.mediaPhotos}
-                            />
 
                             <div>
                               <label
@@ -1775,33 +1758,6 @@ export function ApplySection() {
                               </div>
                             )}
 
-                            {selectedTrack === 'media' && currentDraft.mediaPhotos.length > 0 && (
-                              <div>
-                                <p className="text-[#c9c2a6]/75 mb-2">
-                                  Sample Photography ({currentDraft.mediaPhotos.length} photos)
-                                </p>
-                                <div className="grid grid-cols-5 sm:grid-cols-6 gap-1.5">
-                                  {currentDraft.mediaPhotos.map((photo, idx) => (
-                                    <div
-                                      key={photo.id}
-                                      className="aspect-square overflow-hidden rounded-[2px] border border-[#ede6ca]/18 bg-[#0e1208]"
-                                    >
-                                      {photo.previewUrl ? (
-                                        <img
-                                          src={photo.previewUrl}
-                                          alt={`Sample ${idx + 1}`}
-                                          className="h-full w-full object-cover"
-                                        />
-                                      ) : (
-                                        <div className="flex h-full items-center justify-center font-mono text-[10px] text-[#c9c2a6]">
-                                          #{idx + 1}
-                                        </div>
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
 
                             {currentDraft.proofFiles.length > 0 && (
                               <div>
