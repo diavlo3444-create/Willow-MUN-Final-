@@ -4,7 +4,6 @@ import { CONFERENCE_DATA } from '../data/conference';
 import { WILLOW_INSTAGRAM_HANDLE, WILLOW_INSTAGRAM_URL } from '../utils/instagramFeed';
 import { navigateTo } from '../utils/router';
 import { usePublishedWebsite } from '../utils/usePublishedWebsite';
-import { TbaText } from './TbaText';
 
 interface FooterProps {
   onReplayIntro: () => void;
