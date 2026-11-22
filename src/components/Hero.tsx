@@ -16,7 +16,6 @@ export function Hero({ cursorEffectsActive = false }: HeroProps) {
   const ctaLabel = heroSec?.buttonLabel || CONFERENCE_DATA.hero.ctaLabel;
   const fullTitle = heroSec?.heading || CONFERENCE_DATA.hero.fullTitle;
   const editionYear = settings.editionYear || CONFERENCE_DATA.brand.year;
-  const hasCustomDates = settings.datesText !== 'TBA';
   const hasCustomVenue = settings.venueText !== 'TBA';
   const departmentCount = CONFERENCE_DATA.team.groups.reduce(
     (sum, group) => sum + group.departments.length,
@@ -114,7 +113,7 @@ export function Hero({ cursorEffectsActive = false }: HeroProps) {
               Conference dates
             </p>
             <p className="mt-1.5 font-serif text-xl font-medium text-[#f1ecd9] sm:text-2xl">
-              {hasCustomDates ? settings.datesText : <TbaText text="TBA" />}
+              March 18, 19 & 20, 2027
             </p>
           </div>
           <div className="mun-hero-detail">
