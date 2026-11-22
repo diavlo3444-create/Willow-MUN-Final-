@@ -307,6 +307,21 @@ Deno.serve(async (req: Request) => {
       return json({ account: { user_id: createdUser.id, email, ...fields }, action_link: actionLink }, 201);
     }
 
+    if (action === "delete_eb_roster") {
+      const memberKey = String(body.member_key || "").trim();
+      if (!memberKey) return json({ error: "member_key is required." }, 400);
+      const { data: removed, error } = await admin.from("wm_eb_signup_allowlist")
+        .delete()
+        .eq("member_key", memberKey)
+        .is("claimed_at", null)
+        .is("claimed_user_id", null)
+        .select("member_key,full_name")
+        .maybeSingle();
+      if (error) throw error;
+      if (!removed) return json({ error: "This EB entry is already claimed or no longer exists." }, 404);
+      return json({ success: true, removed: removed.member_key, full_name: removed.full_name });
+    }
+
     if (action === "create_eb_invite") {
       const memberKey = String(body.member_key || "").trim();
       if (!memberKey) return json({ error: "member_key is required." }, 400);
