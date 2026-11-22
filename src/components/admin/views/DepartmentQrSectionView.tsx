@@ -242,7 +242,7 @@ export function DepartmentQrSectionView({
           {scansError ? (
             <p role="alert" className="p-4 text-xs text-rose-200">{scansError}</p>
           ) : scansLoading && myScans.length === 0 ? (
-            <WmSkeleton variant="rows" rows={3} />
+            <WmSkeleton variant="table" rows={3} />
           ) : myScans.length === 0 ? (
             <p className="p-6 text-center text-xs text-[color:var(--wm-ink-muted)]">No scans recorded yet. Your scans will appear here.</p>
           ) : (
