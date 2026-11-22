@@ -310,16 +310,31 @@ Deno.serve(async (req: Request) => {
     if (action === "delete_eb_roster") {
       const memberKey = String(body.member_key || "").trim();
       if (!memberKey) return json({ error: "member_key is required." }, 400);
-      const { data: removed, error } = await admin.from("wm_eb_signup_allowlist")
+
+      // Validate that the target is a single, still-unclaimed roster record before deletion.
+      const { data: targetRows, error: targetError } = await admin
+        .from("wm_eb_signup_allowlist")
+        .select("member_key,full_name,claimed_at,claimed_user_id")
+        .eq("member_key", memberKey);
+      if (targetError) throw targetError;
+      if (!targetRows?.length) return json({ error: "Roster entry no longer exists. Refresh the account list." }, 404);
+      if (targetRows.length !== 1) return json({ error: "Duplicate roster keys detected. No deletion was performed." }, 409);
+      const target = targetRows[0];
+      if (target.claimed_at || target.claimed_user_id) {
+        return json({ error: "This EB entry has already been claimed and cannot be removed as a pending roster entry." }, 409);
+      }
+
+      const { data: removedRows, error: deleteError } = await admin
+        .from("wm_eb_signup_allowlist")
         .delete()
         .eq("member_key", memberKey)
         .is("claimed_at", null)
         .is("claimed_user_id", null)
-        .select("member_key,full_name")
-        .maybeSingle();
-      if (error) throw error;
-      if (!removed) return json({ error: "This EB entry is already claimed or no longer exists." }, 404);
-      return json({ success: true, removed: removed.member_key, full_name: removed.full_name });
+        .select("member_key,full_name");
+      if (deleteError) throw deleteError;
+      if (!removedRows?.length) return json({ error: "Roster entry changed before deletion. Refresh and try again." }, 409);
+      if (removedRows.length !== 1) return json({ error: "Multiple rows were deleted for this key; refresh and review the roster." }, 409);
+      return json({ success: true, removed: removedRows[0].member_key, full_name: removedRows[0].full_name });
     }
 
     if (action === "create_eb_invite") {
