@@ -83,7 +83,7 @@ export function AccountManagementView({
 }: {
   initialTab?: AccountTab;
 }) {
-  const { currentUser, data, pushToast, enterDepartmentTestMode } = useAdminStore();
+  const { currentUser, data, pushToast, enterDepartmentTestMode, deleteAccount } = useAdminStore();
   const isSuperAdmin = canManageAccountsOrRoles(currentUser);
 
   const [activeTab, setActiveTab] = useState<AccountTab>(initialTab);
@@ -172,10 +172,24 @@ export function AccountManagementView({
     [accounts],
   );
 
-  const headAndEbAccounts = useMemo(
-    () => accounts.filter((a) => a.role === 'department_head' || a.role === 'executive_board'),
-    [accounts],
-  );
+  const headAndEbAccounts = useMemo(() => {
+    const live = accounts.filter((a) => a.role === 'department_head' || a.role === 'executive_board');
+    const liveEmails = new Set(live.map((a) => a.email.trim().toLowerCase()).filter(Boolean));
+    const pendingHeads: ServerStaffAccount[] = data.users
+      .filter((u) => u.role === 'department_head' && u.email && !liveEmails.has(u.email.trim().toLowerCase()))
+      .map((u) => ({
+        user_id: `pending-head-roster:${u.id}`,
+        full_name: u.fullName,
+        email: u.email,
+        role: 'department_head',
+        department_id: u.departmentId,
+        is_active: u.isActive,
+        title: u.title || 'Department Head',
+        permissions: {},
+        signup_status: 'awaiting_signup',
+      }));
+    return [...live, ...pendingHeads];
+  }, [accounts, data.users]);
 
   const staffAccounts = useMemo(
     () => accounts.filter((a) => a.role === 'staff'),
@@ -535,6 +549,13 @@ export function AccountManagementView({
     });
     setResetTarget(null);
     setResetPasswordInput('');
+  };
+
+  const handleDeletePendingHeadRoster = (account: ServerStaffAccount) => {
+    const rosterId = account.user_id.replace(/^pending-head-roster:/, '');
+    if (!window.confirm(`Remove pending Department Head roster entry for ${account.full_name} (${account.email})?`)) return;
+    const ok = deleteAccount(rosterId);
+    if (ok) pushToast({ tone: 'success', title: 'Pending head removed', description: `${account.full_name} removed from the roster.` });
   };
 
   const handleDeleteAccount = async () => {
@@ -900,6 +921,18 @@ export function AccountManagementView({
                       </span>
                     ) : isPendingEntry ? (
                       <>
+                        {acc.user_id.startsWith('pending-head-roster:') ? (
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => handleDeletePendingHeadRoster(acc)}
+                            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-rose-400/35 px-3 text-xs text-rose-200 hover:bg-rose-500/15 disabled:opacity-40"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                            Delete roster entry
+                          </button>
+                        ) : (
+                        <>
                         <button
                           type="button"
                           disabled={busy}
@@ -917,6 +950,8 @@ export function AccountManagementView({
                           <UserPlus className="h-3.5 w-3.5" aria-hidden="true" />
                           Provision Now
                         </button>
+                        </>
+                        )}
                       </>
                     ) : (
                       <>
