@@ -551,6 +551,22 @@ export function AccountManagementView({
     setResetPasswordInput('');
   };
 
+  const handleDeletePendingEbRoster = async (account: ServerStaffAccount) => {
+    if (!account.member_key) return;
+    if (!window.confirm(`Remove pending Executive Board roster entry for ${account.full_name} (${account.email})?`)) return;
+    setBusyId(account.user_id);
+    const { data: res, error } = await supabase.functions.invoke('willow-staff-admin', {
+      body: { action: 'delete_eb_roster', member_key: account.member_key },
+    });
+    setBusyId(null);
+    if (error || res?.error) {
+      pushToast({ tone: 'error', title: 'Roster removal failed', description: res?.error || error?.message });
+      return;
+    }
+    pushToast({ tone: 'success', title: 'Pending EB removed', description: `${account.full_name} removed from the roster.` });
+    await load();
+  };
+
   const handleDeletePendingHeadRoster = (account: ServerStaffAccount) => {
     const rosterId = account.user_id.replace(/^pending-head-roster:/, '');
     if (!window.confirm(`Remove pending Department Head roster entry for ${account.full_name} (${account.email})?`)) return;
@@ -949,6 +965,15 @@ export function AccountManagementView({
                         >
                           <UserPlus className="h-3.5 w-3.5" aria-hidden="true" />
                           Provision Now
+                        </button>
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => void handleDeletePendingEbRoster(acc)}
+                          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-rose-400/35 px-3 text-xs text-rose-200 hover:bg-rose-500/15 disabled:opacity-40"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                          Delete roster entry
                         </button>
                         </>
                         )}
