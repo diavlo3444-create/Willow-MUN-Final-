@@ -76,8 +76,8 @@ const SECTION_META: Record<string, { title: string; subtitle: string }> = {
     subtitle: 'Review Volunteer, Media, Press, and Security applications.',
   },
   recommendations: {
-    title: 'Department Recommendations',
-    subtitle: 'Applications across departments for administrative review.',
+    title: 'Head-Approved Applicants',
+    subtitle: 'Review applicants recommended for acceptance by Department Heads. Make the final Accept or Decline decision here.',
   },
   forms: {
     title: 'Application Form Builder',
