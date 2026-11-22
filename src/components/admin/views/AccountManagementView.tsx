@@ -387,7 +387,7 @@ export function AccountManagementView({
 
     setSaving(true);
     const body: Record<string, unknown> = {
-      action: isPendingRoster && formRole === 'executive_board'
+      action: isPendingRoster && (formRole === 'executive_board' || formRole === 'department_head')
         ? 'update_eb_roster'
         : editingRealId
           ? 'update'
@@ -416,7 +416,7 @@ export function AccountManagementView({
         : {}),
     };
     if (editingRealId) body.user_id = editingRealId;
-    if (isPendingRoster && formRole === 'executive_board') {
+    if (isPendingRoster && (formRole === 'executive_board' || formRole === 'department_head')) {
       body.member_key = editingAccount?.member_key;
     }
     if (formPassword.trim()) body.password = formPassword.trim();
@@ -586,11 +586,20 @@ export function AccountManagementView({
     await load();
   };
 
-  const handleDeletePendingHeadRoster = (account: ServerStaffAccount) => {
-    const rosterId = account.user_id.replace(/^pending-head-roster:/, '');
+  const handleDeletePendingHeadRoster = async (account: ServerStaffAccount) => {
+    if (!account.member_key) return;
     if (!window.confirm(`Remove pending Department Head roster entry for ${account.full_name} (${account.email})?`)) return;
-    const ok = deleteAccount(rosterId);
-    if (ok) pushToast({ tone: 'success', title: 'Pending head removed', description: `${account.full_name} removed from the roster.` });
+    setBusyId(account.user_id);
+    const { data: res, error } = await supabase.functions.invoke('willow-staff-admin', {
+      body: { action: 'delete_eb_roster', member_key: account.member_key },
+    });
+    setBusyId(null);
+    if (error || res?.error) {
+      pushToast({ tone: 'error', title: 'Roster removal failed', description: res?.error || error?.message });
+      return;
+    }
+    pushToast({ tone: 'success', title: 'Pending head removed', description: `${account.full_name} removed from the roster.` });
+    await load();
   };
 
   const handleDeleteAccount = async () => {
