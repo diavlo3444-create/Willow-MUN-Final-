@@ -560,7 +560,26 @@ export function AccountManagementView({
     });
     setBusyId(null);
     if (error || res?.error) {
-      pushToast({ tone: 'error', title: 'Roster removal failed', description: res?.error || error?.message });
+      let detailedError = res?.error || error?.message || 'Could not remove pending EB roster entry.';
+      const errorContext = (error as any)?.context;
+      if (!res?.error && errorContext && typeof errorContext.clone === 'function') {
+        try {
+          const responseBody = await errorContext.clone().json();
+          if (typeof responseBody?.error === 'string' && responseBody.error.trim()) {
+            detailedError = responseBody.error;
+          } else if (typeof responseBody?.message === 'string' && responseBody.message.trim()) {
+            detailedError = responseBody.message;
+          }
+        } catch {
+          try {
+            const responseText = await errorContext.clone().text();
+            if (responseText.trim()) detailedError = responseText.trim();
+          } catch {
+            // Keep the safe fallback error.
+          }
+        }
+      }
+      pushToast({ tone: 'error', title: 'Roster removal failed', description: detailedError });
       return;
     }
     pushToast({ tone: 'success', title: 'Pending EB removed', description: `${account.full_name} removed from the roster.` });
