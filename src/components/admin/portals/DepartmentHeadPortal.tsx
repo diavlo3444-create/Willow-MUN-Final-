@@ -3,6 +3,7 @@ import { ArrowLeft, ShieldAlert } from 'lucide-react';
 import { useAdminStore } from '../../../context/AdminStoreContext';
 import {
   canAccessEmailsDashboard,
+  canViewDepartmentQr,
   getActorGenderScope,
   getRoleLabel,
   hasPermission,
@@ -60,6 +61,8 @@ export function DepartmentHeadPortal({ pathname, onNavigate }: DepartmentHeadPor
 
   const canViewApps = hasPermission(effectiveHead, 'applications.view', data.departments);
   const canScanQr = hasPermission(effectiveHead, 'qr.scan', data.departments);
+  const canViewVolunteeringQr = canViewDepartmentQr(effectiveHead, 'volunteers', data.departments);
+  const canViewPressMediaQr = canViewDepartmentQr(effectiveHead, 'press_media', data.departments);
   const isHrHead = isHrActor(effectiveHead, data.departments);
   const canManageEmails = canAccessEmailsDashboard(effectiveHead, data.departments);
   const isDccHead = isDccActor(effectiveHead, data.departments);
@@ -67,18 +70,24 @@ export function DepartmentHeadPortal({ pathname, onNavigate }: DepartmentHeadPor
 
   const defaultSection = canViewApps
     ? 'applications'
-    : canScanQr
-      ? 'scanner'
-      : isHrHead
-        ? 'hr-accepted'
-        : isDccHead
-          ? 'committees'
-          : 'qr';
+    : canViewVolunteeringQr
+      ? 'volunteering'
+      : canViewPressMediaQr
+        ? 'press-media'
+        : canScanQr
+          ? 'scanner'
+          : isHrHead
+            ? 'hr-accepted'
+            : isDccHead
+              ? 'committees'
+              : 'qr';
 
   const section = hasExplicitSection ? requestedSection : defaultSection;
 
   const isAllowedSection =
     (section === 'applications' && canViewApps) ||
+    (section === 'volunteering' && canViewVolunteeringQr) ||
+    (section === 'press-media' && canViewPressMediaQr) ||
     (section === 'scanner' && canScanQr) ||
     (section === 'qr' && canViewQr) ||
     (section === 'hr-accepted' && isHrHead) ||
@@ -155,20 +164,26 @@ export function DepartmentHeadPortal({ pathname, onNavigate }: DepartmentHeadPor
     effectiveHead.role === 'executive_board' ? 'Executive Board · Head' : 'Department Head';
 
   const activeNavId =
-    section === 'scanner' && canScanQr
-      ? 'scanner'
-      : section === 'emails' && canManageEmails
-        ? 'emails'
-        : section === 'hr-accepted' && isHrHead
-        ? 'hr-accepted'
-        : section === 'committees' && isDccHead
-          ? 'committees'
-          : section === 'qr' && canViewQr
-            ? 'qr'
-            : defaultSection;
+    section === 'volunteering' && canViewVolunteeringQr
+      ? 'volunteering'
+      : section === 'press-media' && canViewPressMediaQr
+        ? 'press-media'
+        : section === 'scanner' && canScanQr
+          ? 'scanner'
+          : section === 'emails' && canManageEmails
+            ? 'emails'
+            : section === 'hr-accepted' && isHrHead
+              ? 'hr-accepted'
+              : section === 'committees' && isDccHead
+                ? 'committees'
+                : section === 'qr' && canViewQr
+                  ? 'qr'
+                  : defaultSection;
 
   const pageTitles: Record<string, string> = {
     applications: `${assignedDepartment.name} Applications`,
+    volunteering: 'Volunteering',
+    'press-media': 'Press & Media',
     scanner: 'Entrance QR Pass Scanner',
     'hr-accepted': 'HR · Accepted Applicants',
     emails: 'Email Management & Delivery',
@@ -213,6 +228,10 @@ export function DepartmentHeadPortal({ pathname, onNavigate }: DepartmentHeadPor
             <span>Return to Assigned Workspace</span>
           </button>
         </div>
+      ) : activeNavId === 'volunteering' ? (
+        <DepartmentQrSectionView section="volunteers" actor={effectiveHead} />
+      ) : activeNavId === 'press-media' ? (
+        <DepartmentQrSectionView section="press_media" actor={effectiveHead} />
       ) : activeNavId === 'scanner' ? (
         <DepartmentQrSectionView section="security" actor={effectiveHead} autoStartCamera />
       ) : activeNavId === 'emails' ? (

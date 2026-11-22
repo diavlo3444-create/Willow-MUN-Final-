@@ -335,6 +335,7 @@ export function StaffPortal({ pathname, onNavigate }: StaffPortalProps) {
     departmentSlug === 'media' ||
     departmentSlug === 'press' ||
     departmentSlug === 'media-press' ||
+    departmentSlug === 'press-media' ||
     departmentSlug === 'volunteers';
 
   if (isSimplifiedQrStaffDepartment) {

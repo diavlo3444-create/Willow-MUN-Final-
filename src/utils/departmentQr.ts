@@ -130,13 +130,12 @@ export function matchesDepartmentQrSection(
   const candidateKeys = [
     pass.department_id,
     pass.department_name,
+    pass.profile_department_id,
     pass.application_department_id,
     pass.application_type,
-    pass.profile_department_id,
   ];
 
-  // If any structured department field explicitly belongs to a DIFFERENT known department, stop.
-  let hasExplicitOtherDepartment = false;
+  // If any structured department field explicitly belongs to a known department, decide immediately.
   for (const key of candidateKeys) {
     if (!key) continue;
     const matchedSection = resolveDeptKeyToSection(key, departments);
@@ -148,11 +147,9 @@ export function matchesDepartmentQrSection(
       knownOther &&
       ['hr', 'dcc', 'delegate', 'it', 'design', 'marketing', 'secretariat'].includes(knownOther)
     ) {
-      hasExplicitOtherDepartment = true;
+      return false;
     }
   }
-
-  if (hasExplicitOtherDepartment) return false;
 
   // Fallback to unambiguous role label when structured department fields are absent
   if (String(pass.category || '').trim().toLowerCase() === 'delegate') {

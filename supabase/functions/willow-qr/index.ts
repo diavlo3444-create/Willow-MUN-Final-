@@ -47,12 +47,19 @@ function getCategoryForRole(role: string): string {
 }
 
 function normalizeDeptSlug(value: string | null | undefined): string {
-  const clean = String(value || "").trim().toLowerCase();
+  const clean = String(value || "").trim().toLowerCase().replace(/[_\s]+/g, "-");
   if (!clean) return "";
-  if (clean === "human-resources" || clean === "human_resources") return "hr";
-  if (clean === "delegate-affairs" || clean === "delegate_affairs") return "dcc";
-  if (clean === "media-press") return "media";
-  if (clean === "volunteer") return "volunteers";
+  if (clean === "human-resources") return "hr";
+  if (clean === "delegate-affairs") return "dcc";
+  if (
+    clean === "media-press" ||
+    clean === "press-media" ||
+    clean === "media-&-press" ||
+    clean === "press-&-media"
+  ) {
+    return "media";
+  }
+  if (clean === "volunteer" || clean === "volunteering") return "volunteers";
   return clean;
 }
 
@@ -138,9 +145,27 @@ Deno.serve(async (req: Request) => {
   const actorDeptRecord = actor.department_id
     ? deptByKey.get(String(actor.department_id)) || deptByKey.get(normalizeDeptSlug(String(actor.department_id)))
     : undefined;
-  const actorDeptSlug = actorDeptRecord
+  let actorDeptSlug = actorDeptRecord
     ? normalizeDeptSlug(actorDeptRecord.slug)
-    : normalizeDeptSlug(actor.department_id);
+    : "";
+  if (!actorDeptSlug && actor.department_id) {
+    const rawDept = String(actor.department_id).trim();
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawDept)) {
+      actorDeptSlug = normalizeDeptSlug(rawDept);
+    }
+  }
+  if (!actorDeptSlug) {
+    const actorLabel = `${actor.title || ""} ${actor.division || ""}`.toLowerCase();
+    if (/\b(volunteers?|volunteering|usher|floor\s+team)\b/.test(actorLabel)) {
+      actorDeptSlug = "volunteers";
+    } else if (/\b(press|journalis[tm]|reporter|correspondent|editorial)\b/.test(actorLabel)) {
+      actorDeptSlug = "press";
+    } else if (/\b(media|photograph(y|er)|videograph(y|er)|broadcast|reel)\b/.test(actorLabel)) {
+      actorDeptSlug = "media";
+    } else if (/\b(security|guard|checkpoint|entrance\s+control)\b/.test(actorLabel)) {
+      actorDeptSlug = "security";
+    }
+  }
 
   const actorPermissions = (actor.permissions && typeof actor.permissions === "object")
     ? (actor.permissions as Record<string, unknown>)
@@ -882,11 +907,13 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Invalid department section." }, 400);
     }
 
+    const canViewPass = isSuperAdmin || actorPermissions["qr.view_pass"] !== false;
     const authorizedForSection =
-      isAdmin ||
-      (targetSection === "security" && (canScan || actorDeptSlug === "security")) ||
-      (targetSection === "press_media" && (actorDeptSlug === "media" || actorDeptSlug === "press")) ||
-      (targetSection === "volunteers" && actorDeptSlug === "volunteers");
+      (isAdmin && canViewPass) ||
+      (canViewPass &&
+        ((targetSection === "security" && (canScan || actorDeptSlug === "security")) ||
+          (targetSection === "press_media" && (actorDeptSlug === "media" || actorDeptSlug === "press")) ||
+          (targetSection === "volunteers" && actorDeptSlug === "volunteers")));
 
     if (!authorizedForSection) {
       return json({ error: "You do not have permission to view QR passes for this department." }, 403);
@@ -925,22 +952,36 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    const EXPLICIT_OTHER_DEPTS = new Set([
+      "hr",
+      "dcc",
+      "delegate",
+      "it",
+      "design",
+      "marketing",
+      "secretariat",
+    ]);
+
     const slugToSection = (raw: string | null | undefined): string | null => {
       const norm = normalizeDeptSlug(raw);
       if (!norm) return null;
-      if (norm === "media" || norm === "press" || norm === "media-press" || norm === "press-media") return "press_media";
-      if (norm === "volunteers" || norm === "volunteer" || norm === "volunteering") return "volunteers";
+      if (norm === "media" || norm === "press") return "press_media";
+      if (norm === "volunteers") return "volunteers";
       if (norm === "security") return "security";
-      return `other:${norm}`;
+      if (EXPLICIT_OTHER_DEPTS.has(norm)) return `other:${norm}`;
+      return null;
     };
 
     const resolveDeptSection = (raw: string | null | undefined): string | null => {
       if (!raw) return null;
       const direct = slugToSection(raw);
-      if (direct && !direct.startsWith("other:")) return direct;
+      if (direct) return direct;
       const found = deptByKey.get(String(raw)) || deptByKey.get(String(raw).toLowerCase());
-      if (found) return slugToSection(found.slug) || slugToSection(found.name);
-      return direct;
+      if (found) {
+        const matched = slugToSection(found.slug) || slugToSection(found.name);
+        return matched || `other:${normalizeDeptSlug(found.slug)}`;
+      }
+      return null;
     };
 
     const matched = passesList
@@ -955,7 +996,7 @@ Deno.serve(async (req: Request) => {
           return false;
         }
 
-        const keys = [p.department_id, app?.department_id, app?.application_type, prof?.department_id];
+        const keys = [p.department_id, prof?.department_id, app?.department_id, app?.application_type];
         for (const key of keys) {
           const resolved = resolveDeptSection(key);
           if (resolved) {

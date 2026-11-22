@@ -1240,8 +1240,30 @@ export async function fetchDepartmentQrPasses(
         );
         return { ok: true, passes };
       }
+    }
 
-      // Direct RLS fallback (Admins can SELECT wm_qr_passes)
+    // Database RPC fallback (enforces department + qr.view_pass authorization via SECURITY DEFINER)
+    const rpcRes = await supabase.rpc('wm_get_department_qr_passes', {
+      p_section: section,
+    });
+    if (!rpcRes.error && Array.isArray(rpcRes.data)) {
+      const passes = filterAndSortDepartmentQrPasses(
+        rpcRes.data as LiveQrPassExtended[],
+        section,
+        departments,
+      );
+      return { ok: true, passes };
+    }
+    if (rpcRes.error && String(rpcRes.error.code || '') === '42501') {
+      return {
+        ok: false,
+        passes: [],
+        error: rpcRes.error.message || 'You do not have permission to view QR passes for this department.',
+      };
+    }
+
+    // Direct RLS fallback for Admins (Admins can SELECT wm_qr_passes directly)
+    if (isAdminActor) {
       const [passesRes, deptsRes] = await Promise.all([
         supabase
           .from('wm_qr_passes')
@@ -1301,7 +1323,15 @@ export async function fetchDepartmentQrPasses(
       }
     }
 
-    return { ok: false, passes: [], error: edgeMsg };
+    const legacyAdminOnlyReply =
+      edgeMsg.toLowerCase().includes('pass registry management is restricted to administrators');
+    return {
+      ok: false,
+      passes: [],
+      error: legacyAdminOnlyReply
+        ? 'The deployed Supabase QR function (`willow-qr`) needs to be updated with the `department_passes` handler or database migration to serve department QR passes.'
+        : edgeMsg,
+    };
   } catch (err: any) {
     return {
       ok: false,

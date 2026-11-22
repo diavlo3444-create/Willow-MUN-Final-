@@ -8,6 +8,7 @@ import type {
   PortalKey,
   RoleType,
 } from '../types/admin';
+import type { DepartmentQrSectionKey } from './departmentQr';
 
 export const PERMISSION_DEFINITIONS: PermissionDefinition[] = [
   // Applications & Forms
@@ -444,14 +445,18 @@ export function normalizeDepartmentSlug(value: string | null | undefined): strin
   if (
     clean === 'media-press' ||
     clean === 'media_press' ||
+    clean === 'press-media' ||
+    clean === 'press_media' ||
     clean === 'media-and-press' ||
-    clean === 'media & press'
+    clean === 'press-and-media' ||
+    clean === 'media & press' ||
+    clean === 'press & media'
   ) {
     return 'media';
   }
   if (clean === 'media') return 'media';
   if (clean === 'press') return 'press';
-  if (clean === 'volunteer') return 'volunteers';
+  if (clean === 'volunteer' || clean === 'volunteering') return 'volunteers';
   return clean;
 }
 
@@ -484,7 +489,7 @@ export function getActorDepartmentSlug(
   if (/\b(press|journalis[tm]|reporter|correspondent|editorial)\b/.test(label)) return 'press';
   if (/\b(media|photograph(y|er)|videograph(y|er)|broadcast|reel)\b/.test(label)) return 'media';
   if (/\b(security|guard|checkpoint|entrance\s+control)\b/.test(label)) return 'security';
-  if (/\b(volunteers?|usher|floor\s+team)\b/.test(label)) return 'volunteers';
+  if (/\b(volunteers?|volunteering|usher|floor\s+team)\b/.test(label)) return 'volunteers';
   if (/\b(it|technical|systems)\b/.test(label)) return 'it';
   if (/\b(design|creative|visual)\b/.test(label)) return 'design';
   if (/\b(marketing|outreach|pr)\b/.test(label)) return 'marketing';
@@ -701,6 +706,32 @@ export function hasPermission(
 
 export function canManageAccountsOrRoles(user: AdminUser | null | undefined): boolean {
   return Boolean(user && user.isActive && user.status === 'active' && user.role === 'super_admin');
+}
+
+/**
+ * Separates viewing a department's QR codes (Volunteering, Press & Media, Security)
+ * from Administrator-only pass registry management (`qr.manage`).
+ * Active Department Staff, Department Heads, and EB members may view QR codes
+ * assigned to their own department when `qr.view_pass` is permitted, without
+ * requiring Administrator permissions.
+ */
+export function canViewDepartmentQr(
+  user: AdminUser | null | undefined,
+  section: DepartmentQrSectionKey,
+  departments?: Department[],
+): boolean {
+  if (!user || !user.isActive || user.status !== 'active') return false;
+  if (user.role === 'super_admin') return true;
+  if (!hasPermission(user, 'qr.view_pass', departments)) return false;
+  if (user.role === 'admin') return true;
+
+  const deptSlug = getActorDepartmentSlug(user, departments);
+  if (!deptSlug) return false;
+
+  if (section === 'volunteers') return deptSlug === 'volunteers';
+  if (section === 'press_media') return deptSlug === 'media' || deptSlug === 'press';
+  if (section === 'security') return deptSlug === 'security';
+  return false;
 }
 
 export function canAccessEmailsDashboard(
@@ -976,6 +1007,12 @@ export function getNavigationGroups(
   if (portal === 'department_head' || portal === 'executive_board') {
     const items: NavItemConfig[] = [
       { id: 'applications', label: 'Applications', path: '/head/applications', requiredPermission: 'applications.view' },
+      ...(canViewDepartmentQr(user, 'volunteers', departments)
+        ? [{ id: 'volunteering', label: 'Volunteering', path: '/head/volunteering', requiredPermission: 'qr.view_pass' } satisfies NavItemConfig]
+        : []),
+      ...(canViewDepartmentQr(user, 'press_media', departments)
+        ? [{ id: 'press-media', label: 'Press & Media', path: '/head/press-media', requiredPermission: 'qr.view_pass' } satisfies NavItemConfig]
+        : []),
       ...(isSecurityAccount(user, departments)
         ? [{ id: 'scanner', label: 'Entrance Scanner', path: '/head/scanner', requiredPermission: 'qr.scan' } satisfies NavItemConfig]
         : []),

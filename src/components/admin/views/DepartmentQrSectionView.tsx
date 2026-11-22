@@ -9,7 +9,7 @@ import {
   type LiveQrValidationResponse,
 } from '../../../services/liveBackendService';
 import type { AdminUser } from '../../../types/admin';
-import { hasPermission } from '../../../utils/adminPermissions';
+import { canViewDepartmentQr, hasPermission } from '../../../utils/adminPermissions';
 import type { DepartmentQrSectionKey } from '../../../utils/departmentQr';
 import { QrCameraScanner } from '../QrCameraScanner';
 import { QrValidationResultCard } from '../QrValidationResultCard';
@@ -68,11 +68,17 @@ export function DepartmentQrSectionView({
   const canScan =
     section === 'security' &&
     effectiveActor !== null &&
-    (effectiveActor.role === 'super_admin' ||
-      effectiveActor.role === 'admin' ||
-      hasPermission(effectiveActor, 'qr.scan', data.departments));
+    hasPermission(effectiveActor, 'qr.scan', data.departments);
+
+  const canViewQrList = canViewDepartmentQr(effectiveActor, section, data.departments);
 
   const loadPasses = useCallback(async () => {
+    if (!canViewQrList) {
+      setPasses([]);
+      setLoadError('You do not have permission to view QR passes for this department.');
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setLoadError('');
     const res = await fetchDepartmentQrPasses(
@@ -87,7 +93,7 @@ export function DepartmentQrSectionView({
       setPasses(res.passes);
     }
     setLoading(false);
-  }, [data.departments, effectiveActor?.role, section]);
+  }, [canViewQrList, data.departments, effectiveActor?.role, section]);
 
   useEffect(() => {
     void loadPasses();

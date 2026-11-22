@@ -11,6 +11,7 @@ import {
   canManageAccountsOrRoles,
   canReviewFinalDecision,
   canSubmitRecommendation,
+  canViewDepartmentQr,
   canViewHrAcceptedApplication,
   DEPARTMENT_HEAD_DEFAULT_PERMISSIONS,
   getActorGenderScope,
@@ -192,7 +193,7 @@ test('Department Head is strictly isolated to department + gender and only has a
   const nav = getNavigationGroups(femaleMediaHead, 'department_head');
   assert.deepEqual(
     nav[0].items.map((i) => i.id),
-    ['applications', 'qr'],
+    ['applications', 'press-media', 'qr'],
   );
 });
 
@@ -636,6 +637,163 @@ test('Email dashboard & Failed to Send recovery strictly allow Admin and HR only
   assert.equal(canAccessEmailsDashboard(suspendedHr, departments), false);
   assert.equal(canAccessEmailsDashboard(null, departments), false);
 });
+
+test('Volunteering, Press & Media, and Security staff and heads view own department QR codes without Admin permissions while qr.manage stays Admin-only', () => {
+  const departments: Department[] = [
+    {
+      id: 'dept-vol',
+      slug: 'volunteers',
+      name: 'Volunteers',
+      cluster: 'Logistics & Administration',
+      description: '',
+      headUserIds: [],
+      registrationOpen: true,
+      capacity: 30,
+      positions: [],
+      instructions: '',
+      updatedAt: '',
+    },
+    {
+      id: 'dept-media',
+      slug: 'media',
+      name: 'Media',
+      cluster: 'Communications & Creative',
+      description: '',
+      headUserIds: [],
+      registrationOpen: true,
+      capacity: 15,
+      positions: [],
+      instructions: '',
+      updatedAt: '',
+    },
+    {
+      id: 'dept-press',
+      slug: 'press',
+      name: 'Press',
+      cluster: 'Communications & Creative',
+      description: '',
+      headUserIds: [],
+      registrationOpen: true,
+      capacity: 15,
+      positions: [],
+      instructions: '',
+      updatedAt: '',
+    },
+    {
+      id: 'dept-sec',
+      slug: 'security',
+      name: 'Security',
+      cluster: 'Logistics & Administration',
+      description: '',
+      headUserIds: [],
+      registrationOpen: true,
+      capacity: 20,
+      positions: [],
+      instructions: '',
+      updatedAt: '',
+    },
+    {
+      id: 'dept-hr',
+      slug: 'hr',
+      name: 'Human Resources',
+      cluster: 'Delegate Affairs & Operations',
+      description: '',
+      headUserIds: [],
+      registrationOpen: true,
+      capacity: 10,
+      positions: [],
+      instructions: '',
+      updatedAt: '',
+    },
+  ];
+
+  const volunteerStaff = makeUser({
+    role: 'staff',
+    departmentId: 'dept-vol',
+    title: 'Volunteer Staff',
+    permissions: resolveUserPermissions('staff'),
+  });
+  assert.equal(canViewDepartmentQr(volunteerStaff, 'volunteers', departments), true);
+  assert.equal(canViewDepartmentQr(volunteerStaff, 'press_media', departments), false);
+  assert.equal(canViewDepartmentQr(volunteerStaff, 'security', departments), false);
+  assert.equal(hasPermission(volunteerStaff, 'qr.manage', departments), false);
+
+  const volunteerHead = makeUser({
+    role: 'department_head',
+    departmentId: 'dept-vol',
+    division: 'Male Division',
+    title: 'Head of Volunteers (Male)',
+    permissions: resolveUserPermissions('department_head'),
+  });
+  assert.equal(canViewDepartmentQr(volunteerHead, 'volunteers', departments), true);
+  assert.equal(canViewDepartmentQr(volunteerHead, 'press_media', departments), false);
+  assert.equal(hasPermission(volunteerHead, 'qr.manage', departments), false);
+  assert.deepEqual(
+    getNavigationGroups(volunteerHead, 'department_head', departments)[0].items.map((i) => i.id),
+    ['applications', 'volunteering', 'qr'],
+  );
+
+  const pressStaff = makeUser({
+    role: 'staff',
+    departmentId: 'dept-press',
+    title: 'Press Reporter',
+    permissions: resolveUserPermissions('staff'),
+  });
+  const mediaEbHead = makeUser({
+    role: 'executive_board',
+    departmentId: 'dept-media',
+    division: 'Female Division',
+    title: 'Head of Media (Female)',
+    ebRank: 'head',
+    permissions: resolveUserPermissions('executive_board', null, 'head', {}, 'Head of Media (Female)'),
+  });
+  assert.equal(canViewDepartmentQr(pressStaff, 'press_media', departments), true);
+  assert.equal(canViewDepartmentQr(pressStaff, 'volunteers', departments), false);
+  assert.equal(hasPermission(pressStaff, 'qr.manage', departments), false);
+  assert.equal(canViewDepartmentQr(mediaEbHead, 'press_media', departments), true);
+  assert.equal(canViewDepartmentQr(mediaEbHead, 'volunteers', departments), false);
+  assert.equal(hasPermission(mediaEbHead, 'qr.manage', departments), false);
+  assert.deepEqual(
+    getNavigationGroups(mediaEbHead, 'department_head', departments)[0].items.map((i) => i.id),
+    ['applications', 'press-media', 'qr'],
+  );
+
+  const securityStaff = makeUser({
+    role: 'staff',
+    departmentId: 'dept-sec',
+    title: 'Security Gate Officer',
+    permissions: resolveUserPermissions('staff'),
+  });
+  assert.equal(canViewDepartmentQr(securityStaff, 'security', departments), true);
+  assert.equal(hasPermission(securityStaff, 'qr.scan', departments), true);
+  assert.equal(hasPermission(securityStaff, 'qr.manage', departments), false);
+
+  const securityNoPassPerm = makeUser({
+    role: 'staff',
+    departmentId: 'dept-sec',
+    title: 'Security Gate Officer',
+    permissions: resolveUserPermissions('staff', { 'qr.view_pass': false }),
+  });
+  assert.equal(canViewDepartmentQr(securityNoPassPerm, 'security', departments), false);
+  assert.equal(hasPermission(securityNoPassPerm, 'qr.scan', departments), true);
+
+  const hrHead = makeUser({
+    role: 'department_head',
+    departmentId: 'dept-hr',
+    title: 'Head of HR',
+    permissions: resolveUserPermissions('department_head'),
+  });
+  assert.equal(canViewDepartmentQr(hrHead, 'volunteers', departments), false);
+  assert.equal(canViewDepartmentQr(hrHead, 'press_media', departments), false);
+  assert.equal(canViewDepartmentQr(hrHead, 'security', departments), false);
+
+  const admin = makeUser({ role: 'admin', permissions: { ...ADMIN_DEFAULT_PERMISSIONS } });
+  assert.equal(canViewDepartmentQr(admin, 'volunteers', departments), true);
+  assert.equal(canViewDepartmentQr(admin, 'press_media', departments), true);
+  assert.equal(canViewDepartmentQr(admin, 'security', departments), true);
+  assert.equal(hasPermission(admin, 'qr.manage', departments), true);
+});
+
 
 
 

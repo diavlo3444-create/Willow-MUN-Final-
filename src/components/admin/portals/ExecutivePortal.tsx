@@ -6,6 +6,7 @@ import {
   canAccessEmailsDashboard,
   canAccessPortal,
   canManageAccountsOrRoles,
+  canViewDepartmentQr,
   hasPermission,
   isHrActor,
 } from '../../../utils/adminPermissions';
@@ -260,7 +261,7 @@ const SECTION_META: Record<string, { title: string; subtitle: string }> = {
 };
 
 export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePortalProps) {
-  const { currentUser, recordSecurityViolation } = useAdminStore();
+  const { currentUser, data, recordSecurityViolation } = useAdminStore();
 
   const [globalSearch, setGlobalSearch] = useState('');
   const [appFilterDept, setAppFilterDept] = useState<string>('all');
@@ -567,11 +568,24 @@ export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePorta
       ) : section === 'testing' ? (
         <DepartmentTestingView />
       ) : section === 'press-media' ? (
-        <DepartmentQrSectionView section="press_media" />
+        canViewDepartmentQr(currentUser, 'press_media', data.departments) ? (
+          <DepartmentQrSectionView section="press_media" />
+        ) : (
+          renderDenied('Your account lacks permission to view Press & Media QR codes.')
+        )
       ) : section === 'volunteering' ? (
-        <DepartmentQrSectionView section="volunteers" />
+        canViewDepartmentQr(currentUser, 'volunteers', data.departments) ? (
+          <DepartmentQrSectionView section="volunteers" />
+        ) : (
+          renderDenied('Your account lacks permission to view Volunteering QR codes.')
+        )
       ) : section === 'security' ? (
-        <DepartmentQrSectionView section="security" autoStartCamera />
+        canViewDepartmentQr(currentUser, 'security', data.departments) ||
+        hasPermission(currentUser, 'qr.scan', data.departments) ? (
+          <DepartmentQrSectionView section="security" autoStartCamera />
+        ) : (
+          renderDenied('Your account lacks permission to access the Security QR section.')
+        )
       ) : (
         <OverviewDashboardView
           onFilterApplications={navigateFilteredApps}
