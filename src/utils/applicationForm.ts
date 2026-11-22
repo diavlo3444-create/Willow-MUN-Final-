@@ -361,11 +361,6 @@ export function validateStep(
       if (draft.cameraModel.trim().length < 2) {
         errors.cameraModel = 'Please enter the camera model or equipment you will use.';
       }
-      if (draft.mediaPhotos.length < 10) {
-        errors.mediaPhotos = `Please upload at least 10 photography examples (${draft.mediaPhotos.length} of 10–15 uploaded).`;
-      } else if (draft.mediaPhotos.length > 15) {
-        errors.mediaPhotos = 'You can upload up to 15 photography examples maximum.';
-      }
     }
 
     if ((track === 'media' || track === 'press') && !isValidOptionalUrl(draft.portfolio_url)) {
