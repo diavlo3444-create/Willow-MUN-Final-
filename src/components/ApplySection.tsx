@@ -977,6 +977,15 @@ export function ApplySection() {
                     {/* STEP 1: PERSONAL INFORMATION */}
                     {step === 1 && (
                       <div key={`${selectedTrack}-step1`} className="mun-step-enter space-y-5">
+                        <div className="rounded-[3px] border border-[#c9a85b]/35 bg-[#211d10]/80 p-4 text-xs leading-6 text-[#c9c2a6]">
+                          <p className="font-semibold text-[#ede6ca]">Before you apply — privacy notice</p>
+                          <p className="mt-1">
+                            This form requests contact details, school information, guardian contact details, application answers, and supporting files. The Security application also asks about allergies; other medical information may be requested. Submit only information necessary for your application, and do not upload identity documents or unrelated sensitive information.
+                          </p>
+                          <p className="mt-2">
+                            Please read the <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-[#a9b47e] underline underline-offset-4">Privacy Notice</a> and <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-[#a9b47e] underline underline-offset-4">Application Terms</a>. If you are under 18, involve your parent or legal guardian before submitting.
+                          </p>
+                        </div>
                         <div>
                           <span className="mb-2 block text-xs font-medium text-[#c9c2a6]">
                             Application Track
