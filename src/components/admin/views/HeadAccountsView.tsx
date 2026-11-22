@@ -341,6 +341,7 @@ export function HeadAccountsView() {
                             <UserPlus className="h-3 w-3" aria-hidden="true" />
                             {busy ? 'Creating…' : 'Create login & invite'}
                           </button>
+                          </>
                         ) : (
                           <>
                             <button
