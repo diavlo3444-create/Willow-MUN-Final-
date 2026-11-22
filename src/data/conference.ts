@@ -1,6 +1,6 @@
 /**
  * Central Willow MUN conference configuration.
- * All unannounced conference details are intentionally marked "TBA".
+ * Conference dates are confirmed; venue and other unannounced details remain marked "TBA".
  */
 
 export interface CommitteeItem {
@@ -149,9 +149,9 @@ export const CONFERENCE_DATA = {
       },
       {
         id: 'conference-dates',
-        badge: 'TBA',
+        badge: 'March 18, 19 & 20, 2027',
         title: 'Conference Dates',
-        summary: 'Official conference dates, venue confirmation, and full itinerary are to be announced.',
+        summary: 'Willow MUN takes place March 18, 19, and 20, 2027, in Riyadh, Saudi Arabia. Venue details and the full itinerary will be announced separately.',
       },
     ] satisfies UpdateEntry[],
   },
