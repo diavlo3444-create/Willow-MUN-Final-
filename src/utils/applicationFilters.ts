@@ -92,6 +92,108 @@ export function scopeAcceptedApplicationsForHr(
     .sort((a, b) => (b.finalDecisionAt || b.updatedAt || b.submittedAt).localeCompare(a.finalDecisionAt || a.updatedAt || a.submittedAt));
 }
 
+export function normalizeHeadRecommendation(value: unknown): RecommendationDecision {
+  const clean = String(value ?? '').trim().toLowerCase();
+  if (clean === 'recommend_accept') return 'recommend_accept';
+  if (clean === 'recommend_reject') return 'recommend_reject';
+  return 'none';
+}
+
+export function canViewHeadRecommended(
+  actor: AdminUser | null | undefined,
+  departments?: Department[],
+): boolean {
+  return (
+    actor !== null &&
+    actor !== undefined &&
+    actor.isActive &&
+    actor.status === 'active' &&
+    (actor.role === 'super_admin' || actor.role === 'admin') &&
+    hasPermission(actor, 'applications.view', departments) &&
+    hasPermission(actor, 'applications.review', departments)
+  );
+}
+
+export function isHeadRecommendedApplication(app: Application): boolean {
+  const rec = normalizeHeadRecommendation(app.headRecommendation);
+  return rec === 'recommend_accept' || rec === 'recommend_reject';
+}
+
+export function filterHeadRecommendedApplications(
+  applications: Application[],
+  options: {
+    search?: string;
+    recommendation?: 'all' | 'recommend_accept' | 'recommend_reject';
+    status?: ApplicationStatus | 'all';
+    departmentId?: string;
+  } = {},
+  departments?: Department[],
+): Application[] {
+  const deduped = new Map<string, Application>();
+  for (const app of applications) {
+    if (!app?.id || deduped.has(app.id)) continue;
+    deduped.set(app.id, app);
+  }
+
+  const query = (options.search ?? '').trim().toLowerCase();
+  const recFilter =
+    options.recommendation && options.recommendation !== 'all' ? options.recommendation : null;
+  const statusFilter = options.status && options.status !== 'all' ? options.status : null;
+  const rawDept = options.departmentId && options.departmentId !== 'all' ? options.departmentId : null;
+  const matchedDept =
+    rawDept && departments?.length
+      ? departments.find(
+          (d) =>
+            d.id === rawDept ||
+            normalizeDepartmentSlug(d.slug) === normalizeDepartmentSlug(rawDept),
+        )
+      : null;
+  const targetDeptSlug = matchedDept
+    ? normalizeDepartmentSlug(matchedDept.slug)
+    : rawDept
+      ? normalizeDepartmentSlug(rawDept)
+      : null;
+
+  return Array.from(deduped.values())
+    .filter(isHeadRecommendedApplication)
+    .filter((app) => {
+      if (recFilter && app.headRecommendation !== recFilter) return false;
+      if (statusFilter && app.status !== statusFilter) return false;
+      if (rawDept) {
+        const appDeptNorm = normalizeDepartmentSlug(app.departmentId);
+        const appTypeNorm = normalizeDepartmentSlug(app.applicationType || app.category);
+        const matchesDept =
+          app.departmentId === rawDept ||
+          (targetDeptSlug !== null &&
+            (appDeptNorm === targetDeptSlug || appTypeNorm === targetDeptSlug));
+        if (!matchesDept) return false;
+      }
+      if (query) {
+        const hay = [
+          app.applicantName,
+          app.email,
+          app.applicationCode,
+          app.applicationType || '',
+          app.category,
+          app.position,
+          app.departmentId,
+          app.recommendedByName || '',
+          app.schoolOrUniversity || '',
+        ]
+          .join(' ')
+          .toLowerCase();
+        if (!hay.includes(query)) return false;
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      const aTime = a.recommendedAt || a.updatedAt || a.submittedAt;
+      const bTime = b.recommendedAt || b.updatedAt || b.submittedAt;
+      const cmp = bTime.localeCompare(aTime);
+      return cmp !== 0 ? cmp : a.id.localeCompare(b.id);
+    });
+}
+
 export function filterAndSortApplications(
   applications: Application[],
   actor: AdminUser | null | undefined,

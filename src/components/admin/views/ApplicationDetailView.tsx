@@ -381,9 +381,12 @@ export function ApplicationDetailView({
               <RecommendationBadge decision={application.headRecommendation} />
             </div>
 
-            {application.recommendedBy && (
+            {(application.recommendedByName || application.recommendedBy) && (
               <p className="text-xs text-[color:var(--wm-ink-secondary)]">
-                Reviewed by <strong className="text-[color:var(--wm-ink)]">{application.recommendedBy}</strong>{' '}
+                Reviewed by{' '}
+                <strong className="text-[color:var(--wm-ink)]">
+                  {application.recommendedByName || application.recommendedBy}
+                </strong>{' '}
                 on{' '}
                 <span className="font-mono">
                   {new Date(application.recommendedAt ?? application.updatedAt).toLocaleDateString()}

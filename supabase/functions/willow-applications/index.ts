@@ -585,6 +585,35 @@ Deno.serve(async (req: Request) => {
     });
   }
 
+  async function enrichRecommenderNames(rows: any[]) {
+    if (!rows.length) return rows;
+    const missingUserIds = Array.from(
+      new Set(
+        rows
+          .filter((row) => row.recommended_by && !String(row.recommended_by_name || "").trim())
+          .map((row) => String(row.recommended_by)),
+      ),
+    );
+    if (missingUserIds.length === 0) return rows;
+    const { data: profiles } = await admin
+      .from("wm_profiles")
+      .select("user_id,full_name")
+      .in("user_id", missingUserIds);
+    const nameMap = new Map<string, string>();
+    for (const p of profiles || []) {
+      if (p.user_id && p.full_name) nameMap.set(String(p.user_id), String(p.full_name));
+    }
+    return rows.map((row) => {
+      if (row.recommended_by && !String(row.recommended_by_name || "").trim()) {
+        const resolvedName = nameMap.get(String(row.recommended_by));
+        if (resolvedName) {
+          return { ...row, recommended_by_name: resolvedName };
+        }
+      }
+      return row;
+    });
+  }
+
   // Generate short-lived signed URLs for applicant attachments after verifying strict authorization
   if (action === "sign_files") {
     const applicationId = String(body?.application_id || "").trim();
@@ -671,14 +700,41 @@ Deno.serve(async (req: Request) => {
     return json({ applications: enriched });
   }
 
+  if (action === "head_recommended") {
+    const canAdminReview =
+      isSuperAdmin ||
+      (actor.role === "admin" &&
+        actorPerms["applications.view"] !== false &&
+        actorPerms["applications.review"] !== false);
+    if (!canAdminReview) {
+      return json(
+        { error: "Only authorized Administrators can view cross-department Head recommendations." },
+        403,
+      );
+    }
+    const { data: rows, error } = await admin
+      .from("wm_applications")
+      .select("*")
+      .in("head_recommendation", ["recommend_accept", "recommend_reject"])
+      .order("created_at", { ascending: false });
+    if (error) return json({ error: error.message }, 400);
+    const withNames = await enrichRecommenderNames(rows || []);
+    const enriched = await enrichRowsWithConfidentialMedical(withNames);
+    return json({ applications: enriched });
+  }
+
   if (action === "list") {
     if (isAdmin) {
+      if (!isSuperAdmin && actorPerms["applications.view"] === false) {
+        return json({ error: "You do not have permission to view applications." }, 403);
+      }
       const { data: rows, error } = await admin
         .from("wm_applications")
         .select("*")
         .order("created_at", { ascending: false });
       if (error) return json({ error: error.message }, 400);
-      const enriched = await enrichRowsWithConfidentialMedical(rows || []);
+      const withNames = await enrichRecommenderNames(rows || []);
+      const enriched = await enrichRowsWithConfidentialMedical(withNames);
       return json({ applications: enriched });
     }
 
@@ -804,7 +860,10 @@ Deno.serve(async (req: Request) => {
         );
     }
 
-    const [enriched] = await enrichRowsWithConfidentialMedical([{ ...updated, department_id: appDept }]);
+    const [withRecommender] = await enrichRecommenderNames([
+      { ...updated, department_id: appDept },
+    ]);
+    const [enriched] = await enrichRowsWithConfidentialMedical([withRecommender]);
     return json({ application: enriched });
   }
 

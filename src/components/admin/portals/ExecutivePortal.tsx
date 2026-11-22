@@ -18,6 +18,7 @@ import { ApplicationManagementView } from '../views/ApplicationManagementView';
 import { ApplicationsView } from '../views/ApplicationsView';
 import { CommitteesManagementView } from '../views/CommitteesManagementView';
 import { HrAcceptedApplicantsView } from '../views/HrAcceptedApplicantsView';
+import { HeadRecommendedView } from '../views/HeadRecommendedView';
 import { LiveStaffAccountsView } from '../views/LiveStaffAccountsView';
 import { LiveApplicationsView } from '../views/LiveApplicationsView';
 import {
@@ -77,7 +78,7 @@ const SECTION_META: Record<string, { title: string; subtitle: string }> = {
   },
   recommendations: {
     title: 'Head-Approved Applicants',
-    subtitle: 'Review applicants recommended for acceptance by Department Heads. Make the final Accept or Decline decision here.',
+    subtitle: 'Review applicants recommended for acceptance or rejection by Department Heads. Make the final Accept or Decline decision here.',
   },
   forms: {
     title: 'Application Form Builder',
@@ -420,13 +421,27 @@ export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePorta
         ) : (
           renderDenied('Your account lacks applications.view permission.')
         )
-      ) : section === 'delegates' || section === 'recommendations' ? (
+      ) : section === 'recommendations' ? (
+        (currentUser.role === 'super_admin' || currentUser.role === 'admin') &&
+        hasPermission(currentUser, 'applications.view') &&
+        hasPermission(currentUser, 'applications.review') ? (
+          <HeadRecommendedView
+            selectedId={paramId}
+            externalSearch={globalSearch}
+            onSelectApplication={(appId) =>
+              onNavigate(appId ? `${basePath}/recommendations/${appId}` : `${basePath}/recommendations`)
+            }
+          />
+        ) : (
+          renderDenied('Head Recommended applications are restricted to authorized Admin and Super Admin accounts.')
+        )
+      ) : section === 'delegates' ? (
         hasPermission(currentUser, 'applications.view') ? (
           <ApplicationsView
             key={`${section}-${appFilterDept}-${appFilterStatus}`}
-            viewMode={section === 'delegates' ? 'delegate' : 'recommendations'}
+            viewMode="delegate"
             initialDepartmentFilter="all"
-            initialStatusFilter={section === 'recommendations' ? 'pending' : 'all'}
+            initialStatusFilter="all"
             externalSearch={globalSearch}
             selectedApplicationIdFromRoute={null}
             onSelectApplicationId={(appId) =>

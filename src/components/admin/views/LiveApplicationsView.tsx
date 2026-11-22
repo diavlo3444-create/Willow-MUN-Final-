@@ -144,7 +144,7 @@ export function LiveApplicationsView({
         ) : !active ? (
           <p className="text-sm text-[color:var(--wm-ink-secondary)]">Application not found.</p>
         ) : (
-          <ApplicationCard
+          <LiveApplicationDossierCard
             app={active}
             actor={effectiveActor}
             busy={busyId === active.id}
@@ -290,7 +290,7 @@ export function LiveApplicationsView({
                   <summary className="cursor-pointer text-xs text-[color:var(--wm-accent)]">
                     View full dossier, attachments &amp; review
                   </summary>
-                  <ApplicationCard
+                  <LiveApplicationDossierCard
                     app={app}
                     actor={effectiveActor}
                     busy={busyId === app.id}
@@ -308,7 +308,7 @@ export function LiveApplicationsView({
   );
 }
 
-function ApplicationCard({
+export function LiveApplicationDossierCard({
   app,
   actor,
   busy,

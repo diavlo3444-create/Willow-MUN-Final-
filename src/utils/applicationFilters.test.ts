@@ -8,9 +8,13 @@ import {
 } from './adminPermissions';
 import {
   buildApplicationsCsv,
+  canViewHeadRecommended,
   computeApplicationStats,
   computeDailyApplicationTrend,
   filterAndSortApplications,
+  filterHeadRecommendedApplications,
+  isHeadRecommendedApplication,
+  normalizeHeadRecommendation,
   paginateItems,
   scopeAcceptedApplicationsForHr,
   scopeApplicationsForActor,
@@ -260,4 +264,181 @@ test('scopeApplicationsForActor and scopeAcceptedApplicationsForHr resolve UUID 
   assert.equal(hrAcceptedFiltered.length, 1);
   assert.equal(hrAcceptedFiltered[0].id, '2');
 });
+
+test('normalizeHeadRecommendation normalizes case/whitespace and falls back to none', () => {
+  assert.equal(normalizeHeadRecommendation('recommend_accept'), 'recommend_accept');
+  assert.equal(normalizeHeadRecommendation('  RECOMMEND_ACCEPT '), 'recommend_accept');
+  assert.equal(normalizeHeadRecommendation('recommend_reject'), 'recommend_reject');
+  assert.equal(normalizeHeadRecommendation('Recommend_Reject'), 'recommend_reject');
+  assert.equal(normalizeHeadRecommendation('none'), 'none');
+  assert.equal(normalizeHeadRecommendation(''), 'none');
+  assert.equal(normalizeHeadRecommendation(null), 'none');
+  assert.equal(normalizeHeadRecommendation(undefined), 'none');
+  assert.equal(normalizeHeadRecommendation('accepted'), 'none');
+});
+
+test('canViewHeadRecommended strictly authorizes active Admin/Super Admin with review permissions', () => {
+  assert.equal(canViewHeadRecommended(superActor), true);
+  assert.equal(canViewHeadRecommended(adminActor), true);
+  assert.equal(
+    canViewHeadRecommended({
+      ...adminActor,
+      permissions: { ...adminActor.permissions, 'applications.review': false },
+    }),
+    false,
+  );
+  assert.equal(
+    canViewHeadRecommended({
+      ...adminActor,
+      permissions: { ...adminActor.permissions, 'applications.view': false },
+    }),
+    false,
+  );
+  assert.equal(canViewHeadRecommended({ ...adminActor, isActive: false }), false);
+  assert.equal(canViewHeadRecommended(headHrActor), false);
+  assert.equal(canViewHeadRecommended(headMediaFemaleActor), false);
+  assert.equal(canViewHeadRecommended(null), false);
+});
+
+test('filterHeadRecommendedApplications includes both accept/reject and all statuses without dropping pending', () => {
+  const depts: Department[] = [
+    {
+      id: 'dept-media-uuid',
+      slug: 'media-press',
+      name: 'Media & Press',
+      cluster: 'Communications & Creative',
+      description: '',
+      headUserIds: [],
+      registrationOpen: true,
+      capacity: 10,
+      positions: [],
+      instructions: '',
+      updatedAt: '',
+    },
+    {
+      id: 'dept-sec-uuid',
+      slug: 'security',
+      name: 'Security',
+      cluster: 'Delegate Affairs & Operations',
+      description: '',
+      headUserIds: [],
+      registrationOpen: true,
+      capacity: 10,
+      positions: [],
+      instructions: '',
+      updatedAt: '',
+    },
+  ];
+
+  const appPendingAccept: Application = {
+    ...makeSampleApp('rec-1', 'media-press', 'media', 'pending', '2027-11-10T10:00:00Z', 'female'),
+    applicationType: 'media',
+    headRecommendation: 'recommend_accept',
+    recommendedBy: 'head-media-1',
+    recommendedByName: 'Sara Media Head',
+    recommendedAt: '2027-11-18T09:00:00Z',
+  };
+
+  const appPendingReject: Application = {
+    ...makeSampleApp('rec-2', 'security', 'security', 'pending', '2027-11-10T11:00:00Z', 'male'),
+    applicationType: 'security',
+    headRecommendation: 'recommend_reject',
+    recommendedBy: 'head-sec-1',
+    recommendedByName: 'Omar Security Head',
+    recommendedAt: '2027-11-19T12:00:00Z',
+  };
+
+  const appAccepted: Application = {
+    ...makeSampleApp('rec-3', 'volunteers', 'volunteer', 'accepted', '2027-11-09T10:00:00Z', 'female'),
+    applicationType: 'volunteer',
+    headRecommendation: 'recommend_accept',
+    recommendedBy: 'head-vol-1',
+    recommendedByName: 'Lina Volunteers Head',
+    recommendedAt: '2027-11-17T08:00:00Z',
+  };
+
+  const appWaitlistedReject: Application = {
+    ...makeSampleApp('rec-4', 'media-press', 'press', 'waitlisted', '2027-11-08T10:00:00Z', 'male'),
+    applicationType: 'press',
+    headRecommendation: 'recommend_reject',
+    recommendedBy: 'head-press-1',
+    recommendedByName: 'Tariq Press Head',
+    recommendedAt: '2027-11-20T15:30:00Z',
+  };
+
+  const appNoRec: Application = {
+    ...makeSampleApp('no-rec', 'security', 'security', 'pending', '2027-11-15T10:00:00Z', 'male'),
+    headRecommendation: 'none',
+  };
+
+  assert.equal(isHeadRecommendedApplication(appPendingAccept), true);
+  assert.equal(isHeadRecommendedApplication(appPendingReject), true);
+  assert.equal(isHeadRecommendedApplication(appNoRec), false);
+
+  const combined = [
+    appPendingAccept,
+    appPendingReject,
+    appPendingAccept, // duplicate id must be deduplicated
+    appAccepted,
+    appWaitlistedReject,
+    appNoRec,
+  ];
+
+  const allDefault = filterHeadRecommendedApplications(combined, {}, depts);
+  assert.deepEqual(
+    allDefault.map((a) => a.id),
+    ['rec-4', 'rec-2', 'rec-1', 'rec-3'],
+  );
+
+  const onlyAccept = filterHeadRecommendedApplications(
+    combined,
+    { recommendation: 'recommend_accept' },
+    depts,
+  );
+  assert.deepEqual(
+    onlyAccept.map((a) => a.id),
+    ['rec-1', 'rec-3'],
+  );
+
+  const onlyReject = filterHeadRecommendedApplications(
+    combined,
+    { recommendation: 'recommend_reject' },
+    depts,
+  );
+  assert.deepEqual(
+    onlyReject.map((a) => a.id),
+    ['rec-4', 'rec-2'],
+  );
+
+  const byDeptUuid = filterHeadRecommendedApplications(
+    combined,
+    { departmentId: 'dept-media-uuid' },
+    depts,
+  );
+  assert.deepEqual(
+    byDeptUuid.map((a) => a.id),
+    ['rec-4', 'rec-1'],
+  );
+
+  const byRecommenderName = filterHeadRecommendedApplications(
+    combined,
+    { search: 'Omar Security' },
+    depts,
+  );
+  assert.deepEqual(
+    byRecommenderName.map((a) => a.id),
+    ['rec-2'],
+  );
+
+  const byStatus = filterHeadRecommendedApplications(
+    combined,
+    { status: 'accepted' },
+    depts,
+  );
+  assert.deepEqual(
+    byStatus.map((a) => a.id),
+    ['rec-3'],
+  );
+});
+
 

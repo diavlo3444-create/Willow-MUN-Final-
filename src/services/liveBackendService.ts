@@ -18,6 +18,12 @@ import {
   isHrActor,
 } from '../utils/adminPermissions';
 import { decodeLegacyExperienceMeta } from '../utils/applicationForm';
+import {
+  canViewHeadRecommended,
+  isHeadRecommendedApplication,
+  normalizeHeadRecommendation,
+} from '../utils/applicationFilters';
+export { normalizeHeadRecommendation };
 import { conferenceDataService } from './mockDataService';
 
 async function getQrInvokeError(error: any, data: any, fallback: string): Promise<string> {
@@ -254,7 +260,7 @@ export function mapLiveRowToApplication(
     status: row.status,
     submittedAt: row.created_at,
     updatedAt: row.updated_at || row.decision_at || row.created_at,
-    headRecommendation: row.head_recommendation || 'none',
+    headRecommendation: normalizeHeadRecommendation(row.head_recommendation),
     headNotes: row.head_notes || '',
     recommendedBy: row.recommended_by || null,
     recommendedByName: row.recommended_by_name || null,
@@ -455,6 +461,77 @@ export async function fetchHrAcceptedApplications(
   return {
     applications: [],
     error: data?.error || error?.message || 'Could not load accepted applicants feed.',
+  };
+}
+
+export async function fetchHeadRecommendedApplications(
+  actor: AdminUser | null | undefined,
+  departments?: Department[],
+): Promise<{ applications: Application[]; error?: string }> {
+  if (!canViewHeadRecommended(actor, departments)) {
+    return {
+      applications: [],
+      error: 'Only authorized Admin or Super Admin accounts can view cross-department Head recommendations.',
+    };
+  }
+
+  const dedupeAndFilter = (rows: LiveApplicationRow[]): Application[] => {
+    const map = new Map<string, Application>();
+    for (const row of rows) {
+      if (!row?.id || map.has(row.id)) continue;
+      const mapped = mapLiveRowToApplication(row, actor, departments);
+      if (isHeadRecommendedApplication(mapped)) {
+        map.set(mapped.id, mapped);
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => {
+      const aTime = a.recommendedAt || a.updatedAt || a.submittedAt;
+      const bTime = b.recommendedAt || b.updatedAt || b.submittedAt;
+      const cmp = bTime.localeCompare(aTime);
+      return cmp !== 0 ? cmp : a.id.localeCompare(b.id);
+    });
+  };
+
+  let primaryError = '';
+  try {
+    const { data, error } = await supabase.functions.invoke('willow-applications', {
+      body: { action: 'list' },
+    });
+    if (!error && data && !data.error && Array.isArray(data.applications)) {
+      return { applications: dedupeAndFilter(data.applications as LiveApplicationRow[]) };
+    }
+    primaryError = String(data?.error || error?.message || '');
+  } catch (err: any) {
+    primaryError = err?.message || 'Could not reach applications service.';
+  }
+
+  // Fallback to RLS-enforced direct table query for authorized Admin / Super Admin only (never mock data)
+  try {
+    const { data: rows, error: tableError } = await supabase
+      .from('wm_applications')
+      .select('*')
+      .in('head_recommendation', ['recommend_accept', 'recommend_reject'])
+      .order('created_at', { ascending: false });
+
+    if (!tableError && Array.isArray(rows)) {
+      return { applications: dedupeAndFilter(rows as LiveApplicationRow[]) };
+    }
+    if (tableError) {
+      return {
+        applications: [],
+        error: primaryError || tableError.message || 'Could not load Head recommended applications.',
+      };
+    }
+  } catch (err: any) {
+    return {
+      applications: [],
+      error: primaryError || err?.message || 'Could not load Head recommended applications.',
+    };
+  }
+
+  return {
+    applications: [],
+    error: primaryError || 'Could not load Head recommended applications from the server.',
   };
 }
 
