@@ -1210,8 +1210,17 @@ export async function fetchDepartmentQrPasses(
   error?: string;
 }> {
   try {
+    const departmentSlugBySection: Record<DepartmentQrSectionKey, string> = {
+      press_media: 'media',
+      volunteers: 'volunteers',
+      security: 'security',
+    };
     const { data, error } = await supabase.functions.invoke('willow-qr', {
-      body: { action: 'department_passes', section },
+      body: {
+        action: 'department_passes',
+        section,
+        department_slug: departmentSlugBySection[section],
+      },
     });
 
     if (!error && data && !data.error && Array.isArray(data.passes)) {
