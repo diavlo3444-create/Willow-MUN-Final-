@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import {
   ArrowRight,
@@ -9,6 +9,8 @@ import {
   XCircle,
 } from 'lucide-react';
 import { useAdminStore } from '../../../context/AdminStoreContext';
+import { supabase } from '../../../lib/supabase';
+import { mapLiveRowToApplication, type LiveApplicationRow } from '../../../services/liveBackendService';
 import type { ApplicationStatus } from '../../../types/admin';
 import { computeApplicationStats, scopeApplicationsForActor } from '../../../utils/applicationFilters';
 import { StatusBadge } from '../StatusBadge';
@@ -23,9 +25,27 @@ export function OverviewDashboardView({
   onSelectApplication,
 }: OverviewDashboardViewProps) {
   const { data, currentUser } = useAdminStore();
+  const [liveApplications, setLiveApplications] = useState<ReturnType<typeof mapLiveRowToApplication>[] | null>(null);
+  const [liveLoadError, setLiveLoadError] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const loadLiveApplications = async () => {
+      setLiveLoadError(null);
+      const { data: response, error } = await supabase.functions.invoke('willow-applications', { body: { action: 'list' } });
+      if (cancelled) return;
+      if (error || response?.error || !Array.isArray(response?.applications)) {
+        setLiveLoadError(error?.message || response?.error || 'Unable to load live applications.');
+        setLiveApplications(null);
+        return;
+      }
+      setLiveApplications((response.applications as LiveApplicationRow[]).map((row) => mapLiveRowToApplication(row, currentUser, data.departments)));
+    };
+    void loadLiveApplications();
+    return () => { cancelled = true; };
+  }, [currentUser, data.departments]);
   const applications = useMemo(
-    () => scopeApplicationsForActor(data.applications, currentUser),
-    [data.applications, currentUser],
+    () => scopeApplicationsForActor(liveApplications ?? data.applications, currentUser, data.departments),
+    [liveApplications, data.applications, currentUser, data.departments],
   );
   const stats = useMemo(() => computeApplicationStats(applications), [applications]);
   const recent = useMemo(
@@ -73,6 +93,7 @@ export function OverviewDashboardView({
 
   return (
     <div className="space-y-5">
+      {liveLoadError && <div role="alert" className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">Live application data could not be loaded: {liveLoadError}. Showing local fallback data.</div>}
       <section className="flex flex-col gap-3 border-b border-[color:var(--wm-hairline)] pb-5 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-[color:var(--wm-accent)]">
