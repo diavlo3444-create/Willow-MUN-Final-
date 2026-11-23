@@ -47,51 +47,50 @@ import { RevealSection, SectionHeading } from './RevealSection';
 
 async function extractFunctionError(error: unknown): Promise<string | null {
   if (!error || typeof error !== 'object') return null;
-  const record = error as Record<string, unknown>;
-  const context = record.context;
+  const context = (error as { context?: unknown }).context;
 
-  const parsePayload = (raw: unknown): string | null => {
-    if (typeof raw === 'string') {
-      const trimmed = raw.trim();
-      if (!trimmed) return null;
-      try {
-        const parsed = JSON.parse(trimmed) as Record<string, unknown>;
-        const message = parsed?.error ?? parsed?.message ?? parsed?.details;
-        if (typeof message === 'string' && message.trim()) return message.trim();
-      } catch { /* plain text response */ }
-      return trimmed.slice(0, 500);
-    }
-    if (raw && typeof raw === 'object') {
-      const payload = raw as Record<string, unknown>;
-      for (const key of ['error', 'message', 'details', 'hint']) {
-        const value = payload[key];
-        if (typeof value === 'string' && value.trim()) return value.trim();
-      }
+  const extractPayloadMessage = (payload: unknown): string | null => {
+    if (!payload || typeof payload !== 'object') return null;
+    const record = payload as { error?: unknown; message?: unknown; details?: unknown; hint?: unknown };
+    for (const candidate of [record.error, record.message, record.details, record.hint]) {
+      if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
     }
     return null;
   };
 
-  if (context instanceof Response) {
-    try {
-      const bodyText = await context.clone().text();
-      const parsed = parsePayload(bodyText);
-      if (parsed) return parsed;
-      if (!context.ok) return `Submission failed (HTTP ${context.status}). Please check the required fields and try again.`;
-    } catch { /* response body unavailable */ }
-  } else {
-    const parsedContext = parsePayload(context);
-    if (parsedContext) return parsedContext;
-  }
-
-  for (const key of ['details', 'hint', 'message']) {
-    const value = record[key];
-    if (typeof value === 'string' && value.trim() && !value.toLowerCase().includes('non-2xx')) {
-      return value.trim();
+  if (context && typeof context === 'object') {
+    const responseLike = context as { clone?: () => unknown; json?: () => Promise<unknown>; text?: () => Promise<string> };
+    const clone = typeof responseLike.clone === 'function' ? responseLike.clone() as typeof responseLike : responseLike;
+    if (typeof clone.json === 'function') {
+      try {
+        const payload = await clone.json();
+        const message = extractPayloadMessage(payload);
+        if (message) return message;
+      } catch {
+        // Try text below when the response body isn't JSON.
+      }
+    }
+    if (typeof responseLike.text === 'function') {
+      try {
+        const raw = await (typeof responseLike.clone === 'function'
+          ? (responseLike.clone() as typeof responseLike).text?.()
+          : responseLike.text());
+        if (raw && raw.trim()) {
+          try {
+            const message = extractPayloadMessage(JSON.parse(raw));
+            if (message) return message;
+          } catch {
+            return raw.trim().slice(0, 500);
+          }
+        }
+      } catch {
+        // Fall through to SDK error message.
+      }
     }
   }
 
-  const status = typeof record.status === 'number' ? record.status : null;
-  return status ? `Submission failed (HTTP ${status}). Please check the required fields and try again.` : null;
+  const message = (error as { message?: unknown }).message;
+  return typeof message === 'string' && message.trim() ? message.trim() : null;
 }
 
 interface TrackConfig {
