@@ -9,6 +9,7 @@ import {
   canAccessPortal,
   canDispatchEmails,
   canManageAccountsOrRoles,
+  canOverrideApplicationDecision,
   canReviewFinalDecision,
   canSubmitRecommendation,
   canViewDepartmentQr,
@@ -793,6 +794,42 @@ test('Volunteering, Press & Media, and Security staff and heads view own departm
   assert.equal(canViewDepartmentQr(admin, 'security', departments), true);
   assert.equal(hasPermission(admin, 'qr.manage', departments), true);
 });
+
+test('Super Admin decision override permission strictly checks active super_admin role (never title)', () => {
+  const superAdmin = makeUser({
+    role: 'super_admin',
+    title: 'Director General',
+    permissions: { ...SUPER_ADMIN_PERMISSIONS },
+  });
+  const suspendedSuperAdmin = makeUser({
+    role: 'super_admin',
+    isActive: false,
+    status: 'suspended',
+    permissions: { ...SUPER_ADMIN_PERMISSIONS },
+  });
+  const spoofedTitleAdmin = makeUser({
+    role: 'admin',
+    title: 'Super Admin',
+    permissions: { ...SUPER_ADMIN_PERMISSIONS },
+  });
+  const departmentHead = makeUser({
+    role: 'department_head',
+    title: 'Super Admin',
+    permissions: { ...DEPARTMENT_HEAD_DEFAULT_PERMISSIONS },
+  });
+  const ebUser = makeUser({ role: 'executive_board', title: 'Super Admin' });
+  const staffUser = makeUser({ role: 'staff', title: 'Staff' });
+
+  assert.equal(canOverrideApplicationDecision(superAdmin), true);
+  assert.equal(canOverrideApplicationDecision(suspendedSuperAdmin), false);
+  assert.equal(canOverrideApplicationDecision(spoofedTitleAdmin), false);
+  assert.equal(canOverrideApplicationDecision(departmentHead), false);
+  assert.equal(canOverrideApplicationDecision(ebUser), false);
+  assert.equal(canOverrideApplicationDecision(staffUser), false);
+  assert.equal(canOverrideApplicationDecision(null), false);
+  assert.equal(canOverrideApplicationDecision(undefined), false);
+});
+
 
 
 

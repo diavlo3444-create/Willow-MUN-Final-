@@ -708,6 +708,10 @@ export function canManageAccountsOrRoles(user: AdminUser | null | undefined): bo
   return Boolean(user && user.isActive && user.status === 'active' && user.role === 'super_admin');
 }
 
+export function canOverrideApplicationDecision(user: AdminUser | null | undefined): boolean {
+  return Boolean(user && user.isActive && user.status === 'active' && user.role === 'super_admin');
+}
+
 /**
  * Separates viewing a department's QR codes (Volunteering, Press & Media, Security)
  * from Administrator-only pass registry management (`qr.manage`).

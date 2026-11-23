@@ -391,6 +391,7 @@ export function StaffPortal({ pathname, onNavigate }: StaffPortalProps) {
   const canWorkspace = hasPermission(currentUser, 'departments.workspace', data.departments);
   const canTeams = hasPermission(currentUser, 'operations.teams', data.departments);
   const canShifts = hasPermission(currentUser, 'operations.shifts', data.departments);
+  const canQr = hasPermission(currentUser, 'qr.view_pass', data.departments);
 
   const belongsToDepartment = (itemDepartmentId: string | null | undefined) =>
     Boolean(

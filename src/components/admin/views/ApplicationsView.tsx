@@ -11,10 +11,11 @@ import {
   Eye,
   Link2,
   Search,
+  ShieldAlert,
 } from 'lucide-react';
 import { useAdminStore } from '../../../context/AdminStoreContext';
-import type { ApplicationStatus, RecommendationDecision } from '../../../types/admin';
-import { hasPermission } from '../../../utils/adminPermissions';
+import type { Application, ApplicationStatus, RecommendationDecision } from '../../../types/admin';
+import { canOverrideApplicationDecision, hasPermission } from '../../../utils/adminPermissions';
 import {
   buildApplicationsCsv,
   filterAndSortApplications,
@@ -25,6 +26,7 @@ import {
   type SortField,
 } from '../../../utils/applicationFilters';
 import { ConfirmDialog } from '../ConfirmDialog';
+import { OverrideDecisionModal } from '../OverrideDecisionModal';
 import { RecommendationBadge, StatusBadge } from '../StatusBadge';
 import { ApplicationDetailView } from './ApplicationDetailView';
 
@@ -93,10 +95,9 @@ export function ApplicationsView({
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [modalAppId, setModalAppId] = useState<string | null>(null);
-  const [overrideAppId, setOverrideAppId] = useState<string | null>(null);
-  const [overrideStatus, setOverrideStatus] = useState<ApplicationStatus>('pending');
-  const [overrideReason, setOverrideReason] = useState('');
+  const [overrideTarget, setOverrideTarget] = useState<Application | null>(null);
   const [overrideSaving, setOverrideSaving] = useState(false);
+  const canOverride = canOverrideApplicationDecision(effectiveActor);
   const [bulkConfirm, setBulkConfirm] = useState<{
     status: ApplicationStatus;
     label: string;
@@ -680,17 +681,15 @@ export function ApplicationsView({
                             <Eye className="h-3.5 w-3.5" aria-hidden="true" />
                             <span>Open</span>
                           </button>
-                          {(effectiveActor?.role === 'super_admin' || effectiveActor?.title?.trim().toLowerCase() === 'super admin') && (
+                          {canOverride && (
                             <button
                               type="button"
-                              onClick={() => {
-                                setOverrideAppId(app.id);
-                                setOverrideStatus(app.status);
-                                setOverrideReason('');
-                              }}
-                              className="h-8 rounded border border-amber-400/40 bg-amber-500/10 px-2.5 text-xs font-medium text-amber-200 hover:bg-amber-500/20 cursor-pointer"
+                              data-testid={`override-btn-${app.id}`}
+                              onClick={() => setOverrideTarget(app)}
+                              className="inline-flex h-8 items-center gap-1 rounded border border-amber-400/45 bg-amber-500/15 px-2.5 text-xs font-semibold text-amber-200 hover:bg-amber-500/25 cursor-pointer"
                             >
-                              Override
+                              <ShieldAlert className="h-3.5 w-3.5" aria-hidden="true" />
+                              <span>Override</span>
                             </button>
                           )}
                           {canReview && app.status !== 'accepted' && (
@@ -741,45 +740,17 @@ export function ApplicationsView({
         </div>
       </div>
 
-      {overrideAppId && (() => {
-        const target = data.applications.find((item) => item.id === overrideAppId);
-        if (!target) return null;
-        return (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-            <div className="w-full max-w-md rounded-xl border border-amber-400/30 bg-[color:var(--wm-surface)] p-5 shadow-2xl">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h2 className="text-lg font-semibold text-[color:var(--wm-ink)]">Override Admin Decision</h2>
-                  <p className="mt-1 text-sm text-[color:var(--wm-ink-muted)]">{target.applicantName} · {target.applicationCode}</p>
-                </div>
-                <span className="rounded border border-amber-400/30 bg-amber-500/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-amber-200">Super Admin</span>
-              </div>
-              <div className="mt-4 rounded-md border border-[color:var(--wm-hairline)] bg-[color:var(--wm-inset)] p-3 text-sm text-[color:var(--wm-ink-secondary)]">
-                Current decision: <strong className="text-[color:var(--wm-ink)]">{target.status}</strong>
-              </div>
-              <label className="mt-4 block text-xs font-medium text-[color:var(--wm-ink-secondary)]">New decision</label>
-              <select value={overrideStatus} onChange={(e) => setOverrideStatus(e.target.value as ApplicationStatus)} className="mt-1 w-full rounded border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-inset)] px-3 py-2 text-sm text-[color:var(--wm-ink)]">
-                <option value="pending">Pending</option>
-                <option value="accepted">Accepted</option>
-                <option value="rejected">Rejected</option>
-                <option value="waitlisted">Waitlisted</option>
-              </select>
-              <label className="mt-4 block text-xs font-medium text-[color:var(--wm-ink-secondary)]">Override reason (required)</label>
-              <textarea value={overrideReason} onChange={(e) => setOverrideReason(e.target.value)} rows={3} placeholder="Explain why the original decision is being overridden..." className="mt-1 w-full resize-y rounded border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-inset)] px-3 py-2 text-sm text-[color:var(--wm-ink)] placeholder:text-[color:var(--wm-ink-muted)]" />
-              <p className="mt-2 text-xs text-[color:var(--wm-ink-muted)]">The previous and new decisions, reason, Super Admin identity, and timestamp will be saved in the override audit history.</p>
-              <div className="mt-5 flex justify-end gap-2">
-                <button type="button" disabled={overrideSaving} onClick={() => setOverrideAppId(null)} className="rounded border border-[color:var(--wm-hairline-strong)] px-3 py-2 text-sm text-[color:var(--wm-ink)] hover:bg-[#ede6ca]/10 disabled:opacity-50">Cancel</button>
-                <button type="button" disabled={overrideSaving || overrideReason.trim().length < 8} onClick={async () => {
-                  setOverrideSaving(true);
-                  const success = await overrideApplicationDecision(overrideAppId, overrideStatus, overrideReason.trim());
-                  setOverrideSaving(false);
-                  if (success) setOverrideAppId(null);
-                }} className="rounded border border-amber-400/40 bg-amber-500/15 px-3 py-2 text-sm font-semibold text-amber-200 hover:bg-amber-500/25 disabled:opacity-40">{overrideSaving ? 'Saving...' : 'Confirm Override'}</button>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
+      <OverrideDecisionModal
+        application={overrideTarget}
+        saving={overrideSaving}
+        onClose={() => setOverrideTarget(null)}
+        onConfirm={async (applicationId, nextStatus, reason) => {
+          setOverrideSaving(true);
+          const success = await overrideApplicationDecision(applicationId, nextStatus, reason);
+          setOverrideSaving(false);
+          return success;
+        }}
+      />
       <ConfirmDialog
         open={bulkConfirm !== null}
         title={bulkConfirm?.label ?? 'Confirm Bulk Action'}

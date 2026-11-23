@@ -20,6 +20,7 @@ import type {
 import { conferenceDataService } from '../services/mockDataService';
 import { supabase } from '../lib/supabase';
 import {
+  canOverrideApplicationDecision,
   DEPARTMENT_HEAD_DEFAULT_PERMISSIONS,
   getActorDepartmentSlug,
   hasPermission,
@@ -28,6 +29,7 @@ import {
   normalizeDepartmentSlug,
   resolveUserPermissions,
 } from '../utils/adminPermissions';
+import type { LiveApplicationRow } from '../services/liveBackendService';
 import membersJson from '../data/members.json';
 import { clearAlyaIntroSession } from '../utils/alyaEasterEgg';
 import type {
@@ -114,7 +116,12 @@ interface AdminStoreContextValue {
     status: ApplicationStatus,
     decisionNotes?: string,
   ) => boolean;
-  overrideApplicationDecision: (applicationId: string, status: ApplicationStatus, reason: string) => Promise<boolean>;
+  overrideApplicationDecision: (
+    applicationId: string,
+    status: ApplicationStatus,
+    reason: string,
+    onUpdated?: (updatedRow: LiveApplicationRow) => void,
+  ) => Promise<boolean>;
   submitHeadRecommendation: (
     applicationId: string,
     recommendation: RecommendationDecision,
@@ -471,7 +478,7 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
 
   const userFromProfile = useCallback(
     (profile: any, authUser: any, departments: Department[] = []): AdminUser => {
-      const role = profile.role as AdminUser['role'];
+      const role = String(profile.role || '').trim().toLowerCase() as AdminUser['role'];
       const snapshot = conferenceDataService.getSnapshot();
       const template = snapshot.users.find((u) => u.role === role) ?? snapshot.users[0];
       const matchedDept = departments.find(
@@ -828,26 +835,77 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
   );
 
   const overrideApplicationDecision = useCallback(
-    async (applicationId: string, status: ApplicationStatus, reason: string) => {
-      if (!currentUser || currentUser.role !== 'super_admin') {
-        pushToast({ tone: 'error', title: 'Override denied', description: 'Only Super Admin can override application decisions.' });
+    async (
+      applicationId: string,
+      status: ApplicationStatus,
+      reason: string,
+      onUpdated?: (updatedRow: LiveApplicationRow) => void,
+    ) => {
+      if (!canOverrideApplicationDecision(currentUser)) {
+        pushToast({
+          tone: 'error',
+          title: 'Override denied',
+          description: 'Only Super Admin can override application decisions.',
+        });
         return false;
       }
       const { data: result, error } = await supabase.functions.invoke('willow-applications', {
         body: { action: 'override_decision', id: applicationId, status, reason },
       });
       if (error || !result?.application) {
-        pushToast({ tone: 'error', title: 'Override failed', description: result?.error || error?.message || 'Could not save override.' });
+        let errorMessage = result?.error || '';
+        const ctx = (error as { context?: { json?: () => Promise<{ error?: string; message?: string }> } } | null)?.context;
+        if (!errorMessage && ctx && typeof ctx.json === 'function') {
+          try {
+            const payload = await ctx.json();
+            errorMessage = payload?.error || payload?.message || '';
+          } catch {
+            // Response body unavailable
+          }
+        }
+        pushToast({
+          tone: 'error',
+          title: 'Override failed',
+          description: errorMessage || error?.message || 'Could not save override.',
+        });
         return false;
       }
+      onUpdated?.(result.application as LiveApplicationRow);
       refreshSnapshot();
-      pushToast({ tone: result.warning ? 'warning' : 'success', title: result.warning ? 'Decision changed — audit warning' : 'Decision overridden', description: result.warning || `Status changed to ${status}. Override recorded.` });
+      pushToast({
+        tone: result.warning ? 'warning' : 'success',
+        title: result.warning ? 'Decision changed — audit warning' : 'Decision overridden',
+        description: result.warning || `Status changed to ${status}. Override recorded.`,
+      });
       if (status === 'accepted' || status === 'rejected') {
-        void supabase.functions.invoke('willow-application-email', { body: { application_id: applicationId, decision: status } })
+        void supabase.functions
+          .invoke('willow-application-email', { body: { application_id: applicationId, decision: status } })
           .then(({ data, error: emailError }) => {
-            if (emailError || !data?.success || data?.skipped) pushToast({ tone: 'warning', title: 'Override saved — email not confirmed', description: data?.error || emailError?.message || data?.message || 'Decision email delivery failed.' });
-            else pushToast({ tone: 'success', title: 'Applicant email sent', description: 'The decision email was delivered successfully.' });
-          }).catch((emailError) => pushToast({ tone: 'warning', title: 'Override saved — email not confirmed', description: emailError instanceof Error ? emailError.message : 'Email delivery failed.' }));
+            if (emailError || !data?.success || data?.skipped) {
+              pushToast({
+                tone: 'warning',
+                title: 'Override saved — email not confirmed',
+                description:
+                  data?.error ||
+                  emailError?.message ||
+                  data?.message ||
+                  'Decision email delivery failed.',
+              });
+            } else {
+              pushToast({
+                tone: 'success',
+                title: 'Applicant email sent',
+                description: 'The decision email was delivered successfully.',
+              });
+            }
+          })
+          .catch((emailError) =>
+            pushToast({
+              tone: 'warning',
+              title: 'Override saved — email not confirmed',
+              description: emailError instanceof Error ? emailError.message : 'Email delivery failed.',
+            }),
+          );
       }
       return true;
     },

@@ -428,7 +428,11 @@ export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePorta
         )
       ) : section === 'applications' || section === 'staff-apps' ? (
         hasPermission(currentUser, 'applications.view') ? (
-          <LiveApplicationsView selectedId={paramId} onClose={() => onNavigate(basePath + '/applications')} />
+          <LiveApplicationsView
+            selectedId={paramId}
+            externalSearch={globalSearch}
+            onClose={() => onNavigate(basePath + '/applications')}
+          />
         ) : (
           renderDenied('Your account lacks applications.view permission.')
         )

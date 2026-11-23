@@ -806,18 +806,35 @@ Deno.serve(async (req: Request) => {
     return json({ application: enriched });
   }
   if (action === "override_decision") {
-    if (actor.role !== "super_admin") return json({ error: "Only Super Admin can override application decisions." }, 403);
+    if (actor.role !== "super_admin") {
+      return json({ error: "Only Super Admin can override application decisions." }, 403);
+    }
     const id = String(body?.id || "").trim();
     const nextStatus = String(body?.status || "").trim().toLowerCase();
     const reason = String(body?.reason || "").trim();
     if (!id) return json({ error: "Application ID is required." }, 400);
-    if (!["pending", "accepted", "rejected", "waitlisted"].includes(nextStatus)) return json({ error: "Invalid override status." }, 400);
-    if (reason.length < 8) return json({ error: "Override reason must be at least 8 characters." }, 400);
-    const { data: existing, error: fetchError } = await admin.from("wm_applications").select("*").eq("id", id).maybeSingle();
+    if (!["pending", "accepted", "rejected", "waitlisted"].includes(nextStatus)) {
+      return json({ error: "Invalid override status." }, 400);
+    }
+    if (reason.length < 8) {
+      return json({ error: "Override reason must be at least 8 characters." }, 400);
+    }
+
+    const { data: existing, error: fetchError } = await admin
+      .from("wm_applications")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
     if (fetchError || !existing) return json({ error: "Application not found." }, 404);
+
     const previousStatus = String(existing.status || "pending");
     const appDept = mapDepartment(existing.application_type, existing.department_id);
-    const { data: appDepartment } = await admin.from("wm_departments").select("id").eq("slug", appDept).maybeSingle();
+    const { data: appDepartment } = await admin
+      .from("wm_departments")
+      .select("id")
+      .eq("slug", appDept)
+      .maybeSingle();
+
     const patch: Record<string, unknown> = {
       status: nextStatus,
       department_id: appDept,
@@ -827,8 +844,44 @@ Deno.serve(async (req: Request) => {
       admin_decision_notes: reason,
       review_notes: reason,
     };
-    const { data: updated, error: updateError } = await admin.from("wm_applications").update(patch).eq("id", id).select("*").single();
+
+    const { data: updated, error: updateError } = await admin
+      .from("wm_applications")
+      .update(patch)
+      .eq("id", id)
+      .select("*")
+      .single();
     if (updateError) return json({ error: updateError.message }, 400);
+
+    if (nextStatus === "accepted") {
+      const { data: existingPass } = await admin
+        .from("wm_qr_passes")
+        .select("id,active")
+        .eq("application_id", String(updated.id))
+        .maybeSingle();
+      if (existingPass) {
+        if (!existingPass.active) {
+          await admin.from("wm_qr_passes").update({ active: true }).eq("id", existingPass.id);
+        }
+      } else {
+        await admin.from("wm_qr_passes").insert({
+          application_id: String(updated.id),
+          holder_name: updated.applicant_name,
+          holder_email: updated.email,
+          role_label: updated.position || `${updated.application_type} Participant`,
+          category: updated.application_type === "delegate" ? "Delegate" : "Staff",
+          department_id: appDepartment?.id ?? null,
+          active: true,
+          token_value: makeOpaqueToken(),
+        });
+      }
+    } else if (previousStatus === "accepted") {
+      await admin
+        .from("wm_qr_passes")
+        .update({ active: false })
+        .eq("application_id", String(updated.id));
+    }
+
     const { error: auditError } = await admin.from("wm_application_decision_overrides").insert({
       application_id: id,
       previous_status: previousStatus,
@@ -838,22 +891,25 @@ Deno.serve(async (req: Request) => {
       actor_name: actor.full_name,
       actor_role: actor.role,
     });
-    if (auditError) return json({ application: updated, warning: "Decision changed, but audit record failed: " + auditError.message }, 200);
-    if (nextStatus === "accepted") {
-      await admin.from("wm_qr_passes").upsert({
-        application_id: String(updated.id),
-        holder_name: updated.applicant_name,
-        holder_email: updated.email,
-        role_label: updated.position || `${updated.application_type} Participant`,
-        category: updated.application_type === "delegate" ? "Delegate" : "Staff",
-        department_id: appDepartment?.id ?? null,
-        active: true,
-        token_value: makeOpaqueToken(),
-      }, { onConflict: "application_id", ignoreDuplicates: true });
-    }
+
     const [withRecommender] = await enrichRecommenderNames([{ ...updated, department_id: appDept }]);
     const [enriched] = await enrichRowsWithConfidentialMedical([withRecommender]);
-    return json({ application: enriched, override: { previous_status: previousStatus, new_status: nextStatus, reason } });
+
+    if (auditError) {
+      return json(
+        {
+          application: enriched,
+          override: { previous_status: previousStatus, new_status: nextStatus, reason },
+          warning: "Decision changed, but audit record failed: " + auditError.message,
+        },
+        200,
+      );
+    }
+
+    return json({
+      application: enriched,
+      override: { previous_status: previousStatus, new_status: nextStatus, reason },
+    });
   }
 
   if (action === "update") {

@@ -18,11 +18,12 @@ import {
   type LiveApplicationRow,
 } from '../../../services/liveBackendService';
 import type { Application, ApplicationStatus } from '../../../types/admin';
-import { normalizeDepartmentSlug } from '../../../utils/adminPermissions';
+import { canOverrideApplicationDecision, normalizeDepartmentSlug } from '../../../utils/adminPermissions';
 import {
   canViewHeadRecommended,
   filterHeadRecommendedApplications,
 } from '../../../utils/applicationFilters';
+import { OverrideDecisionModal } from '../OverrideDecisionModal';
 import { RecommendationBadge, StatusBadge } from '../StatusBadge';
 import { WmSkeleton } from '../WmSkeleton';
 import { LiveApplicationDossierCard } from './LiveApplicationsView';
@@ -54,13 +55,16 @@ export function HeadRecommendedView({
   externalSearch?: string;
   onSelectApplication?: (id: string | null) => void;
 }) {
-  const { currentUser, data: storeData, pushToast } = useAdminStore();
+  const { currentUser, data: storeData, pushToast, overrideApplicationDecision } = useAdminStore();
+  const canOverride = canOverrideApplicationDecision(currentUser);
 
   const [applications, setApplications] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [busyId, setBusyId] = useState('');
   const [notes, setNotes] = useState<Record<string, string>>({});
+  const [overrideTarget, setOverrideTarget] = useState<Application | null>(null);
+  const [overrideSaving, setOverrideSaving] = useState(false);
 
   const [query, setQuery] = useState(externalSearch ?? '');
   const [recommendationFilter, setRecommendationFilter] = useState<
@@ -245,6 +249,30 @@ export function HeadRecommendedView({
     setBusyId('');
   };
 
+  const handleConfirmOverride = async (
+    applicationId: string,
+    nextStatus: ApplicationStatus,
+    reason: string,
+  ): Promise<boolean> => {
+    if (!currentUser) return false;
+    setOverrideSaving(true);
+    setError('');
+    const ok = await overrideApplicationDecision(applicationId, nextStatus, reason, (updatedRow) => {
+      const mapped = mapLiveRowToApplication(
+        updatedRow,
+        currentUser,
+        storeData.departments,
+      );
+      setApplications((prev) => prev.map((item) => (item.id === applicationId ? mapped : item)));
+      setNotes((prev) => ({
+        ...prev,
+        [applicationId]: mapped.adminDecisionNotes ?? reason,
+      }));
+    });
+    setOverrideSaving(false);
+    return ok;
+  };
+
   if (!isAuthorizedAdmin) {
     return (
       <div
@@ -280,6 +308,16 @@ export function HeadRecommendedView({
             <div className="flex flex-wrap items-center gap-2">
               <RecommendationBadge decision={active.headRecommendation} />
               <StatusBadge status={active.status} />
+              {canOverride && (
+                <button
+                  type="button"
+                  onClick={() => setOverrideTarget(active)}
+                  className="inline-flex h-8 items-center gap-1.5 rounded border border-amber-400/45 bg-amber-500/15 px-3 text-xs font-semibold text-amber-200 hover:bg-amber-500/25 cursor-pointer"
+                >
+                  <ShieldAlert className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span>Override</span>
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -341,6 +379,12 @@ export function HeadRecommendedView({
             />
           </div>
         )}
+        <OverrideDecisionModal
+          application={overrideTarget}
+          saving={overrideSaving}
+          onClose={() => setOverrideTarget(null)}
+          onConfirm={handleConfirmOverride}
+        />
       </div>
     );
   }
@@ -544,7 +588,7 @@ export function HeadRecommendedView({
                     )}
                   </div>
 
-                  <div className="flex shrink-0 items-center gap-2">
+                  <div className="flex flex-wrap shrink-0 items-center gap-2">
                     <button
                       type="button"
                       onClick={() => openApplication(app.id)}
@@ -553,6 +597,17 @@ export function HeadRecommendedView({
                       <Eye className="h-3.5 w-3.5 text-[color:var(--wm-accent)]" aria-hidden="true" />
                       <span>Open Application</span>
                     </button>
+                    {canOverride && (
+                      <button
+                        type="button"
+                        data-testid={`override-btn-${app.id}`}
+                        onClick={() => setOverrideTarget(app)}
+                        className="inline-flex h-9 items-center gap-1.5 rounded-md border border-amber-400/45 bg-amber-500/15 px-3.5 text-xs font-semibold text-amber-200 hover:bg-amber-500/25 cursor-pointer"
+                      >
+                        <ShieldAlert className="h-3.5 w-3.5" aria-hidden="true" />
+                        <span>Override</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               </article>
@@ -560,6 +615,12 @@ export function HeadRecommendedView({
           })}
         </div>
       )}
+      <OverrideDecisionModal
+        application={overrideTarget}
+        saving={overrideSaving}
+        onClose={() => setOverrideTarget(null)}
+        onConfirm={handleConfirmOverride}
+      />
     </div>
   );
 }

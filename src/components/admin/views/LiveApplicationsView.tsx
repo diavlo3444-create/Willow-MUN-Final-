@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ExternalLink, RefreshCw, Search, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, ExternalLink, Eye, RefreshCw, Search, ShieldAlert, Trash2 } from 'lucide-react';
 import { useAdminStore } from '../../../context/AdminStoreContext';
 import { supabase } from '../../../lib/supabase';
 import {
   mapLiveRowToApplication,
   type LiveApplicationRow,
 } from '../../../services/liveBackendService';
-import type { AdminUser, Application } from '../../../types/admin';
+import type { AdminUser, Application, ApplicationStatus } from '../../../types/admin';
+import { canOverrideApplicationDecision } from '../../../utils/adminPermissions';
 import { ApplicationAttachmentsViewer } from '../ApplicationAttachmentsViewer';
+import { OverrideDecisionModal } from '../OverrideDecisionModal';
+import { StatusBadge } from '../StatusBadge';
 import { WmSkeleton } from '../WmSkeleton';
 
 const labels: Record<string, string> = {
@@ -21,23 +24,35 @@ const labels: Record<string, string> = {
 
 export function LiveApplicationsView({
   selectedId,
+  externalSearch,
   onClose,
 }: {
   selectedId?: string | null;
+  externalSearch?: string;
   onClose?: () => void;
 }) {
-  const { currentUser, testModeHeadUser, data: storeData } = useAdminStore();
+  const { currentUser, testModeHeadUser, data: storeData, overrideApplicationDecision } = useAdminStore();
   const effectiveActor = testModeHeadUser ?? currentUser;
+  const canOverride = canOverrideApplicationDecision(effectiveActor);
 
   const [rawRows, setRawRows] = useState<LiveApplicationRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(externalSearch ?? '');
   const [type, setType] = useState('all');
   const [status, setStatus] = useState('all');
   const [busyId, setBusyId] = useState('');
   const [deletingId, setDeletingId] = useState('');
   const [notes, setNotes] = useState<Record<string, string>>({});
+  const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
+  const [overrideTarget, setOverrideTarget] = useState<Application | null>(null);
+  const [overrideSaving, setOverrideSaving] = useState(false);
+
+  useEffect(() => {
+    if (externalSearch !== undefined) {
+      setQuery(externalSearch);
+    }
+  }, [externalSearch]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -76,6 +91,7 @@ export function LiveApplicationsView({
           (!q ||
             [
               app.applicantName,
+              app.applicationCode,
               app.email,
               app.phone,
               app.guardianPhone || '',
@@ -117,6 +133,26 @@ export function LiveApplicationsView({
     setBusyId('');
   };
 
+  const handleConfirmOverride = async (
+    applicationId: string,
+    nextStatus: ApplicationStatus,
+    reason: string,
+  ): Promise<boolean> => {
+    setOverrideSaving(true);
+    setError('');
+    const ok = await overrideApplicationDecision(applicationId, nextStatus, reason, (updatedRow) => {
+      setRawRows((current) =>
+        current.map((item) => (item.id === applicationId ? updatedRow : item)),
+      );
+      setNotes((prev) => ({
+        ...prev,
+        [applicationId]: updatedRow.admin_decision_notes ?? updatedRow.review_notes ?? reason,
+      }));
+    });
+    setOverrideSaving(false);
+    return ok;
+  };
+
   const deleteApplication = async (app: Application) => {
     if (effectiveActor?.role !== 'admin' && effectiveActor?.role !== 'super_admin') return;
     if (!window.confirm("Permanently delete this applicant and their application, medical record, signup invite, QR pass, and uploaded files when cleanup succeeds? This cannot be undone.")) return;
@@ -128,17 +164,34 @@ export function LiveApplicationsView({
     setRawRows((rows) => rows.filter((row) => row.id !== app.id));
     if (selectedId === app.id) onClose?.();
   };
+
+  const toggleExpanded = (id: string) => {
+    setExpandedIds((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
   const active = selectedId ? applications.find((app) => app.id === selectedId) : null;
   if (selectedId) {
     return (
       <div className="wm-surface-panel p-5 sm:p-7">
-        <button
-          type="button"
-          onClick={onClose}
-          className="mb-5 text-xs text-[color:var(--wm-accent)] underline cursor-pointer"
-        >
-          ← Back to applications
-        </button>
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-xs text-[color:var(--wm-accent)] underline cursor-pointer"
+          >
+            ← Back to applications
+          </button>
+          {active && canOverride && (
+            <button
+              type="button"
+              onClick={() => setOverrideTarget(active)}
+              className="inline-flex min-h-[34px] items-center gap-1.5 rounded border border-amber-400/45 bg-amber-500/15 px-3 text-xs font-semibold text-amber-200 hover:bg-amber-500/25 cursor-pointer"
+            >
+              <ShieldAlert className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>Override</span>
+            </button>
+          )}
+        </div>
         {loading ? (
           <WmSkeleton variant="dossier" />
         ) : !active ? (
@@ -158,6 +211,12 @@ export function LiveApplicationsView({
             {error}
           </p>
         )}
+        <OverrideDecisionModal
+          application={overrideTarget}
+          saving={overrideSaving}
+          onClose={() => setOverrideTarget(null)}
+          onConfirm={handleConfirmOverride}
+        />
       </div>
     );
   }
@@ -240,10 +299,11 @@ export function LiveApplicationsView({
         <div className="space-y-3">
           {filtered.map((app) => {
             const trackKey = (app.applicationType || app.category || '').toLowerCase();
+            const isExpanded = Boolean(expandedIds[app.id]);
             return (
               <article key={app.id} className="wm-surface-panel p-4 sm:p-5">
                 <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="rounded border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-inset)] px-2 py-1 text-[10px] uppercase tracking-wide text-[color:var(--wm-accent)]">
                         {labels[trackKey] || app.category}
@@ -258,9 +318,7 @@ export function LiveApplicationsView({
                           {app.documents.length} file{app.documents.length === 1 ? '' : 's'}
                         </span>
                       )}
-                      <span className="text-[10px] uppercase tracking-wide text-[color:var(--wm-ink-muted)]">
-                        {app.status}
-                      </span>
+                      <StatusBadge status={app.status} />
                     </div>
                     <h3 className="mt-2 text-sm font-semibold text-[color:var(--wm-ink)]">
                       {app.applicantName}
@@ -272,10 +330,17 @@ export function LiveApplicationsView({
                       {app.gradeOrYear ? ` (${app.gradeOrYear})` : ''}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 shrink-0">
                     <span className="text-[10px] text-[color:var(--wm-ink-muted)]">{new Date(app.submittedAt).toLocaleString()}</span>
                     {(effectiveActor?.role === 'admin' || effectiveActor?.role === 'super_admin') && (
-                      <button type="button" disabled={busyId === app.id || deletingId === app.id} onClick={() => void deleteApplication(app)} aria-label="Delete applicant" title="Permanently delete applicant" className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-rose-400/35 text-rose-200 hover:bg-rose-500/15 disabled:opacity-40">
+                      <button
+                        type="button"
+                        disabled={busyId === app.id || deletingId === app.id}
+                        onClick={() => void deleteApplication(app)}
+                        aria-label="Delete applicant"
+                        title="Permanently delete applicant"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-rose-400/35 text-rose-200 hover:bg-rose-500/15 disabled:opacity-40 cursor-pointer"
+                      >
                         <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                       </button>
                     )}
@@ -286,10 +351,37 @@ export function LiveApplicationsView({
                     {app.experienceLevel}
                   </p>
                 )}
-                <details className="mt-3">
-                  <summary className="cursor-pointer text-xs text-[color:var(--wm-accent)]">
-                    View full dossier, attachments &amp; review
-                  </summary>
+
+                <div className="mt-3 flex flex-wrap items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    aria-expanded={isExpanded}
+                    onClick={() => toggleExpanded(app.id)}
+                    className="inline-flex min-h-[34px] items-center gap-1.5 rounded border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-inset)] px-3 text-xs font-medium text-[color:var(--wm-ink)] hover:bg-[#ede6ca]/10 cursor-pointer"
+                  >
+                    <Eye className="h-3.5 w-3.5 text-[color:var(--wm-accent)]" aria-hidden="true" />
+                    <span>{isExpanded ? 'Hide dossier' : 'Open'}</span>
+                    {isExpanded ? (
+                      <ChevronUp className="h-3.5 w-3.5 text-[color:var(--wm-ink-muted)]" aria-hidden="true" />
+                    ) : (
+                      <ChevronDown className="h-3.5 w-3.5 text-[color:var(--wm-ink-muted)]" aria-hidden="true" />
+                    )}
+                  </button>
+
+                  {canOverride && (
+                    <button
+                      type="button"
+                      data-testid={`override-btn-${app.id}`}
+                      onClick={() => setOverrideTarget(app)}
+                      className="inline-flex min-h-[34px] items-center gap-1.5 rounded border border-amber-400/45 bg-amber-500/15 px-3 text-xs font-semibold text-amber-200 hover:bg-amber-500/25 cursor-pointer"
+                    >
+                      <ShieldAlert className="h-3.5 w-3.5" aria-hidden="true" />
+                      <span>Override</span>
+                    </button>
+                  )}
+                </div>
+
+                {isExpanded && (
                   <LiveApplicationDossierCard
                     app={app}
                     actor={effectiveActor}
@@ -298,12 +390,19 @@ export function LiveApplicationsView({
                     setNotes={(v) => setNotes((n) => ({ ...n, [app.id]: v }))}
                     onStatus={(v) => void updateStatus(app, v)}
                   />
-                </details>
+                )}
               </article>
             );
           })}
         </div>
       )}
+
+      <OverrideDecisionModal
+        application={overrideTarget}
+        saving={overrideSaving}
+        onClose={() => setOverrideTarget(null)}
+        onConfirm={handleConfirmOverride}
+      />
     </div>
   );
 }
