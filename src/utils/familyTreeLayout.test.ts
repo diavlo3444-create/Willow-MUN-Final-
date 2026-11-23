@@ -52,7 +52,7 @@ test('formatObjectPosition handles focus array and null defaults cleanly', () =>
 test('organizeFamilyTree orders secretariat -> left groups -> right groups canonically', () => {
   const tree = organizeFamilyTree(membersData as FamilyTreeData);
 
-  assert.equal(tree.orderedMembers.length, 32);
+  assert.equal(tree.orderedMembers.length, 33);
   assert.equal(tree.centerGroups.length, 1);
   assert.equal(tree.leftGroups.length, 5);
   assert.equal(tree.rightGroups.length, 6);
@@ -81,6 +81,15 @@ test('organizeFamilyTree orders secretariat -> left groups -> right groups canon
   assert.equal(tree.orderedMembers[0].id, 'lana-ahmed');
   assert.equal(tree.orderedMembers[1].id, 'loor-almasri');
   assert.equal(tree.orderedMembers[1].quote, "In the end, we'll all become stories.");
+
+  const mariaIdx = tree.indexById['maria-aljaber'];
+  assert.equal(typeof mariaIdx, 'number');
+  assert.equal(tree.orderedMembers[mariaIdx].name, 'Maria Aljaber');
+  assert.equal(tree.orderedMembers[mariaIdx].displayRole, 'Senior Advisor');
+  assert.equal(tree.orderedMembers[mariaIdx].group, 'secretariat');
+  assert.equal(tree.orderedMembers[mariaIdx].quote, 'i choose to have faith because without that, i have nothing.');
+  assert.equal(tree.orderedMembers[mariaIdx].quoteBy, 'michael scofield');
+  assert.equal(tree.orderedMembers[mariaIdx].photo, 'photos/maria-aljaber.jpg');
 
   const nayaIdx = tree.indexById['naya-almasr'];
   assert.equal(tree.orderedMembers[nayaIdx].name, 'Naya Almasri');

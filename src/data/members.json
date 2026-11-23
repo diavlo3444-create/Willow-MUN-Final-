@@ -145,6 +145,19 @@
       ]
     },
     {
+      "id": "maria-aljaber",
+      "name": "Maria Aljaber",
+      "role": "Senior Advisor",
+      "group": "secretariat",
+      "quote": "i choose to have faith because without that, i have nothing.",
+      "quoteBy": "michael scofield",
+      "photo": "photos/maria-aljaber.jpg",
+      "focus": [
+        50,
+        48
+      ]
+    },
+    {
       "id": "alya-ismail",
       "name": "Alya Ismail",
       "role": "Head of Media",
