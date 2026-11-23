@@ -36,7 +36,6 @@ import { QrAttendanceView } from '../views/QrAttendanceView';
 import {
   ConferenceSettingsView,
   RegistrationControlsView,
-  ReportsStatisticsView,
   SystemMonitoringView,
 } from '../views/ReportsAndAdminViews';
 import { DepartmentTestingView, RolesPermissionsView } from '../views/RolesPermissionsView';
@@ -198,10 +197,6 @@ const SECTION_META: Record<string, { title: string; subtitle: string }> = {
     title: 'Registration Controls',
     subtitle: 'Global conference registration gate, windows, and department intake toggles.',
   },
-  reports: {
-    title: 'Statistics & CSV Reports',
-    subtitle: 'Filter conference metrics and export structured CSV datasets.',
-  },
   logs: {
     title: 'Activity & Security Audit Logs',
     subtitle: 'Complete audit history of actions across applications, CMS, and security.',
@@ -294,7 +289,6 @@ export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePorta
     'executive-board',
     'heads',
     'departments',
-    'reports',
     'attendance',
     'qr',
     'website-editor',
@@ -531,8 +525,6 @@ export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePorta
         <NotificationsCenterView />
       ) : section === 'registration' ? (
         <RegistrationControlsView />
-      ) : section === 'reports' ? (
-        <ReportsStatisticsView />
       ) : section === 'logs' ? (
         <ActivityLogsView />
       ) : section === 'settings' ? (
