@@ -7,11 +7,20 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), {
+const json = (body: unknown, status = 200) => {
+  if (status >= 400) {
+    const details = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
+    console.warn("[willow-applications] request rejected", {
+      status,
+      action: typeof details.action === "string" ? details.action : undefined,
+      reason: typeof details.error === "string" ? details.error : "unspecified",
+    });
+  }
+  return new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+};
 
 const STORAGE_BUCKET = "wm-application-files";
 const MAX_UPLOAD_BYTES = 100 * 1024 * 1024; // 100 MB
