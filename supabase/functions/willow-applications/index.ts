@@ -984,7 +984,7 @@ Deno.serve(async (req: Request) => {
   }
 
   if (action === "delete") {
-    if (!isAdmin) return json({ error: "Only Administrators can permanently delete applications." }, 403);
+    if (!isSuperAdmin) return json({ error: "Only Super Admins can permanently delete applications." }, 403);
     const id = String(body?.id || "").trim();
     if (!id) return json({ error: "Application ID is required." }, 400);
     const { data: existing, error: fetchError } = await admin.from("wm_applications").select("id,application_type,proof_files,media_photos,writing_samples").eq("id", id).maybeSingle();
