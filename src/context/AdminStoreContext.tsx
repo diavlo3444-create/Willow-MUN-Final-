@@ -114,6 +114,7 @@ interface AdminStoreContextValue {
     status: ApplicationStatus,
     decisionNotes?: string,
   ) => boolean;
+  overrideApplicationDecision: (applicationId: string, status: ApplicationStatus, reason: string) => Promise<boolean>;
   submitHeadRecommendation: (
     applicationId: string,
     recommendation: RecommendationDecision,
@@ -826,6 +827,33 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
     [currentUser, testModeHeadUser, handleResult, pushToast],
   );
 
+  const overrideApplicationDecision = useCallback(
+    async (applicationId: string, status: ApplicationStatus, reason: string) => {
+      if (!currentUser || currentUser.role !== 'super_admin') {
+        pushToast({ tone: 'error', title: 'Override denied', description: 'Only Super Admin can override application decisions.' });
+        return false;
+      }
+      const { data: result, error } = await supabase.functions.invoke('willow-applications', {
+        body: { action: 'override_decision', id: applicationId, status, reason },
+      });
+      if (error || !result?.application) {
+        pushToast({ tone: 'error', title: 'Override failed', description: result?.error || error?.message || 'Could not save override.' });
+        return false;
+      }
+      refreshSnapshot();
+      pushToast({ tone: result.warning ? 'warning' : 'success', title: result.warning ? 'Decision changed — audit warning' : 'Decision overridden', description: result.warning || `Status changed to ${status}. Override recorded.` });
+      if (status === 'accepted' || status === 'rejected') {
+        void supabase.functions.invoke('willow-application-email', { body: { application_id: applicationId, decision: status } })
+          .then(({ data, error: emailError }) => {
+            if (emailError || !data?.success || data?.skipped) pushToast({ tone: 'warning', title: 'Override saved — email not confirmed', description: data?.error || emailError?.message || data?.message || 'Decision email delivery failed.' });
+            else pushToast({ tone: 'success', title: 'Applicant email sent', description: 'The decision email was delivered successfully.' });
+          }).catch((emailError) => pushToast({ tone: 'warning', title: 'Override saved — email not confirmed', description: emailError instanceof Error ? emailError.message : 'Email delivery failed.' }));
+      }
+      return true;
+    },
+    [currentUser, pushToast, refreshSnapshot],
+  );
+
   const submitHeadRecommendation = useCallback(
     (applicationId: string, recommendation: RecommendationDecision, notes: string) => {
       if (!currentUser) return false;
@@ -1517,6 +1545,7 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
     resetDemoData,
     refreshSnapshot,
     updateApplicationStatus,
+    overrideApplicationDecision,
     submitHeadRecommendation,
     bulkUpdateApplicationStatus,
     bulkApproveRecommended,
