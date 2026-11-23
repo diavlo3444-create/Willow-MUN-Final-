@@ -48,47 +48,39 @@ import { RevealSection, SectionHeading } from './RevealSection';
 async function extractFunctionError(error: unknown): Promise<string | null {
   if (!error || typeof error !== 'object') return null;
   const context = (error as { context?: unknown }).context;
-
-  const extractPayloadMessage = (payload: unknown): string | null => {
+  const readMessage = (payload: unknown): string | null => {
     if (!payload || typeof payload !== 'object') return null;
     const record = payload as { error?: unknown; message?: unknown; details?: unknown; hint?: unknown };
-    for (const candidate of [record.error, record.message, record.details, record.hint]) {
-      if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
+    for (const value of [record.error, record.message, record.details, record.hint]) {
+      if (typeof value === 'string' && value.trim()) return value.trim();
     }
     return null;
   };
-
   if (context && typeof context === 'object') {
-    const responseLike = context as { clone?: () => unknown; json?: () => Promise<unknown>; text?: () => Promise<string> };
-    const clone = typeof responseLike.clone === 'function' ? responseLike.clone() as typeof responseLike : responseLike;
-    if (typeof clone.json === 'function') {
-      try {
-        const payload = await clone.json();
-        const message = extractPayloadMessage(payload);
-        if (message) return message;
-      } catch {
-        // Try text below when the response body isn't JSON.
-      }
-    }
-    if (typeof responseLike.text === 'function') {
-      try {
-        const raw = await (typeof responseLike.clone === 'function'
-          ? (responseLike.clone() as typeof responseLike).text?.()
-          : responseLike.text());
-        if (raw && raw.trim()) {
-          try {
-            const message = extractPayloadMessage(JSON.parse(raw));
-            if (message) return message;
-          } catch {
-            return raw.trim().slice(0, 500);
-          }
+    const response = context as any;
+    try {
+      if (typeof response.clone === 'function') {
+        const clone = response.clone();
+        if (typeof clone.json === 'function') {
+          const message = readMessage(await clone.json());
+          if (message) return message;
         }
-      } catch {
-        // Fall through to SDK error message.
       }
+    } catch {
+      // Try a plain-text response below.
+    }
+    try {
+      if (typeof response.clone === 'function') {
+        const raw = await response.clone().text();
+        if (raw && raw.trim()) {
+          const parsedMessage = readMessage(JSON.parse(raw));
+          return parsedMessage || raw.trim().slice(0, 500);
+        }
+      }
+    } catch {
+      // Fall through to SDK message.
     }
   }
-
   const message = (error as { message?: unknown }).message;
   return typeof message === 'string' && message.trim() ? message.trim() : null;
 }
