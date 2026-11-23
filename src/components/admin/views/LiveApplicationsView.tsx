@@ -31,7 +31,7 @@ export function LiveApplicationsView({
   externalSearch?: string;
   onClose?: () => void;
 }) {
-  const { currentUser, testModeHeadUser, data: storeData, overrideApplicationDecision } = useAdminStore();
+  const { currentUser, authReady, testModeHeadUser, data: storeData, overrideApplicationDecision } = useAdminStore();
   const effectiveActor = testModeHeadUser ?? currentUser;
   const canOverride = canOverrideApplicationDecision(effectiveActor);
 
@@ -55,22 +55,53 @@ export function LiveApplicationsView({
   }, [externalSearch]);
 
   const load = useCallback(async () => {
+    if (!authReady) return;
     setLoading(true);
     setError('');
-    const { data, error: invokeError } = await supabase.functions.invoke('willow-applications', {
+
+    // Wait for Supabase auth hydration before calling the protected Edge Function.
+    // On a cold page load, invoking too early can send the publishable API key
+    // without the user's access token and produce a 401/local-data fallback.
+    let { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    let session = sessionData.session;
+    if (!session?.access_token) {
+      const refreshed = await supabase.auth.refreshSession();
+      sessionError = refreshed.error ?? sessionError;
+      session = refreshed.data.session;
+    }
+
+    if (!session?.access_token) {
+      setError(sessionError?.message || 'Your login session could not be restored. Sign out and sign in again.');
+      setLoading(false);
+      return;
+    }
+
+    const invokeList = () => supabase.functions.invoke('willow-applications', {
       body: { action: 'list' },
+      headers: { Authorization: `Bearer ${session!.access_token}` },
     });
-    if (invokeError || data?.error) {
-      setError(data?.error || invokeError?.message || 'Could not load applications.');
+    let result = await invokeList();
+
+    // A token can expire between session restoration and the request. Refresh once.
+    if (result.error && /401|unauthorized|invalid.*session|expired/i.test(result.error.message || '')) {
+      const refreshed = await supabase.auth.refreshSession();
+      if (refreshed.data.session?.access_token) {
+        session = refreshed.data.session;
+        result = await invokeList();
+      }
+    }
+
+    if (result.error || result.data?.error) {
+      setError(result.data?.error || result.error?.message || 'Could not load applications.');
     } else {
-      setRawRows((data?.applications || []) as LiveApplicationRow[]);
+      setRawRows((result.data?.applications || []) as LiveApplicationRow[]);
     }
     setLoading(false);
-  }, []);
+  }, [authReady]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (authReady) void load();
+  }, [authReady, load]);
 
   const applications = useMemo(
     () =>
