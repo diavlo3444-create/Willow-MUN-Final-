@@ -45,7 +45,7 @@ import { RevealItem } from './MotionPrimitives';
 import { RevealSection, SectionHeading } from './RevealSection';
 
 
-async function extractFunctionError(error: unknown): Promise<string | null {
+async function extractFunctionError(error: unknown): Promise<string | null> {
   if (!error || typeof error !== 'object') return null;
   const context = (error as { context?: unknown }).context;
   const readMessage = (payload: unknown): string | null => {
