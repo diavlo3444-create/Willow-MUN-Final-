@@ -45,26 +45,53 @@ import { RevealItem } from './MotionPrimitives';
 import { RevealSection, SectionHeading } from './RevealSection';
 
 
-async function extractFunctionError(error: unknown): Promise<string | null> {
+async function extractFunctionError(error: unknown): Promise<string | null {
   if (!error || typeof error !== 'object') return null;
-  const context = (error as { context?: unknown }).context;
+  const record = error as Record<string, unknown>;
+  const context = record.context;
+
+  const parsePayload = (raw: unknown): string | null => {
+    if (typeof raw === 'string') {
+      const trimmed = raw.trim();
+      if (!trimmed) return null;
+      try {
+        const parsed = JSON.parse(trimmed) as Record<string, unknown>;
+        const message = parsed?.error ?? parsed?.message ?? parsed?.details;
+        if (typeof message === 'string' && message.trim()) return message.trim();
+      } catch { /* plain text response */ }
+      return trimmed.slice(0, 500);
+    }
+    if (raw && typeof raw === 'object') {
+      const payload = raw as Record<string, unknown>;
+      for (const key of ['error', 'message', 'details', 'hint']) {
+        const value = payload[key];
+        if (typeof value === 'string' && value.trim()) return value.trim();
+      }
+    }
+    return null;
+  };
+
   if (context instanceof Response) {
     try {
-      const payload = await context.clone().json();
-      if (payload && typeof payload === 'object') {
-        const record = payload as { error?: unknown; message?: unknown };
-        const message = record.error ?? record.message;
-        if (typeof message === 'string' && message.trim()) return message.trim();
-      }
-    } catch {
-      try {
-        const text = await context.clone().text();
-        if (text.trim()) return text.trim().slice(0, 500);
-      } catch { /* response body unavailable */ }
+      const bodyText = await context.clone().text();
+      const parsed = parsePayload(bodyText);
+      if (parsed) return parsed;
+      if (!context.ok) return `Submission failed (HTTP ${context.status}). Please check the required fields and try again.`;
+    } catch { /* response body unavailable */ }
+  } else {
+    const parsedContext = parsePayload(context);
+    if (parsedContext) return parsedContext;
+  }
+
+  for (const key of ['details', 'hint', 'message']) {
+    const value = record[key];
+    if (typeof value === 'string' && value.trim() && !value.toLowerCase().includes('non-2xx')) {
+      return value.trim();
     }
   }
-  const message = (error as { message?: unknown }).message;
-  return typeof message === 'string' && message.trim() ? message.trim() : null;
+
+  const status = typeof record.status === 'number' ? record.status : null;
+  return status ? `Submission failed (HTTP ${status}). Please check the required fields and try again.` : null;
 }
 
 interface TrackConfig {
