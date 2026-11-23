@@ -44,6 +44,29 @@ import { CountryPhoneInput } from './CountryPhoneInput';
 import { RevealItem } from './MotionPrimitives';
 import { RevealSection, SectionHeading } from './RevealSection';
 
+
+async function extractFunctionError(error: unknown): Promise<string | null {
+  if (!error || typeof error !== 'object') return null;
+  const context = (error as { context?: unknown }).context;
+  if (context instanceof Response) {
+    try {
+      const payload = await context.clone().json();
+      if (payload && typeof payload === 'object') {
+        const record = payload as { error?: unknown; message?: unknown };
+        const message = record.error ?? record.message;
+        if (typeof message === 'string' && message.trim()) return message.trim();
+      }
+    } catch {
+      try {
+        const text = await context.clone().text();
+        if (text.trim()) return text.trim().slice(0, 500);
+      } catch { /* response body unavailable */ }
+    }
+  }
+  const message = (error as { message?: unknown }).message;
+  return typeof message === 'string' && message.trim() ? message.trim() : null;
+}
+
 interface TrackConfig {
   id: ApplicationTrack;
   index: string;
@@ -630,7 +653,7 @@ export function ApplySection() {
 
       // Pre-migration fallback retry if remote Edge Function requires clean non-storage experience payload
       if ((invokeError || data?.error) && !usesFallbackFiles) {
-        const msg = String(data?.error || invokeError?.message || '').toLowerCase();
+        const msg = String(data?.error || (await extractFunctionError(invokeError)) || '').toLowerCase();
         if (msg.includes('column') || msg.includes('schema') || msg.includes('unexpected')) {
           const fallbackBody = {
             ...payloadBody,
@@ -647,7 +670,7 @@ export function ApplySection() {
       if (invokeError || data?.error) {
         const message =
           data?.error ||
-          invokeError?.message ||
+          (await extractFunctionError(invokeError)) ||
           'Could not submit application. Please review your details and try again.';
         setErrors({ general: message });
         return;
