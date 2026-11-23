@@ -154,7 +154,7 @@ export function LiveApplicationsView({
   };
 
   const deleteApplication = async (app: Application) => {
-    if (effectiveActor?.role !== 'admin' && effectiveActor?.role !== 'super_admin') return;
+    if (effectiveActor?.role !== 'super_admin') return;
     if (!window.confirm("Permanently delete this applicant and their application, medical record, signup invite, QR pass, and uploaded files when cleanup succeeds? This cannot be undone.")) return;
     setDeletingId(app.id);
     const { data, error: invokeError } = await supabase.functions.invoke('willow-applications', { body: { action: 'delete', id: app.id } });
@@ -332,7 +332,7 @@ export function LiveApplicationsView({
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="text-[10px] text-[color:var(--wm-ink-muted)]">{new Date(app.submittedAt).toLocaleString()}</span>
-                    {(effectiveActor?.role === 'admin' || effectiveActor?.role === 'super_admin') && (
+                    {effectiveActor?.role === 'super_admin' && (
                       <button
                         type="button"
                         disabled={busyId === app.id || deletingId === app.id}
