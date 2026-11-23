@@ -47,10 +47,10 @@ import { RevealSection, SectionHeading } from './RevealSection';
 
 async function extractFunctionError(error: unknown): Promise<string | null> {
   if (!error || typeof error !== 'object') return null;
-  const context = (error as { context?: unknown }).context;
+  const context = (error as any).context;
   const readMessage = (payload: unknown): string | null => {
     if (!payload || typeof payload !== 'object') return null;
-    const record = payload as { error?: unknown; message?: unknown; details?: unknown; hint?: unknown };
+    const record = payload as Record<string, unknown>;
     for (const value of [record.error, record.message, record.details, record.hint]) {
       if (typeof value === 'string' && value.trim()) return value.trim();
     }
@@ -73,15 +73,18 @@ async function extractFunctionError(error: unknown): Promise<string | null> {
       if (typeof response.clone === 'function') {
         const raw = await response.clone().text();
         if (raw && raw.trim()) {
-          const parsedMessage = readMessage(JSON.parse(raw));
-          return parsedMessage || raw.trim().slice(0, 500);
+          try {
+            return readMessage(JSON.parse(raw)) || raw.trim().slice(0, 500);
+          } catch {
+            return raw.trim().slice(0, 500);
+          }
         }
       }
     } catch {
       // Fall through to SDK message.
     }
   }
-  const message = (error as { message?: unknown }).message;
+  const message = (error as any).message;
   return typeof message === 'string' && message.trim() ? message.trim() : null;
 }
 
