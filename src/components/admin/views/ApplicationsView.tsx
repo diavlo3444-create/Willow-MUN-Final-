@@ -680,7 +680,7 @@ export function ApplicationsView({
                             <Eye className="h-3.5 w-3.5" aria-hidden="true" />
                             <span>Open</span>
                           </button>
-                          {effectiveActor?.role === 'super_admin' && (
+                          {(effectiveActor?.role === 'super_admin' || effectiveActor?.title?.trim().toLowerCase() === 'super admin') && (
                             <button
                               type="button"
                               onClick={() => {
