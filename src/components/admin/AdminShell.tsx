@@ -41,7 +41,7 @@ const NAV_ICONS: Record<string, typeof LayoutDashboard> = {
   email: Mail, emails: Mail, messages: Inbox, notifications: Activity, registration: ClipboardList,
   logs: Activity, settings: Settings, monitoring: Server,
   admins: Shield, heads: UserCog, 'account-management': UserCog, roles: KeyRound, 'permission-defs': Lock,
-  testing: FlaskConical, spoof: ShieldAlert, 'eb-accounts': Users, 'eb-signup-link': Link2,
+  testing: FlaskConical, 'eb-accounts': Users, 'eb-signup-link': Link2,
   'press-media': Camera, volunteering: Users, security: Shield,
 };
 
