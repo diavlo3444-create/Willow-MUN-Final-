@@ -382,7 +382,7 @@ export function ApplicationFileUploader({
     handleAddFiles(e.dataTransfer.files);
   };
 
-  const countStatusMet = minFiles ? files.length >= minFiles && files.length <= maxFiles : files.length <= maxFiles;
+  const countStatusMet = files.length <= maxFiles;
 
   return (
     <div className="space-y-3">
@@ -405,7 +405,7 @@ export function ApplicationFileUploader({
           }`}
         >
           {minFiles
-            ? `${files.length} / ${minFiles}–${maxFiles} required`
+            ? `${files.length} / ${maxFiles} max`
             : `${files.length} / ${maxFiles} max`}
         </span>
       </div>
@@ -463,7 +463,7 @@ export function ApplicationFileUploader({
               {remainingSlots === 0
                 ? `Maximum ${maxFiles} files uploaded — remove or replace a file below`
                 : isImageGallery
-                  ? 'Select 10–15 photographs from your device or drag & drop here'
+                  ? 'Upload photography examples if you have them (optional)'
                   : 'Choose files from your device or drag & drop here'}
             </p>
             <p className="font-mono text-[10px] tracking-[0.06em] text-[#c9c2a6]/75">
@@ -491,7 +491,7 @@ export function ApplicationFileUploader({
         </div>
       </div>
 
-      {/* Image Portfolio Gallery Grid (Media 10–15 photos) */}
+      {/* Image Portfolio Gallery Grid (optional Media examples) */}
       {isImageGallery && files.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 pt-1">
           {files.map((item, idx) => (
