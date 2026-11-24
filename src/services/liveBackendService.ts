@@ -547,7 +547,19 @@ export async function submitHeadRecommendation(
 ): Promise<{ ok: boolean; application?: Application; error?: string }> {
   if ((actor.role !== 'department_head' && actor.role !== 'executive_board') || !hasPermission(actor, 'applications.recommend', departments)) return { ok: false, error: 'You are not permitted to submit department recommendations.' };
   const { data, error } = await supabase.functions.invoke('willow-applications', { body: { action: 'recommend', id: applicationId, recommendation, head_notes: notes || '' } });
-  if (error || data?.error || !data?.application) return { ok: false, error: data?.error || error?.message || 'Could not save recommendation.' };
+  if (error || data?.error || !data?.application) {
+    let serverMessage = data?.error || data?.message || '';
+    const context = (error as { context?: { json?: () => Promise<{ error?: string; message?: string; details?: string }> } } | null)?.context;
+    if (!serverMessage && context && typeof context.json === 'function') {
+      try {
+        const payload = await context.json();
+        serverMessage = payload?.error || payload?.message || payload?.details || '';
+      } catch {
+        // Fall back to the SDK error message below.
+      }
+    }
+    return { ok: false, error: serverMessage || error?.message || 'Could not save recommendation.' };
+  }
   return { ok: true, application: mapLiveRowToApplication(data.application as LiveApplicationRow, actor, departments) };
 }
 // =========================================================
