@@ -810,6 +810,7 @@ export function canAccessApplication(
   }
   if (user.role === 'department_head' || user.role === 'executive_board') {
     if (!hasPermission(user, 'applications.view', departments)) return false;
+    if (String(application.status || '').trim().toLowerCase() !== 'pending') return false;
     if (!canAccessDepartment(user, application.departmentId, departments)) return false;
 
     const actorDeptSlug = getActorDepartmentSlug(user, departments);

@@ -50,7 +50,9 @@ export function HeadApplicationsView({
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'accepted' | 'rejected'>('all');
+  const [recommendationFilter, setRecommendationFilter] = useState<
+    'all' | 'awaiting' | 'recommend_accept' | 'recommend_reject'
+  >('all');
   const [recommendationNotes, setRecommendationNotes] = useState<Record<string, string>>({});
 
   const isSuperAdmin = effectiveHead.role === 'super_admin';
@@ -67,51 +69,86 @@ export function HeadApplicationsView({
     effectiveHead.departmentId ||
     'Assigned Department';
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (options?: { silent?: boolean }) => {
+    const silent = options?.silent === true;
+    if (!silent) setLoading(true);
     const res = await fetchScopedApplicationsForActor(effectiveHead, data.departments);
     setLiveApps(res.applications);
     setSource(res.source);
-    if (res.error && res.applications.length === 0) {
+    if (!silent && res.error && res.applications.length === 0) {
       pushToast({ tone: 'error', title: 'Could not load applications', description: res.error });
     }
-    setLoading(false);
+    if (!silent) setLoading(false);
   }, [effectiveHead, data.departments, pushToast]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  // Combine live apps cleanly with any local store records only when live is empty/offline
+  // Silently sync pending applications when returning to the tab or while reviewing so Admin decisions disappear promptly.
+  useEffect(() => {
+    const handleRefresh = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      if (busyId) return;
+      void load({ silent: true });
+    };
+    window.addEventListener('focus', handleRefresh);
+    document.addEventListener('visibilitychange', handleRefresh);
+    const timer = window.setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      if (busyId) return;
+      void load({ silent: true });
+    }, 12000);
+    return () => {
+      window.removeEventListener('focus', handleRefresh);
+      document.removeEventListener('visibilitychange', handleRefresh);
+      window.clearInterval(timer);
+    };
+  }, [load, busyId]);
+
+  // Heads must only ever see pending applications in their assigned department and division.
   const scopedApps = useMemo(() => {
-    const base =
-      source !== 'local'
-        ? liveApps
-        : data.applications;
-    const visible = isSuperAdmin ? base : scopeApplicationsForActor(base, effectiveHead, data.departments);
-    return visible.sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
+    const base = source !== 'local' ? liveApps : data.applications;
+    const visible = isSuperAdmin
+      ? base.filter((app) => String(app.status || '').trim().toLowerCase() === 'pending')
+      : scopeApplicationsForActor(base, effectiveHead, data.departments);
+    return visible
+      .filter((app) => String(app.status || '').trim().toLowerCase() === 'pending')
+      .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
   }, [source, liveApps, data.applications, data.departments, effectiveHead, isSuperAdmin]);
 
   const filteredApps = useMemo(() => {
     const q = search.trim().toLowerCase();
     return scopedApps.filter((app) => {
-      if (statusFilter !== 'all' && app.status !== statusFilter) return false;
+      if (recommendationFilter === 'awaiting' && app.headRecommendation !== 'none') return false;
+      if (
+        recommendationFilter === 'recommend_accept' &&
+        app.headRecommendation !== 'recommend_accept'
+      ) {
+        return false;
+      }
+      if (
+        recommendationFilter === 'recommend_reject' &&
+        app.headRecommendation !== 'recommend_reject'
+      ) {
+        return false;
+      }
       if (!q) return true;
       const hay = `${app.applicantName} ${app.applicationCode} ${app.email} ${app.schoolOrUniversity} ${app.position}`.toLowerCase();
       return hay.includes(q);
     });
-  }, [scopedApps, statusFilter, search]);
+  }, [scopedApps, recommendationFilter, search]);
 
   const counts = useMemo(() => {
-    let pending = 0;
-    let accepted = 0;
-    let rejected = 0;
+    let awaiting = 0;
+    let recommendAccept = 0;
+    let recommendReject = 0;
     for (const app of scopedApps) {
-      if (app.status === 'pending') pending++;
-      else if (app.status === 'accepted') accepted++;
-      else if (app.status === 'rejected') rejected++;
+      if (app.headRecommendation === 'recommend_accept') recommendAccept++;
+      else if (app.headRecommendation === 'recommend_reject') recommendReject++;
+      else awaiting++;
     }
-    return { total: scopedApps.length, pending, accepted, rejected };
+    return { total: scopedApps.length, awaiting, recommendAccept, recommendReject };
   }, [scopedApps]);
 
   const selectedApp = useMemo(() => {
@@ -119,25 +156,42 @@ export function HeadApplicationsView({
     return scopedApps.find((a) => a.id === selectedApplicationId) || null;
   }, [selectedApplicationId, scopedApps]);
 
-  // Security guard: if head manually navigated to an application ID outside their dept/gender
+  // Security guard: if head manually navigated to an application ID outside their pending dept/gender queue
   useEffect(() => {
     if (!isSuperAdmin && !loading && selectedApplicationId && !selectedApp) {
       recordSecurityViolation(
         'application',
         selectedApplicationId,
-        `Department Head attempted access to application "${selectedApplicationId}" outside ${deptName} (${actorGender ?? 'unknown'}) division.`,
+        `Department Head attempted access to unavailable or out-of-scope application "${selectedApplicationId}" in ${deptName} (${actorGender ?? 'unknown'}).`,
       );
     }
   }, [loading, selectedApplicationId, selectedApp, recordSecurityViolation, deptName, actorGender, isSuperAdmin]);
 
   const handleRecommendation = async (app: Application, recommendation: 'recommend_accept' | 'recommend_reject') => {
     if ((!isSuperAdmin && !canAccessApplication(effectiveHead, app, data.departments)) || app.status !== 'pending') {
-      pushToast({ tone: 'error', title: 'Recommendation unavailable', description: 'Only pending applications in your assigned department and division can be recommended.' }); return;
+      setLiveApps((prev) => prev.filter((row) => row.id !== app.id));
+      if (selectedApplicationId === app.id) onSelectApplication(null);
+      pushToast({ tone: 'info', title: 'Application no longer pending', description: 'Only pending applications in your assigned department and division can be recommended.' });
+      return;
     }
     setBusyId(app.id);
     const res = await submitHeadRecommendation(effectiveHead, app.id, recommendation, recommendationNotes[app.id] ?? app.headNotes ?? '', data.departments);
     setBusyId(null);
-    if (!res.ok) { pushToast({ tone: 'error', title: 'Could not save recommendation', description: res.error || 'Please refresh and try again.' }); return; }
+    if (!res.ok) {
+      if (res.noLongerPending) {
+        setLiveApps((prev) => prev.filter((row) => row.id !== app.id));
+        if (selectedApplicationId === app.id) onSelectApplication(null);
+        void load({ silent: true });
+        pushToast({
+          tone: 'info',
+          title: 'Application no longer pending',
+          description: 'This application is no longer pending and was removed from your queue.',
+        });
+        return;
+      }
+      pushToast({ tone: 'error', title: 'Could not save recommendation', description: res.error || 'Please refresh and try again.' });
+      return;
+    }
     if (res.application) setLiveApps(prev => prev.map(row => row.id === app.id ? res.application! : row));
     pushToast({ tone: 'success', title: 'Recommendation submitted', description: 'Sent to Admin for review. The application remains pending until an Admin makes the final decision.' });
   };
@@ -161,9 +215,9 @@ export function HeadApplicationsView({
           <div className="flex items-start gap-3">
             <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-rose-300" aria-hidden="true" />
             <div>
-              <h2 className="text-base font-semibold text-rose-100">Application Outside Division Scope</h2>
+              <h2 className="text-base font-semibold text-rose-100">Application Unavailable</h2>
               <p className="mt-1.5 text-sm leading-relaxed text-[color:var(--wm-ink-secondary)]">
-                This application record does not belong to {deptName} ({actorGender ?? 'assigned'} division) or does not exist. Cross-department and cross-gender isolation is strictly enforced.
+                This application is no longer pending or is outside {deptName} ({actorGender ?? 'assigned'} division).
               </p>
             </div>
           </div>
@@ -313,7 +367,7 @@ export function HeadApplicationsView({
               {deptName} Applications
             </h1>
             <p className="mt-1 text-xs text-[color:var(--wm-ink-secondary)]">
-              Open applications from your division, review the full dossier, and submit a recommendation for Admin review.
+              Review pending applications from your division and submit recommendations for Admin review. Finalized applications leave this queue automatically.
             </p>
           </div>
           <button
@@ -336,25 +390,25 @@ export function HeadApplicationsView({
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search applicant name, email, or school…"
+              placeholder="Search pending applicant name, email, or school…"
               className="h-10 w-full rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-canvas)] pl-9 pr-3 text-xs text-[color:var(--wm-ink)] placeholder:text-[color:var(--wm-ink-muted)]"
             />
           </label>
 
           <div className="flex flex-wrap gap-1.5">
             {([
-              ['all', `All (${counts.total})`],
-              ['pending', `Pending (${counts.pending})`],
-              ['accepted', `Accepted (${counts.accepted})`],
-              ['rejected', `Declined (${counts.rejected})`],
+              ['all', `All Pending (${counts.total})`],
+              ['awaiting', `Awaiting Review (${counts.awaiting})`],
+              ['recommend_accept', `Recommend Accept (${counts.recommendAccept})`],
+              ['recommend_reject', `Recommend Reject (${counts.recommendReject})`],
             ] as const).map(([key, label]) => (
               <button
                 key={key}
                 type="button"
-                onClick={() => setStatusFilter(key)}
+                onClick={() => setRecommendationFilter(key)}
                 className={[
                   'h-10 rounded-md border px-3 text-xs font-medium transition-colors',
-                  statusFilter === key
+                  recommendationFilter === key
                     ? 'border-[color:var(--wm-accent)] bg-[#2d6a4f]/35 text-[color:var(--wm-ink)]'
                     : 'border-[color:var(--wm-hairline)] bg-[color:var(--wm-inset)] text-[color:var(--wm-ink-secondary)] hover:text-[color:var(--wm-ink)]',
                 ].join(' ')}

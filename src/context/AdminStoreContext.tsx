@@ -1657,9 +1657,15 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
     if (!currentUser) return [];
     const scopedUser = testModeHeadUser ?? currentUser;
     if (scopedUser.role === 'department_head' || scopedUser.role === 'executive_board') {
-      return data.notifications.filter(
-        (n) => n.departmentId === null || n.departmentId === scopedUser.departmentId,
-      );
+      return data.notifications.filter((n) => {
+        if (n.departmentId !== null && n.departmentId !== scopedUser.departmentId) return false;
+        if (n.category === 'application') return false;
+        const text = `${n.title} ${n.message}`.toLowerCase();
+        if (/\b(accept(?:ed)?|reject(?:ed)?|declined?|waitlist(?:ed)?|withdrawn|final decision|override|spoof)\b/.test(text)) {
+          return false;
+        }
+        return true;
+      });
     }
     return data.notifications;
   }, [currentUser, testModeHeadUser, data.notifications]);

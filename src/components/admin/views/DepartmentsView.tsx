@@ -3,7 +3,7 @@ import { Edit2, X } from 'lucide-react';
 import { useAdminStore } from '../../../context/AdminStoreContext';
 import type { Department } from '../../../types/admin';
 import { canManageAccountsOrRoles, hasPermission } from '../../../utils/adminPermissions';
-import { computeDepartmentBreakdown } from '../../../utils/applicationFilters';
+import { computeDepartmentBreakdown, scopeApplicationsForActor } from '../../../utils/applicationFilters';
 
 interface DepartmentsViewProps {
   lockedDepartmentId?: string | null;
@@ -27,6 +27,8 @@ export function DepartmentsView({
   const [editing, setEditing] = useState<Department | null>(null);
 
 
+  const isHeadActor =
+    effectiveActor?.role === 'department_head' || effectiveActor?.role === 'executive_board';
   const canManageDepts = hasPermission(effectiveActor, 'departments.manage');
   const canToggleReg = hasPermission(effectiveActor, 'departments.toggle_registration');
   const canAssignHead = canManageAccountsOrRoles(effectiveActor);
@@ -37,10 +39,15 @@ export function DepartmentsView({
     return core;
   }, [data.departments, lockedDepartmentId]);
 
+  const scopedApplications = useMemo(
+    () => scopeApplicationsForActor(data.applications, effectiveActor, data.departments),
+    [data.applications, effectiveActor, data.departments],
+  );
+
   const breakdownMap = useMemo(() => {
-    const b = computeDepartmentBreakdown(data.applications, data.departments);
+    const b = computeDepartmentBreakdown(scopedApplications, data.departments);
     return new Map(b.map((item) => [item.departmentId, item]));
-  }, [data.applications, data.departments]);
+  }, [scopedApplications, data.departments]);
 
   const headUsers = useMemo(
     () => data.users.filter((u) => u.role === 'department_head'),
@@ -101,40 +108,69 @@ export function DepartmentsView({
                 </p>
 
                 {/* Flush Rule-Divided Metric Band (No nested bordered box) */}
-                <div className="grid grid-cols-4 border-y border-[color:var(--wm-hairline)] bg-[color:var(--wm-inset)]/60 divide-x divide-[color:var(--wm-hairline)] text-center text-xs tabular-nums">
-                  <div className="py-2.5 px-2">
-                    <p className="text-[10px] uppercase tracking-wider text-[color:var(--wm-ink-muted)]">
-                      Total
-                    </p>
-                    <p className="mt-0.5 font-mono font-semibold text-[color:var(--wm-ink)]">
-                      {stats?.total ?? 0}
-                    </p>
+                {isHeadActor ? (
+                  <div className="grid grid-cols-3 border-y border-[color:var(--wm-hairline)] bg-[color:var(--wm-inset)]/60 divide-x divide-[color:var(--wm-hairline)] text-center text-xs tabular-nums">
+                    <div className="py-2.5 px-2">
+                      <p className="text-[10px] uppercase tracking-wider text-[color:var(--wm-ink-muted)]">
+                        Pending
+                      </p>
+                      <p className="mt-0.5 font-mono font-semibold text-amber-200">
+                        {stats?.pending ?? 0}
+                      </p>
+                    </div>
+                    <div className="py-2.5 px-2">
+                      <p className="text-[10px] uppercase tracking-wider text-[color:var(--wm-ink-muted)]">
+                        Recommended
+                      </p>
+                      <p className="mt-0.5 font-mono font-semibold text-emerald-200">
+                        {stats?.recommended ?? 0}
+                      </p>
+                    </div>
+                    <div className="py-2.5 px-2">
+                      <p className="text-[10px] uppercase tracking-wider text-[color:var(--wm-ink-muted)]">
+                        Target
+                      </p>
+                      <p className="mt-0.5 font-mono font-semibold text-[color:var(--wm-accent)]">
+                        {dept.capacity}
+                      </p>
+                    </div>
                   </div>
-                  <div className="py-2.5 px-2">
-                    <p className="text-[10px] uppercase tracking-wider text-[color:var(--wm-ink-muted)]">
-                      Pending
-                    </p>
-                    <p className="mt-0.5 font-mono font-semibold text-amber-200">
-                      {stats?.pending ?? 0}
-                    </p>
+                ) : (
+                  <div className="grid grid-cols-4 border-y border-[color:var(--wm-hairline)] bg-[color:var(--wm-inset)]/60 divide-x divide-[color:var(--wm-hairline)] text-center text-xs tabular-nums">
+                    <div className="py-2.5 px-2">
+                      <p className="text-[10px] uppercase tracking-wider text-[color:var(--wm-ink-muted)]">
+                        Total
+                      </p>
+                      <p className="mt-0.5 font-mono font-semibold text-[color:var(--wm-ink)]">
+                        {stats?.total ?? 0}
+                      </p>
+                    </div>
+                    <div className="py-2.5 px-2">
+                      <p className="text-[10px] uppercase tracking-wider text-[color:var(--wm-ink-muted)]">
+                        Pending
+                      </p>
+                      <p className="mt-0.5 font-mono font-semibold text-amber-200">
+                        {stats?.pending ?? 0}
+                      </p>
+                    </div>
+                    <div className="py-2.5 px-2">
+                      <p className="text-[10px] uppercase tracking-wider text-[color:var(--wm-ink-muted)]">
+                        Accepted
+                      </p>
+                      <p className="mt-0.5 font-mono font-semibold text-emerald-200">
+                        {stats?.accepted ?? 0}
+                      </p>
+                    </div>
+                    <div className="py-2.5 px-2">
+                      <p className="text-[10px] uppercase tracking-wider text-[color:var(--wm-ink-muted)]">
+                        Target
+                      </p>
+                      <p className="mt-0.5 font-mono font-semibold text-[color:var(--wm-accent)]">
+                        {dept.capacity}
+                      </p>
+                    </div>
                   </div>
-                  <div className="py-2.5 px-2">
-                    <p className="text-[10px] uppercase tracking-wider text-[color:var(--wm-ink-muted)]">
-                      Accepted
-                    </p>
-                    <p className="mt-0.5 font-mono font-semibold text-emerald-200">
-                      {stats?.accepted ?? 0}
-                    </p>
-                  </div>
-                  <div className="py-2.5 px-2">
-                    <p className="text-[10px] uppercase tracking-wider text-[color:var(--wm-ink-muted)]">
-                      Target
-                    </p>
-                    <p className="mt-0.5 font-mono font-semibold text-[color:var(--wm-accent)]">
-                      {dept.capacity}
-                    </p>
-                  </div>
-                </div>
+                )}
 
                 <div className="px-5 py-3.5 text-xs space-y-1.5">
                   <p className="text-[color:var(--wm-ink-muted)]">

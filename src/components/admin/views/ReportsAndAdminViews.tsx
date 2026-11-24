@@ -20,6 +20,7 @@ import {
   computeApplicationStats,
   computeDepartmentBreakdown,
   exportApplicationsToCsv,
+  scopeApplicationsForActor,
 } from '../../../utils/applicationFilters';
 import { ConfirmDialog } from '../ConfirmDialog';
 import { DepartmentDistributionChart } from '../SimpleCharts';
@@ -42,14 +43,21 @@ function downloadCsvFile(filename: string, content: string) {
 export function ReportsStatisticsView() {
   const { data, currentUser } = useAdminStore();
   const canExport = hasPermission(currentUser, 'reports.export');
+  const isHeadActor =
+    currentUser?.role === 'department_head' || currentUser?.role === 'executive_board';
 
   const [deptFilter, setDeptFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState<ApplicationCategory | 'all'>('all');
   const [dateStart, setDateStart] = useState('');
   const [dateEnd, setDateEnd] = useState('');
 
+  const scopedApps = useMemo(
+    () => scopeApplicationsForActor(data.applications, currentUser, data.departments),
+    [data.applications, currentUser, data.departments],
+  );
+
   const filteredApps = useMemo(() => {
-    return data.applications.filter((a) => {
+    return scopedApps.filter((a) => {
       if (deptFilter !== 'all' && a.departmentId !== deptFilter) return false;
       if (categoryFilter !== 'all' && a.category !== categoryFilter) return false;
       const day = a.submittedAt.slice(0, 10);
@@ -57,7 +65,7 @@ export function ReportsStatisticsView() {
       if (dateEnd && day > dateEnd) return false;
       return true;
     });
-  }, [categoryFilter, data.applications, dateEnd, dateStart, deptFilter]);
+  }, [categoryFilter, scopedApps, dateEnd, dateStart, deptFilter]);
 
   const stats = useMemo(() => computeApplicationStats(filteredApps), [filteredApps]);
   const breakdown = useMemo(
@@ -250,14 +258,22 @@ export function ReportsStatisticsView() {
 
       {/* Unified Architectural Metric Ledger Strip */}
       <section aria-label="Filtered statistics summary" className="wm-surface-panel overflow-hidden">
-        <div className="grid grid-cols-2 lg:grid-cols-5 divide-y lg:divide-y-0 lg:divide-x divide-[color:var(--wm-hairline)]">
-          {[
-            { label: 'Total Filtered', value: stats.total, accent: 'text-[color:var(--wm-ink)]' },
-            { label: 'Accepted', value: stats.accepted, accent: 'text-emerald-200' },
-            { label: 'Pending Review', value: stats.pending, accent: 'text-amber-200' },
-            { label: 'Rejected', value: stats.rejected, accent: 'text-rose-200' },
-            { label: 'Acceptance Rate', value: `${stats.acceptanceRate}%`, accent: 'text-[color:var(--wm-accent)]' },
-          ].map((k) => (
+        <div
+          className={`grid grid-cols-2 ${isHeadActor ? 'lg:grid-cols-2' : 'lg:grid-cols-5'} divide-y lg:divide-y-0 lg:divide-x divide-[color:var(--wm-hairline)]`}
+        >
+          {(isHeadActor
+            ? [
+                { label: 'Pending Queue', value: stats.pending, accent: 'text-amber-200' },
+                { label: 'Stage 1 Recommended', value: stats.recommended, accent: 'text-[color:var(--wm-accent)]' },
+              ]
+            : [
+                { label: 'Total Filtered', value: stats.total, accent: 'text-[color:var(--wm-ink)]' },
+                { label: 'Accepted', value: stats.accepted, accent: 'text-emerald-200' },
+                { label: 'Pending Review', value: stats.pending, accent: 'text-amber-200' },
+                { label: 'Rejected', value: stats.rejected, accent: 'text-rose-200' },
+                { label: 'Acceptance Rate', value: `${stats.acceptanceRate}%`, accent: 'text-[color:var(--wm-accent)]' },
+              ]
+          ).map((k) => (
             <div key={k.label} className="px-5 py-4">
               <p className="wm-section-kicker">{k.label}</p>
               <p className={`mt-1.5 font-serif text-3xl font-medium tabular-nums ${k.accent}`}>
@@ -284,7 +300,7 @@ export function ReportsStatisticsView() {
                 </span>
                 <div className="flex items-center gap-4 tabular-nums font-mono text-[11px]">
                   <span className="text-[color:var(--wm-ink-secondary)]">{c.total} total</span>
-                  <span className="text-emerald-200">{c.accepted} accepted</span>
+                  {!isHeadActor && <span className="text-emerald-200">{c.accepted} accepted</span>}
                   <span className="text-amber-200">{c.pending} pending</span>
                 </div>
               </div>
@@ -321,10 +337,16 @@ export function RegistrationControlsView() {
   const canManageReg = hasPermission(currentUser, 'registration.manage');
   const canToggleDept = hasPermission(currentUser, 'departments.toggle_registration');
 
-  const stats = computeApplicationStats(data.applications);
-  const breakdown = computeDepartmentBreakdown(data.applications, data.departments);
+  const isHeadActor =
+    currentUser?.role === 'department_head' || currentUser?.role === 'executive_board';
+  const scopedApps = useMemo(
+    () => scopeApplicationsForActor(data.applications, currentUser, data.departments),
+    [data.applications, currentUser, data.departments],
+  );
+  const stats = computeApplicationStats(scopedApps);
+  const breakdown = computeDepartmentBreakdown(scopedApps, data.departments);
   const openDeptsCount = data.departments.filter((d) => d.registrationOpen).length;
-  const recentIncoming = [...data.applications]
+  const recentIncoming = [...scopedApps]
     .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt))
     .slice(0, 6);
 
@@ -458,7 +480,9 @@ export function RegistrationControlsView() {
           {[
             { label: 'Total Submissions', value: stats.total },
             { label: 'Pending Final Review', value: stats.pending },
-            { label: 'Accepted Placements', value: stats.accepted },
+            isHeadActor
+              ? { label: 'Stage 1 Recommended', value: stats.recommended }
+              : { label: 'Accepted Placements', value: stats.accepted },
             { label: 'Open Departments', value: `${openDeptsCount}/${data.departments.length}` },
           ].map((kpi) => (
             <div key={kpi.label} className="px-5 py-4">
@@ -484,7 +508,7 @@ export function RegistrationControlsView() {
                 <tr className="border-b border-[color:var(--wm-hairline)] text-[10px] font-semibold uppercase tracking-[0.12em] text-[color:var(--wm-ink-muted)]">
                   <th className="px-4 py-2.5">Department</th>
                   <th className="px-4 py-2.5 text-right">Apps</th>
-                  <th className="px-4 py-2.5 text-right">Accepted</th>
+                  {!isHeadActor && <th className="px-4 py-2.5 text-right">Accepted</th>}
                   <th className="px-4 py-2.5 text-right">Capacity</th>
                   <th className="px-4 py-2.5">Status</th>
                   <th className="px-4 py-2.5 text-right">Toggle</th>
@@ -499,9 +523,11 @@ export function RegistrationControlsView() {
                     <td className="px-4 py-3 text-right text-[color:var(--wm-ink-secondary)] tabular-nums">
                       {row.total}
                     </td>
-                    <td className="px-4 py-3 text-right text-emerald-200 tabular-nums">
-                      {row.accepted}
-                    </td>
+                    {!isHeadActor && (
+                      <td className="px-4 py-3 text-right text-emerald-200 tabular-nums">
+                        {row.accepted}
+                      </td>
+                    )}
                     <td className="px-4 py-3 text-right text-[color:var(--wm-ink-secondary)] tabular-nums">
                       {row.capacity}
                     </td>

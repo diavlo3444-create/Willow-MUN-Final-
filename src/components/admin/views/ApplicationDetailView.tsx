@@ -85,7 +85,9 @@ export function ApplicationDetailView({
     setFinalNoteInput(application?.adminDecisionNotes ?? '');
   }, [application?.id, application?.headNotes, application?.adminDecisionNotes]);
 
-  const isUnauthorizedApp = Boolean(application && !canAccessApplication(effectiveActor, application));
+  const isUnauthorizedApp = Boolean(
+    application && !canAccessApplication(effectiveActor, application, data.departments),
+  );
 
   useEffect(() => {
     if (isUnauthorizedApp && application && effectiveActor) {
@@ -121,7 +123,7 @@ export function ApplicationDetailView({
     );
   }
 
-  if (!canAccessApplication(effectiveActor, application)) {
+  if (!canAccessApplication(effectiveActor, application, data.departments)) {
     return (
       <div
         role="alert"
@@ -130,9 +132,9 @@ export function ApplicationDetailView({
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-rose-400/35 bg-rose-500/15 text-rose-200">
           <ShieldAlert className="h-6 w-6" aria-hidden="true" />
         </div>
-        <h2 className="mt-4 text-lg font-semibold text-rose-100">Department Access Restricted</h2>
+        <h2 className="mt-4 text-lg font-semibold text-rose-100">Application Access Restricted</h2>
         <p className="mx-auto mt-2 max-w-md text-sm text-[color:var(--wm-ink-secondary)]">
-          Security isolation prevents viewing applications outside your assigned department.
+          This application is no longer pending or falls outside your assigned department and division.
         </p>
         <button
           type="button"
@@ -147,13 +149,18 @@ export function ApplicationDetailView({
   }
 
   const department = data.departments.find((d) => d.id === application.departmentId);
-  const canViewConfidential = canViewConfidentialApplicantInfo(effectiveActor, application);
-  const canDoFinalDecision = canReviewFinalDecision(effectiveActor, application);
-  const canRecommend = canSubmitRecommendation(effectiveActor, application);
-  const canAddNotes = hasPermission(effectiveActor, 'applications.notes');
+  const isHeadActor =
+    effectiveActor?.role === 'department_head' || effectiveActor?.role === 'executive_board';
+  const canViewConfidential = canViewConfidentialApplicantInfo(
+    effectiveActor,
+    application,
+    data.departments,
+  );
+  const canDoFinalDecision = canReviewFinalDecision(effectiveActor, application, data.departments);
+  const canRecommend = canSubmitRecommendation(effectiveActor, application, data.departments);
+  const canAddNotes = hasPermission(effectiveActor, 'applications.notes', data.departments);
   const canManageLinks =
-    hasPermission(effectiveActor, 'applications.signup_links') &&
-    effectiveActor?.role !== 'department_head';
+    hasPermission(effectiveActor, 'applications.signup_links', data.departments) && !isHeadActor;
 
   const handleNoteSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -212,7 +219,7 @@ export function ApplicationDetailView({
         <div className="flex flex-wrap items-center gap-2">
           <StatusBadge status={application.status} />
           <RecommendationBadge decision={application.headRecommendation} />
-          {onPrepareEmail && effectiveActor?.role !== 'department_head' && (
+          {onPrepareEmail && !isHeadActor && (
             <button
               type="button"
               onClick={() => onPrepareEmail(application.id)}
@@ -441,113 +448,115 @@ export function ApplicationDetailView({
             )}
           </section>
 
-          {/* Stage 2 Final Administrative Decision */}
-          <section className="wm-surface-panel p-5 space-y-3">
-            <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-[color:var(--wm-hairline)]">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--wm-ink)]">
-                Stage 2 · Final Decision
-              </p>
-              <StatusBadge status={application.status} />
-            </div>
-
-            {formatDecisionByLabel(application.status, application.finalDecisionBy) && (
-              <p className="text-xs text-[color:var(--wm-ink-secondary)]">
-                <strong className="text-[color:var(--wm-ink)]">
-                  {formatDecisionByLabel(application.status, application.finalDecisionBy)}
-                </strong>
-                {application.finalDecisionAt ? (
-                  <>
-                    {' · '}
-                    <span className="font-mono text-[11px] text-[color:var(--wm-ink-muted)]">
-                      {new Date(application.finalDecisionAt).toLocaleString()}
-                    </span>
-                  </>
-                ) : null}
-              </p>
-            )}
-
-            {canDoFinalDecision ? (
-              <div className="space-y-3">
-                <input
-                  type="text"
-                  value={finalNoteInput}
-                  onChange={(e) => setFinalNoteInput(e.target.value)}
-                  placeholder="Final administrative decision note..."
-                  className="h-9 w-full rounded border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-canvas)] px-3 text-xs text-[color:var(--wm-ink)] placeholder:text-[color:var(--wm-ink-muted)]/60 focus:border-[color:var(--wm-focal)] focus:outline-none"
-                />
-                <div className="flex flex-wrap gap-1.5">
-                  {FINAL_STATUSES.map((st) => {
-                    const isCurrent = application.status === st.value;
-                    return (
-                      <button
-                        key={st.value}
-                        type="button"
-                        disabled={isCurrent}
-                        onClick={() => {
-                          if (st.value === 'rejected' || st.value === 'withdrawn') {
-                            setPendingStatus(st.value);
-                          } else {
-                            updateApplicationStatus(application.id, st.value, finalNoteInput);
-                          }
-                        }}
-                        className={`h-8 rounded border px-3 text-xs font-medium transition-colors duration-150 cursor-pointer ${
-                          isCurrent
-                            ? 'border-[color:var(--wm-focal)] bg-[color:var(--wm-focal)] text-[#12170c]'
-                            : 'border-[color:var(--wm-hairline-strong)] bg-transparent text-[color:var(--wm-ink)] hover:bg-[#ede6ca]/10'
-                        }`}
-                      >
-                        {st.label}
-                      </button>
-                    );
-                  })}
-                </div>
+          {/* Stage 2 Final Administrative Decision (hidden from Heads/Co-Heads) */}
+          {!isHeadActor && (
+            <section className="wm-surface-panel p-5 space-y-3">
+              <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-[color:var(--wm-hairline)]">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--wm-ink)]">
+                  Stage 2 · Final Decision
+                </p>
+                <StatusBadge status={application.status} />
               </div>
-            ) : (
-              <p className="text-xs text-[color:var(--wm-ink-muted)]">
-                Stage 2 final acceptance or rejection is restricted to Super Admin or Admin leadership.
-              </p>
-            )}
 
-            {application.status === 'accepted' && canManageLinks && (
-              <div className="border-t border-[color:var(--wm-hairline)] pt-3 space-y-2">
-                <p className="text-[11px] font-semibold text-emerald-200 flex items-center gap-1.5">
-                  <Link2 className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span>Signup Invite ({application.signupLinkStatus.toUpperCase()})</span>
-                </p>
-                <p className="font-mono text-[11px] text-[color:var(--wm-ink)] break-all">
-                  {application.signupLinkToken ?? 'Not generated yet'}
-                </p>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {application.signupLinkToken && application.signupLinkStatus === 'active' && (
+              {formatDecisionByLabel(application.status, application.finalDecisionBy) && (
+                <p className="text-xs text-[color:var(--wm-ink-secondary)]">
+                  <strong className="text-[color:var(--wm-ink)]">
+                    {formatDecisionByLabel(application.status, application.finalDecisionBy)}
+                  </strong>
+                  {application.finalDecisionAt ? (
                     <>
-                      <button
-                        type="button"
-                        onClick={handleCopySignupLink}
-                        className="inline-flex h-7 items-center gap-1 rounded bg-[color:var(--wm-focal)] px-2.5 text-[11px] font-semibold text-[#12170c] cursor-pointer"
-                      >
-                        <Copy className="h-3 w-3" aria-hidden="true" />
-                        Copy
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => revokeSignupLink(application.id)}
-                        className="h-7 rounded border border-rose-400/35 px-2.5 text-[11px] text-rose-200 hover:bg-rose-500/20 cursor-pointer"
-                      >
-                        Revoke
-                      </button>
+                      {' · '}
+                      <span className="font-mono text-[11px] text-[color:var(--wm-ink-muted)]">
+                        {new Date(application.finalDecisionAt).toLocaleString()}
+                      </span>
                     </>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => generateSignupLink(application.id)}
-                    className="h-7 rounded border border-[color:var(--wm-hairline-strong)] px-2.5 text-[11px] text-[color:var(--wm-ink)] hover:bg-[#ede6ca]/10 cursor-pointer"
-                  >
-                    {application.signupLinkToken ? 'Regenerate' : 'Generate Link'}
-                  </button>
+                  ) : null}
+                </p>
+              )}
+
+              {canDoFinalDecision ? (
+                <div className="space-y-3">
+                  <input
+                    type="text"
+                    value={finalNoteInput}
+                    onChange={(e) => setFinalNoteInput(e.target.value)}
+                    placeholder="Final administrative decision note..."
+                    className="h-9 w-full rounded border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-canvas)] px-3 text-xs text-[color:var(--wm-ink)] placeholder:text-[color:var(--wm-ink-muted)]/60 focus:border-[color:var(--wm-focal)] focus:outline-none"
+                  />
+                  <div className="flex flex-wrap gap-1.5">
+                    {FINAL_STATUSES.map((st) => {
+                      const isCurrent = application.status === st.value;
+                      return (
+                        <button
+                          key={st.value}
+                          type="button"
+                          disabled={isCurrent}
+                          onClick={() => {
+                            if (st.value === 'rejected' || st.value === 'withdrawn') {
+                              setPendingStatus(st.value);
+                            } else {
+                              updateApplicationStatus(application.id, st.value, finalNoteInput);
+                            }
+                          }}
+                          className={`h-8 rounded border px-3 text-xs font-medium transition-colors duration-150 cursor-pointer ${
+                            isCurrent
+                              ? 'border-[color:var(--wm-focal)] bg-[color:var(--wm-focal)] text-[#12170c]'
+                              : 'border-[color:var(--wm-hairline-strong)] bg-transparent text-[color:var(--wm-ink)] hover:bg-[#ede6ca]/10'
+                          }`}
+                        >
+                          {st.label}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            )}
-          </section>
+              ) : (
+                <p className="text-xs text-[color:var(--wm-ink-muted)]">
+                  Stage 2 final acceptance or rejection is restricted to Super Admin or Admin leadership.
+                </p>
+              )}
+
+              {application.status === 'accepted' && canManageLinks && (
+                <div className="border-t border-[color:var(--wm-hairline)] pt-3 space-y-2">
+                  <p className="text-[11px] font-semibold text-emerald-200 flex items-center gap-1.5">
+                    <Link2 className="h-3.5 w-3.5" aria-hidden="true" />
+                    <span>Signup Invite ({application.signupLinkStatus.toUpperCase()})</span>
+                  </p>
+                  <p className="font-mono text-[11px] text-[color:var(--wm-ink)] break-all">
+                    {application.signupLinkToken ?? 'Not generated yet'}
+                  </p>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {application.signupLinkToken && application.signupLinkStatus === 'active' && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={handleCopySignupLink}
+                          className="inline-flex h-7 items-center gap-1 rounded bg-[color:var(--wm-focal)] px-2.5 text-[11px] font-semibold text-[#12170c] cursor-pointer"
+                        >
+                          <Copy className="h-3 w-3" aria-hidden="true" />
+                          Copy
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => revokeSignupLink(application.id)}
+                          className="h-7 rounded border border-rose-400/35 px-2.5 text-[11px] text-rose-200 hover:bg-rose-500/20 cursor-pointer"
+                        >
+                          Revoke
+                        </button>
+                      </>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => generateSignupLink(application.id)}
+                      className="h-7 rounded border border-[color:var(--wm-hairline-strong)] px-2.5 text-[11px] text-[color:var(--wm-ink)] hover:bg-[#ede6ca]/10 cursor-pointer"
+                    >
+                      {application.signupLinkToken ? 'Regenerate' : 'Generate Link'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </section>
+          )}
 
           {/* Internal Evaluation Notes */}
           <section className="wm-surface-panel overflow-hidden">
@@ -598,28 +607,30 @@ export function ApplicationDetailView({
             </div>
           </section>
 
-          {/* Processing Timeline */}
-          <section className="wm-surface-panel p-5 space-y-3">
-            <h3 className="text-sm font-semibold text-[color:var(--wm-ink)] pb-2.5 border-b border-[color:var(--wm-hairline)]">
-              Processing Timeline
-            </h3>
-            <div className="space-y-3 max-h-60 overflow-y-auto">
-              {application.history.map((item) => (
-                <div
-                  key={item.id}
-                  className="border-l-2 border-[color:var(--wm-accent)]/40 pl-3 space-y-0.5"
-                >
-                  <p className="text-xs font-medium text-[color:var(--wm-ink)]">{item.summary}</p>
-                  <p className="text-[11px] text-[color:var(--wm-ink-secondary)]">
-                    {item.actorName} ({getRoleLabel(item.actorRole)})
-                  </p>
-                  <p className="font-mono text-[10px] text-[color:var(--wm-ink-muted)] tabular-nums">
-                    {new Date(item.timestamp).toLocaleString()}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </section>
+          {/* Processing Timeline (hidden from Heads/Co-Heads) */}
+          {!isHeadActor && (
+            <section className="wm-surface-panel p-5 space-y-3">
+              <h3 className="text-sm font-semibold text-[color:var(--wm-ink)] pb-2.5 border-b border-[color:var(--wm-hairline)]">
+                Processing Timeline
+              </h3>
+              <div className="space-y-3 max-h-60 overflow-y-auto">
+                {application.history.map((item) => (
+                  <div
+                    key={item.id}
+                    className="border-l-2 border-[color:var(--wm-accent)]/40 pl-3 space-y-0.5"
+                  >
+                    <p className="text-xs font-medium text-[color:var(--wm-ink)]">{item.summary}</p>
+                    <p className="text-[11px] text-[color:var(--wm-ink-secondary)]">
+                      {item.actorName} ({getRoleLabel(item.actorRole)})
+                    </p>
+                    <p className="font-mono text-[10px] text-[color:var(--wm-ink-muted)] tabular-nums">
+                      {new Date(item.timestamp).toLocaleString()}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
         </aside>
       </div>
 

@@ -92,6 +92,70 @@ export function OverviewDashboardView({
   ).length;
   const completion = stats.total ? Math.round((reviewed / stats.total) * 100) : 0;
 
+  const isHeadViewer =
+    currentUser?.role === 'department_head' || currentUser?.role === 'executive_board';
+  const kpiCards = isHeadViewer
+    ? [
+        {
+          label: 'Pending queue',
+          value: stats.pending,
+          helper: 'Assigned pending applications',
+          icon: Users,
+          action: () => onFilterApplications('pending'),
+        },
+        {
+          label: 'Awaiting recommendation',
+          value: Math.max(0, stats.pending - stats.recommended),
+          helper: 'Not yet recommended',
+          icon: Clock3,
+          action: () => onFilterApplications('pending'),
+        },
+        {
+          label: 'Recommend accept',
+          value: stats.recommendedAccept,
+          helper: 'Awaiting Admin review',
+          icon: CheckCircle2,
+          action: () => onFilterApplications('pending'),
+        },
+        {
+          label: 'Recommend reject',
+          value: stats.recommendedReject,
+          helper: 'Awaiting Admin review',
+          icon: XCircle,
+          action: () => onFilterApplications('pending'),
+        },
+      ]
+    : [
+        {
+          label: 'Total applications',
+          value: stats.total,
+          helper: 'All submitted applications',
+          icon: Users,
+          action: () => onFilterApplications('all'),
+        },
+        {
+          label: 'Awaiting review',
+          value: stats.pending,
+          helper: stats.pending ? 'Oldest unresolved first' : 'Nothing waiting',
+          icon: Clock3,
+          action: () => onFilterApplications('pending'),
+        },
+        {
+          label: 'Accepted',
+          value: stats.accepted,
+          helper: `${stats.total ? Math.round((stats.accepted / stats.total) * 100) : 0}% of applications`,
+          icon: CheckCircle2,
+          action: () => onFilterApplications('accepted'),
+        },
+        {
+          label: 'Rejected',
+          value: applications.filter((app) => app.status === 'rejected').length,
+          helper: 'Final decisions',
+          icon: XCircle,
+          action: () => onFilterApplications('rejected'),
+        },
+      ];
+
   return (
     <div className="space-y-5">
       {liveLoadError && <div role="alert" className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">Live application data could not be loaded: {liveLoadError}. Showing local fallback data.</div>}
@@ -123,36 +187,7 @@ export function OverviewDashboardView({
       </section>
 
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {[
-          {
-            label: 'Total applications',
-            value: stats.total,
-            helper: 'All submitted applications',
-            icon: Users,
-            action: () => onFilterApplications('all'),
-          },
-          {
-            label: 'Awaiting review',
-            value: stats.pending,
-            helper: stats.pending ? 'Oldest unresolved first' : 'Nothing waiting',
-            icon: Clock3,
-            action: () => onFilterApplications('pending'),
-          },
-          {
-            label: 'Accepted',
-            value: stats.accepted,
-            helper: `${stats.total ? Math.round((stats.accepted / stats.total) * 100) : 0}% of applications`,
-            icon: CheckCircle2,
-            action: () => onFilterApplications('accepted'),
-          },
-          {
-            label: 'Rejected',
-            value: applications.filter((app) => app.status === 'rejected').length,
-            helper: 'Final decisions',
-            icon: XCircle,
-            action: () => onFilterApplications('rejected'),
-          },
-        ].map((item) => {
+        {kpiCards.map((item) => {
           const Icon = item.icon;
           return (
             <button
@@ -215,7 +250,7 @@ export function OverviewDashboardView({
                   </div>
                   <div className="shrink-0 text-right">
                     <StatusBadge status={app.status} />
-                    {formatDecisionByLabel(app.status, app.finalDecisionBy) && (
+                    {!isHeadViewer && formatDecisionByLabel(app.status, app.finalDecisionBy) && (
                       <p className="mt-1 text-[10px] text-[color:var(--wm-ink-muted)]">
                         {formatDecisionByLabel(app.status, app.finalDecisionBy)}
                       </p>

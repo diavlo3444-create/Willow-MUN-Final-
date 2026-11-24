@@ -104,12 +104,15 @@ export function ApplicationsView({
     label: string;
   } | null>(null);
 
+  const isHeadActor =
+    effectiveActor?.role === 'department_head' || effectiveActor?.role === 'executive_board';
   const effectiveSearch = externalSearch || search;
   const effectiveDeptFilter = lockedDepartmentId ?? departmentFilter;
+  const effectiveStatusFilter: ApplicationStatus | 'all' = isHeadActor ? 'pending' : statusFilter;
 
   const scopedAll = useMemo(
-    () => scopeApplicationsForActor(data.applications, effectiveActor),
-    [data.applications, effectiveActor],
+    () => scopeApplicationsForActor(data.applications, effectiveActor, data.departments),
+    [data.applications, effectiveActor, data.departments],
   );
 
   const availablePositions = useMemo(() => {
@@ -124,38 +127,44 @@ export function ApplicationsView({
 
   const filtered = useMemo(
     () =>
-      filterAndSortApplications(data.applications, effectiveActor, {
-        search: effectiveSearch,
-        departmentId: effectiveDeptFilter,
-        category:
-          viewMode === 'delegate'
-            ? 'delegate'
-            : viewMode === 'staff_group'
-              ? categoryFilter === 'all'
-                ? 'staff_group'
-                : categoryFilter
-              : categoryFilter,
-        position: positionFilter,
-        status: statusFilter,
-        recommendation: recommendationFilter,
-        dateFrom,
-        dateTo,
-        sortField,
-        sortDirection,
-      }),
+      filterAndSortApplications(
+        data.applications,
+        effectiveActor,
+        {
+          search: effectiveSearch,
+          departmentId: effectiveDeptFilter,
+          category:
+            viewMode === 'delegate'
+              ? 'delegate'
+              : viewMode === 'staff_group'
+                ? categoryFilter === 'all'
+                  ? 'staff_group'
+                  : categoryFilter
+                : categoryFilter,
+          position: positionFilter,
+          status: effectiveStatusFilter,
+          recommendation: recommendationFilter,
+          dateFrom,
+          dateTo,
+          sortField,
+          sortDirection,
+        },
+        data.departments,
+      ),
     [
       categoryFilter,
       data.applications,
+      data.departments,
       dateFrom,
       dateTo,
       effectiveActor,
       effectiveDeptFilter,
       effectiveSearch,
+      effectiveStatusFilter,
       positionFilter,
       recommendationFilter,
       sortDirection,
       sortField,
-      statusFilter,
       viewMode,
     ],
   );
@@ -167,19 +176,16 @@ export function ApplicationsView({
   );
 
   const canReview =
-    hasPermission(effectiveActor, 'applications.review') &&
-    effectiveActor?.role !== 'department_head';
+    hasPermission(effectiveActor, 'applications.review', data.departments) && !isHeadActor;
   const canBulk =
-    hasPermission(effectiveActor, 'applications.bulk_actions') &&
-    effectiveActor?.role !== 'department_head';
-  const canExport = hasPermission(effectiveActor, 'applications.export');
+    hasPermission(effectiveActor, 'applications.bulk_actions', data.departments) && !isHeadActor;
+  const canExport = hasPermission(effectiveActor, 'applications.export', data.departments);
   const canManageLinks =
-    hasPermission(effectiveActor, 'applications.signup_links') &&
-    effectiveActor?.role !== 'department_head';
+    hasPermission(effectiveActor, 'applications.signup_links', data.departments) && !isHeadActor;
 
   const activeRouteAppId = selectedApplicationIdFromRoute ?? modalAppId;
   if (activeRouteAppId) {
-    const found = data.applications.find((a) => a.id === activeRouteAppId);
+    const found = scopedAll.find((a) => a.id === activeRouteAppId);
     return (
       <ApplicationDetailView
         application={found}
@@ -359,19 +365,26 @@ export function ApplicationsView({
 
           <select
             aria-label="Filter by status"
-            value={statusFilter}
+            value={effectiveStatusFilter}
+            disabled={isHeadActor}
             onChange={(e) => {
               setStatusFilter(e.target.value as ApplicationStatus | 'all');
               setPage(1);
             }}
-            className="h-9 rounded border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-canvas)] px-3 text-xs text-[color:var(--wm-ink)] focus:border-[color:var(--wm-focal)] focus:outline-none"
+            className="h-9 rounded border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-canvas)] px-3 text-xs text-[color:var(--wm-ink)] focus:border-[color:var(--wm-focal)] focus:outline-none disabled:opacity-75"
           >
-            <option value="all">All Statuses</option>
-            <option value="pending">Pending</option>
-            <option value="accepted">Accepted</option>
-            <option value="rejected">Rejected</option>
-            <option value="waitlisted">Waitlisted</option>
-            <option value="withdrawn">Withdrawn</option>
+            {isHeadActor ? (
+              <option value="pending">Pending Only</option>
+            ) : (
+              <>
+                <option value="all">All Statuses</option>
+                <option value="pending">Pending</option>
+                <option value="accepted">Accepted</option>
+                <option value="rejected">Rejected</option>
+                <option value="waitlisted">Waitlisted</option>
+                <option value="withdrawn">Withdrawn</option>
+              </>
+            )}
           </select>
 
           <select
@@ -637,7 +650,7 @@ export function ApplicationsView({
                       </td>
                       <td className="py-3 px-3">
                         <StatusBadge status={app.status} />
-                        {formatDecisionByLabel(app.status, app.finalDecisionBy) && (
+                        {!isHeadActor && formatDecisionByLabel(app.status, app.finalDecisionBy) && (
                           <p className="mt-1 text-[11px] text-[color:var(--wm-ink-muted)]">
                             {formatDecisionByLabel(app.status, app.finalDecisionBy)}
                           </p>

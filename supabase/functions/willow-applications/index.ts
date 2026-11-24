@@ -1,5 +1,13 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  canHeadAccessApplication,
+  isHeadActorScopeMatch,
+  mapDepartment,
+  redactApplicationForHead,
+  resolveApplicationDepartmentSlug,
+  resolveHeadContext,
+} from "./policy.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -59,34 +67,6 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const PHONE_E164_REGEX = /^\+[1-9]\d{6,14}$/;
 const CURRENT_PRIVACY_POLICY_VERSION = "2026-11-22";
 const CURRENT_TERMS_VERSION = "2026-11-22";
-
-function mapDepartment(appType: string, explicitDept?: string | null): string {
-  const cleanExplicit = String(explicitDept || "").trim().toLowerCase();
-  if (cleanExplicit) return cleanExplicit;
-  switch (String(appType || "").trim().toLowerCase()) {
-    case "volunteer":
-    case "volunteers":
-      return "volunteers";
-    case "media":
-    case "media-press":
-      return "media";
-    case "press":
-      return "press";
-    case "security":
-      return "security";
-    case "delegate":
-      return "dcc";
-    default:
-      return String(appType || "general").trim().toLowerCase();
-  }
-}
-
-function getActorGender(profile: { title?: string | null; division?: string | null }): "male" | "female" | null {
-  const label = `${profile.title || ""} ${profile.division || ""}`.toLowerCase();
-  if (/\b(female|women|woman)\b/.test(label)) return "female";
-  if (/\b(male|men|man)\b/.test(label)) return "male";
-  return null;
-}
 
 function isHrProfile(profile: {
   department_slug?: string | null;
@@ -513,44 +493,29 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Your account is not active." }, 403);
   }
 
-  const { data: actorDepartment } = actor.department_id
-    ? await admin.from("wm_departments").select("id,slug").eq("id", actor.department_id).maybeSingle()
-    : { data: null };
+  const [{ data: actorDepartment }, { data: allDepartments }] = await Promise.all([
+    actor.department_id
+      ? admin.from("wm_departments").select("id,slug").eq("id", actor.department_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+    admin.from("wm_departments").select("id,slug"),
+  ]);
+  const deptSlugById = new Map<string, string>();
+  for (const d of allDepartments || []) {
+    if (d?.id && d?.slug) deptSlugById.set(String(d.id).toLowerCase(), String(d.slug).toLowerCase());
+  }
   const actorDeptSlug = String(actorDepartment?.slug || "").trim().toLowerCase();
-  const actorLabel = `${actor.title || ""} ${actor.division || ""}`.toLowerCase();
-  const actorApplicationType = actorLabel.includes("press")
-    ? "press"
-    : actorLabel.includes("media")
-      ? "media"
-      : null;
   const actorPerms = (
     actor.permissions && typeof actor.permissions === "object" ? actor.permissions : {}
   ) as Record<string, boolean>;
-  const actorEbPerms = (
-    actor.eb_permissions && typeof actor.eb_permissions === "object" ? actor.eb_permissions : {}
-  ) as Record<string, boolean>;
 
-  const isAdmin = actor.role === "super_admin" || actor.role === "admin";
+  const headCtx = resolveHeadContext(actor, actorDeptSlug);
+  const isAdmin = headCtx.isAdmin;
+  const isSuperAdmin = headCtx.isSuperAdmin;
+  const isHead = headCtx.isHead;
+  const canHeadRecommend = headCtx.canHeadRecommend;
   const canViewMedical =
     actor.role === "super_admin" ||
     (actor.role === "admin" && actorPerms["applications.view_confidential"] === true);
-
-  const isEbHead =
-    actor.role === "executive_board" &&
-    (actor.eb_rank === "head" ||
-      actor.eb_rank === "co_head" ||
-      actorEbPerms.manage_department === true ||
-      /\bhead\b/i.test(String(actor.title || "")) ||
-      actorPerms["applications.view"] === true);
-  const headApplicationDepartmentAllowed =
-    ["media-press", "security", "volunteers"].includes(actorDeptSlug) &&
-    (actorDeptSlug !== "media-press" || actorApplicationType !== null);
-  const isHead =
-    headApplicationDepartmentAllowed &&
-    ((actor.role === "department_head" && actorPerms["applications.view"] !== false) || isEbHead);
-  // Super Admin inherits every Head capability from the same account.
-  const isSuperAdmin = actor.role === "super_admin";
-  const canHeadRecommend = isSuperAdmin || (isHead && actorPerms["applications.recommend"] !== false);
   const isHr = isHrProfile({ ...actor, department_slug: actorDeptSlug });
 
   function cleanDecisionByName(value: unknown): string | null {
@@ -568,7 +533,7 @@ Deno.serve(async (req: Request) => {
       return rows.map((row) => ({
         ...row,
         decision_by_name: cleanDecisionByName(row.decision_by_name),
-        department_id: mapDepartment(row.application_type, row.department_id),
+        department_id: resolveApplicationDepartmentSlug(row.application_type, row.department_id, deptSlugById),
         medical_has_conditions: null,
         medical_details: null,
         medical_restricted: true,
@@ -594,7 +559,7 @@ Deno.serve(async (req: Request) => {
       return {
         ...row,
         decision_by_name: cleanDecisionByName(row.decision_by_name),
-        department_id: mapDepartment(row.application_type, row.department_id),
+        department_id: resolveApplicationDepartmentSlug(row.application_type, row.department_id, deptSlugById),
         medical_has_conditions: med ? med.has_medical_condition : null,
         medical_details: med ? med.medical_details : null,
         medical_restricted: false,
@@ -644,7 +609,6 @@ Deno.serve(async (req: Request) => {
 
     if (fetchError || !existing) return json({ error: "Application not found." }, 404);
 
-    const appDept = mapDepartment(existing.application_type, existing.department_id);
     let authorized = false;
 
     if (isAdmin) {
@@ -652,15 +616,7 @@ Deno.serve(async (req: Request) => {
     } else if (isHr && existing.status === "accepted") {
       authorized = true;
     } else if (isHead) {
-      const actorGender = getActorGender(actor);
-      const appGender = String(existing.gender || "").trim().toLowerCase();
-      const matchesDept = appDept.toLowerCase() === actorDeptSlug;
-      const matchesMediaPress =
-        actorDeptSlug !== "media-press" ||
-        (actorApplicationType !== null &&
-          String(existing.application_type || "").toLowerCase() === actorApplicationType);
-      const matchesGender = Boolean(actorGender && appGender && actorGender === appGender);
-      authorized = matchesDept && matchesMediaPress && matchesGender;
+      authorized = canHeadAccessApplication(headCtx, existing, deptSlugById);
     }
 
     if (!authorized) {
@@ -756,30 +712,24 @@ Deno.serve(async (req: Request) => {
     }
 
     if (isHead) {
-      const actorDept = actorDeptSlug;
-      const actorGender = getActorGender(actor);
-      if (!actorDept || !actorGender) {
+      if (!headCtx.actorDeptSlug || !headCtx.actorGender) {
         return json({ error: "Department and gender division are required on your Head profile." }, 403);
       }
       const { data: rows, error } = await admin
         .from("wm_applications")
         .select("*")
+        .eq("status", "pending")
         .order("created_at", { ascending: false });
       if (error) return json({ error: error.message }, 400);
       const scoped = (rows || [])
+        .filter((row: any) => canHeadAccessApplication(headCtx, row, deptSlugById))
         .map((row: any) => ({
           ...row,
-          department_id: mapDepartment(row.application_type, row.department_id),
-        }))
-        .filter(
-          (row: any) =>
-            row.department_id.toLowerCase() === actorDept &&
-            (actorDept !== "media-press" ||
-              (actorApplicationType !== null &&
-                String(row.application_type || "").toLowerCase() === actorApplicationType)) &&
-            String(row.gender || "").trim().toLowerCase() === actorGender,
-        );
-      const redacted = await enrichRowsWithConfidentialMedical(scoped);
+          department_id: resolveApplicationDepartmentSlug(row.application_type, row.department_id, deptSlugById),
+        }));
+      const withNames = await enrichRecommenderNames(scoped);
+      const enriched = await enrichRowsWithConfidentialMedical(withNames);
+      const redacted = enriched.map((row: any) => redactApplicationForHead(row));
       return json({ applications: redacted });
     }
 
@@ -795,23 +745,21 @@ Deno.serve(async (req: Request) => {
     if (!["recommend_accept", "recommend_reject"].includes(recommendation)) return json({ error: "Choose recommend acceptance or recommend rejection." }, 400);
     const { data: existing, error: fetchError } = await admin.from("wm_applications").select("*").eq("id", id).maybeSingle();
     if (fetchError || !existing) return json({ error: "Application not found." }, 404);
-    const appDept = mapDepartment(existing.application_type, existing.department_id);
+    const appDept = resolveApplicationDepartmentSlug(existing.application_type, existing.department_id, deptSlugById);
     // Assigned Heads remain scoped to their department, track, and gender division.
-    // Super Admin may perform the same review action across all applications.
-    if (!isSuperAdmin) {
-      const actorGender = getActorGender(actor);
-      const appGender = String(existing.gender || "").trim().toLowerCase();
-      if (!actorDeptSlug || appDept.toLowerCase() !== actorDeptSlug) return json({ error: "You cannot recommend applications outside your assigned department." }, 403);
-      if (actorDeptSlug === "media-press" && (!actorApplicationType || String(existing.application_type || "").toLowerCase() !== actorApplicationType)) return json({ error: "Media and Press applications are isolated." }, 403);
-      if (!actorGender || appGender !== actorGender) return json({ error: "You cannot recommend applications outside your gender division." }, 403);
+    // Scope is verified BEFORE status so Heads cannot probe decisions on out-of-scope records.
+    if (!isSuperAdmin && !isHeadActorScopeMatch(headCtx, existing, deptSlugById)) {
+      return json({ error: "You cannot recommend applications outside your assigned department and division." }, 403);
     }
-    if (existing.status !== "pending") return json({ error: "Only pending applications can receive or change a recommendation." }, 409);
+    if (String(existing.status || "").trim().toLowerCase() !== "pending") {
+      return json({ error: "This application is no longer pending.", no_longer_pending: true }, 409);
+    }
     if (!isSuperAdmin && existing.recommended_by && existing.recommended_by !== authData.user.id) return json({ error: "A Department Head has already submitted this recommendation. Contact an Admin if it needs to be changed." }, 409);
     const { data: updated, error: updateError } = await admin.from("wm_applications").update({ head_recommendation: recommendation, head_notes: headNotes, recommended_by: authData.user.id, recommended_by_name: actor.full_name, recommended_at: new Date().toISOString() }).eq("id", id).eq("status", "pending").select("*").maybeSingle();
     if (updateError) return json({ error: updateError.message }, 400);
-    if (!updated) return json({ error: "The application changed while you were submitting. Refresh and try again." }, 409);
+    if (!updated) return json({ error: "This application is no longer pending.", no_longer_pending: true }, 409);
     const [enriched] = await enrichRowsWithConfidentialMedical([{ ...updated, department_id: appDept }]);
-    return json({ application: enriched });
+    return json({ application: isAdmin ? enriched : redactApplicationForHead(enriched) });
   }
   if (action === "override_decision") {
     if (actor.role !== "super_admin") {

@@ -249,7 +249,11 @@ export function mapLiveRowToApplication(
 
   const allowMedical =
     canViewConfidentialMedicalInfo(actor, departments) && row.medical_restricted !== true;
-  const cleanDecisionBy = cleanDecisionMakerName(row.decision_by_name);
+  const isHeadViewer =
+    Boolean(actor && (actor.role === 'department_head' || actor.role === 'executive_board') && !isHrActor(actor, departments));
+  const cleanDecisionBy = isHeadViewer ? null : cleanDecisionMakerName(row.decision_by_name);
+  const decisionAt = isHeadViewer ? null : row.decision_at || null;
+  const decisionNotes = isHeadViewer ? '' : row.admin_decision_notes ?? row.review_notes ?? '';
 
   return {
     id: row.id,
@@ -271,17 +275,17 @@ export function mapLiveRowToApplication(
     secondChoiceDepartmentId: null,
     status: row.status,
     submittedAt: row.created_at,
-    updatedAt: row.updated_at || row.decision_at || row.created_at,
+    updatedAt: isHeadViewer ? row.updated_at || row.created_at : row.updated_at || row.decision_at || row.created_at,
     headRecommendation: normalizeHeadRecommendation(row.head_recommendation),
     headNotes: row.head_notes || '',
     recommendedBy: row.recommended_by || null,
     recommendedByName: row.recommended_by_name || null,
     recommendedAt: row.recommended_at || null,
     finalDecisionBy: cleanDecisionBy,
-    finalDecisionAt: row.decision_at || null,
-    adminDecisionNotes: row.admin_decision_notes ?? row.review_notes ?? '',
+    finalDecisionAt: decisionAt,
+    adminDecisionNotes: decisionNotes,
     reviewedBy: cleanDecisionBy,
-    reviewedAt: row.decision_at || null,
+    reviewedAt: decisionAt,
     signupLinkToken: null,
     signupLinkStatus: 'none',
     signupLinkGeneratedAt: null,
@@ -315,17 +319,18 @@ export function mapLiveRowToApplication(
       termsVersion: row.terms_version ?? null,
       consentAcceptedAt: row.consent_accepted_at ?? null,
     },
-    history: row.decision_at
-      ? [
-          {
-            id: `hist-${row.id}`,
-            timestamp: row.decision_at,
-            actorName: cleanDecisionBy || 'Reviewer',
-            actorRole: row.decision_by ? 'admin' : 'department_head',
-            summary: `Status updated to ${row.status.toUpperCase()}`,
-          },
-        ]
-      : [],
+    history:
+      !isHeadViewer && row.decision_at
+        ? [
+            {
+              id: `hist-${row.id}`,
+              timestamp: row.decision_at,
+              actorName: cleanDecisionBy || 'Reviewer',
+              actorRole: row.decision_by ? 'admin' : 'department_head',
+              summary: `Status updated to ${row.status.toUpperCase()}`,
+            },
+          ]
+        : [],
   };
 }
 
@@ -382,7 +387,7 @@ export async function fetchScopedApplicationsForActor(
       if (!deptSlug || !gender || !hasPermission(actor, 'applications.view', departments)) {
         return { applications: [], source: 'table' };
       }
-      query = query.eq('department_id', deptSlug).eq('gender', gender);
+      query = query.eq('status', 'pending').eq('gender', gender);
     }
     const { data: rows, error: tableError } = await query;
     if (!tableError && Array.isArray(rows)) {
@@ -403,7 +408,11 @@ export async function fetchScopedApplicationsForActor(
 
   const localApps = conferenceDataService.getSnapshot().applications;
   if (localApps.length > 0) {
-    return { applications: localApps, source: 'local' };
+    const scopedLocal =
+      actor.role === 'department_head' || actor.role === 'executive_board'
+        ? localApps.filter((app) => canAccessApplication(actor, app, departments))
+        : localApps;
+    return { applications: scopedLocal, source: 'local' };
   }
 
   return {
@@ -551,21 +560,30 @@ export async function submitHeadRecommendation(
   actor: AdminUser, applicationId: string,
   recommendation: 'recommend_accept' | 'recommend_reject',
   notes?: string, departments?: Department[],
-): Promise<{ ok: boolean; application?: Application; error?: string }> {
+): Promise<{ ok: boolean; application?: Application; error?: string; noLongerPending?: boolean }> {
   if ((actor.role !== 'department_head' && actor.role !== 'executive_board') || !hasPermission(actor, 'applications.recommend', departments)) return { ok: false, error: 'You are not permitted to submit department recommendations.' };
   const { data, error } = await supabase.functions.invoke('willow-applications', { body: { action: 'recommend', id: applicationId, recommendation, head_notes: notes || '' } });
   if (error || data?.error || !data?.application) {
     let serverMessage = data?.error || data?.message || '';
-    const context = (error as { context?: { json?: () => Promise<{ error?: string; message?: string; details?: string }> } } | null)?.context;
-    if (!serverMessage && context && typeof context.json === 'function') {
+    let noLongerPending = Boolean(data?.no_longer_pending);
+    const context = (error as { context?: { json?: () => Promise<{ error?: string; message?: string; details?: string; no_longer_pending?: boolean }> } } | null)?.context;
+    if (context && typeof context.json === 'function') {
       try {
         const payload = await context.json();
-        serverMessage = payload?.error || payload?.message || payload?.details || '';
+        if (!serverMessage) serverMessage = payload?.error || payload?.message || payload?.details || '';
+        if (payload?.no_longer_pending) noLongerPending = true;
       } catch {
         // Fall back to the SDK error message below.
       }
     }
-    return { ok: false, error: serverMessage || error?.message || 'Could not save recommendation.' };
+    if (!noLongerPending && /no longer pending|only pending/i.test(serverMessage)) {
+      noLongerPending = true;
+    }
+    return {
+      ok: false,
+      error: serverMessage || error?.message || 'Could not save recommendation.',
+      noLongerPending,
+    };
   }
   return { ok: true, application: mapLiveRowToApplication(data.application as LiveApplicationRow, actor, departments) };
 }

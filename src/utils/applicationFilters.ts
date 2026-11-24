@@ -198,8 +198,9 @@ export function filterAndSortApplications(
   applications: Application[],
   actor: AdminUser | null | undefined,
   options: ApplicationFilterOptions = {},
+  departments?: Department[],
 ): Application[] {
-  const scoped = scopeApplicationsForActor(applications, actor);
+  const scoped = scopeApplicationsForActor(applications, actor, departments);
   const query = (options.search ?? '').trim().toLowerCase();
   const deptFilter = options.departmentId && options.departmentId !== 'all' ? options.departmentId : null;
   const genderFilter = options.gender && options.gender !== 'all' ? options.gender : null;
