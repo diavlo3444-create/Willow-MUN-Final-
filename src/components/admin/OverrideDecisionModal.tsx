@@ -121,15 +121,9 @@ export function OverrideDecisionModal({
           placeholder="Optional note for the private override audit..."
           className="mt-1 w-full resize-y rounded border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-inset)] px-3 py-2 text-sm text-[color:var(--wm-ink)] placeholder:text-[color:var(--wm-ink-muted)]"
         />
-        {trimmedReason.length > 0 && !reasonValid ? (
-          <p className="mt-1 text-xs text-amber-300">
-            Please add a longer note, or leave it blank.
-          </p>
-        ) : (
-          <p className="mt-2 text-xs text-[color:var(--wm-ink-muted)]">
-            Previous status, new decision, note (if provided), actual Super Admin identity, and timestamp are recorded in the override audit log.
-          </p>
-        )}
+        <p className="mt-2 text-xs text-[color:var(--wm-ink-muted)]">
+          Previous status, new decision, note (if provided), actual Super Admin identity, and timestamp are recorded in the override audit log.
+        </p>
 
         <div className="mt-5 flex flex-wrap justify-end gap-2">
           <button
