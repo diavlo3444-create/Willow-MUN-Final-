@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { ShieldAlert, X } from 'lucide-react';
 import type { Application, ApplicationStatus } from '../../types/admin';
 
-const MIN_OVERRIDE_REASON_LENGTH = 8;
+const DEFAULT_OVERRIDE_REASON = 'Super Admin override';
 
 interface OverrideDecisionModalProps {
   application: Pick<Application, 'id' | 'applicantName' | 'applicationCode' | 'status'> | null;
@@ -40,7 +40,7 @@ export function OverrideDecisionModal({
   if (!application) return null;
 
   const trimmedReason = reason.trim();
-  const reasonValid = trimmedReason.length >= MIN_OVERRIDE_REASON_LENGTH;
+  const auditReason = trimmedReason || DEFAULT_OVERRIDE_REASON;
 
   return (
     <div
@@ -111,24 +111,23 @@ export function OverrideDecisionModal({
           htmlFor="override-reason-textarea"
           className="mt-4 block text-xs font-medium text-[color:var(--wm-ink-secondary)]"
         >
-          Override reason (required)
+          Override reason (optional)
         </label>
         <textarea
           id="override-reason-textarea"
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           rows={3}
-          placeholder="Explain why the original decision is being overridden..."
+          placeholder="Optional note for the private override audit..."
           className="mt-1 w-full resize-y rounded border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-inset)] px-3 py-2 text-sm text-[color:var(--wm-ink)] placeholder:text-[color:var(--wm-ink-muted)]"
         />
         {trimmedReason.length > 0 && !reasonValid ? (
           <p className="mt-1 text-xs text-amber-300">
-            Minimum {MIN_OVERRIDE_REASON_LENGTH} characters required ({trimmedReason.length}/
-            {MIN_OVERRIDE_REASON_LENGTH}).
+            Please add a longer note, or leave it blank.
           </p>
         ) : (
           <p className="mt-2 text-xs text-[color:var(--wm-ink-muted)]">
-            Previous status, new decision, override reason, Super Admin identity, and timestamp are recorded in the override audit log.
+            Previous status, new decision, note (if provided), actual Super Admin identity, and timestamp are recorded in the override audit log.
           </p>
         )}
 
@@ -143,9 +142,9 @@ export function OverrideDecisionModal({
           </button>
           <button
             type="button"
-            disabled={saving || !reasonValid}
+            disabled={saving}
             onClick={async () => {
-              const ok = await onConfirm(application.id, nextStatus, trimmedReason);
+              const ok = await onConfirm(application.id, nextStatus, auditReason);
               if (ok) onClose();
             }}
             className="min-h-[38px] rounded border border-amber-400/40 bg-amber-500/15 px-3.5 py-2 text-sm font-semibold text-amber-200 hover:bg-amber-500/25 disabled:opacity-40 cursor-pointer"
