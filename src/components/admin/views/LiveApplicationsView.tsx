@@ -26,10 +26,12 @@ export function LiveApplicationsView({
   selectedId,
   externalSearch,
   onClose,
+  spoofMode = false,
 }: {
   selectedId?: string | null;
   externalSearch?: string;
   onClose?: () => void;
+  spoofMode?: boolean;
 }) {
   const { currentUser, authReady, testModeHeadUser, data: storeData, overrideApplicationDecision } = useAdminStore();
   const effectiveActor = testModeHeadUser ?? currentUser;
@@ -258,7 +260,7 @@ export function LiveApplicationsView({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-sm font-semibold text-[color:var(--wm-ink)]">
-              Staff &amp; Organizing Team Applications
+              {spoofMode ? 'Spoof — Decision Overrides' : 'Staff & Organizing Team Applications'}
             </h2>
             <p className="mt-1 text-xs text-[color:var(--wm-ink-muted)]">
               {applications.length} submissions · Media, Press, Volunteers, Security
@@ -363,6 +365,16 @@ export function LiveApplicationsView({
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="text-[10px] text-[color:var(--wm-ink-muted)]">{new Date(app.submittedAt).toLocaleString()}</span>
+                    {spoofMode && canOverride && (
+                      <button
+                        type="button"
+                        onClick={() => setOverrideTarget(app)}
+                        className="inline-flex min-h-[34px] items-center gap-1.5 rounded border border-amber-400/45 bg-amber-500/15 px-3 text-xs font-semibold text-amber-200 hover:bg-amber-500/25 cursor-pointer"
+                      >
+                        <ShieldAlert className="h-3.5 w-3.5" aria-hidden="true" />
+                        <span>Spoof</span>
+                      </button>
+                    )}
                     {effectiveActor?.role === 'super_admin' && (
                       <button
                         type="button"
