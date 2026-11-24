@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ShieldAlert, UserCheck, X } from 'lucide-react';
 import type { Application, ApplicationStatus } from '../../types/admin';
 import {
+  cleanDecisionMakerName,
   formatDecisionSummary,
   validateSpoofRequest,
   type AssignableAdminOption,
@@ -39,10 +40,10 @@ export function SpoofDecisionModal({
 
   const defaultAdminId = useMemo(() => {
     if (!assignableAdmins.length) return '';
-    const matchedCurrent = application?.finalDecisionBy
+    const currentDecisionName = cleanDecisionMakerName(application?.finalDecisionBy);
+    const matchedCurrent = currentDecisionName
       ? assignableAdmins.find(
-          (admin) =>
-            admin.fullName.toLowerCase() === String(application.finalDecisionBy).trim().toLowerCase(),
+          (admin) => admin.fullName.toLowerCase() === currentDecisionName.toLowerCase(),
         )
       : undefined;
     if (matchedCurrent) return matchedCurrent.userId;

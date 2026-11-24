@@ -553,11 +553,21 @@ Deno.serve(async (req: Request) => {
   const canHeadRecommend = isSuperAdmin || (isHead && actorPerms["applications.recommend"] !== false);
   const isHr = isHrProfile({ ...actor, department_slug: actorDeptSlug });
 
+  function cleanDecisionByName(value: unknown): string | null {
+    const raw = String(value || "").trim();
+    if (!raw) return null;
+    const cleaned = raw
+      .replace(/\s*\(\s*(?:attributed\s+(?:by|to)\s+super\s*admin|spoofed\s+by)\s*:[^)]*\)\s*$/i, "")
+      .trim();
+    return cleaned || null;
+  }
+
   async function enrichRowsWithConfidentialMedical(rows: any[]) {
     if (!rows.length) return [];
     if (!canViewMedical) {
       return rows.map((row) => ({
         ...row,
+        decision_by_name: cleanDecisionByName(row.decision_by_name),
         department_id: mapDepartment(row.application_type, row.department_id),
         medical_has_conditions: null,
         medical_details: null,
@@ -583,6 +593,7 @@ Deno.serve(async (req: Request) => {
       const med = medMap.get(row.id);
       return {
         ...row,
+        decision_by_name: cleanDecisionByName(row.decision_by_name),
         department_id: mapDepartment(row.application_type, row.department_id),
         medical_has_conditions: med ? med.has_medical_condition : null,
         medical_details: med ? med.medical_details : null,
@@ -1054,12 +1065,13 @@ Deno.serve(async (req: Request) => {
       .eq("slug", appDept)
       .maybeSingle();
 
+    const cleanTargetName = targetAdmin ? cleanDecisionByName(targetAdmin.full_name) || targetAdmin.full_name : null;
     const nowIso = new Date().toISOString();
     const patch: Record<string, unknown> = {
       status: nextStatus,
       department_id: appDept,
       decision_by: targetAdmin ? targetAdmin.user_id : null,
-      decision_by_name: targetAdmin ? targetAdmin.full_name : null,
+      decision_by_name: cleanTargetName,
       decision_at: targetAdmin ? nowIso : null,
     };
 

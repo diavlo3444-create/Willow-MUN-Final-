@@ -16,7 +16,7 @@ import { fetchHrAcceptedApplications, createHrApplicantSignupInvite } from '../.
 import type { AdminUser, Application } from '../../../types/admin';
 import { isHrActor, normalizeDepartmentSlug } from '../../../utils/adminPermissions';
 import { scopeAcceptedApplicationsForHr } from '../../../utils/applicationFilters';
-import { formatDecisionByLabel } from '../../../utils/decisionAttribution';
+import { cleanDecisionMakerName, formatDecisionByLabel } from '../../../utils/decisionAttribution';
 import { ApplicationAttachmentsViewer } from '../ApplicationAttachmentsViewer';
 import { StatusBadge } from '../StatusBadge';
 import { WmSkeleton } from '../WmSkeleton';
@@ -184,7 +184,9 @@ Willow MUN`;
                 {selectedApp.finalDecisionAt
                   ? new Date(selectedApp.finalDecisionAt).toLocaleString()
                   : new Date(selectedApp.submittedAt).toLocaleString()}
-                {selectedApp.finalDecisionBy ? ` by ${selectedApp.finalDecisionBy}` : ''}
+                {cleanDecisionMakerName(selectedApp.finalDecisionBy)
+                  ? ` by ${cleanDecisionMakerName(selectedApp.finalDecisionBy)}`
+                  : ''}
               </p>
             </div>
             <StatusBadge status="accepted" />

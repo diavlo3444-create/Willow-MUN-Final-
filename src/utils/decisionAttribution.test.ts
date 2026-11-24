@@ -9,6 +9,7 @@ import {
 } from './adminPermissions';
 import {
   canAccessSpoofSection,
+  cleanDecisionMakerName,
   formatDecisionByLabel,
   formatDecisionSummary,
   normalizeAssignableAdmins,
@@ -75,7 +76,17 @@ test('Spoof sidebar item under Access & Systems appears strictly for super_admin
   assert.equal(headAllIds.includes('spoof'), false);
 });
 
-test('formatDecisionByLabel and formatDecisionSummary format attribution uniformly', () => {
+test('formatDecisionByLabel and formatDecisionSummary format attribution uniformly and strip Super Admin tags', () => {
+  assert.equal(cleanDecisionMakerName('Lana (attributed by Super Admin: Mohammed Magdi)'), 'Lana');
+  assert.equal(cleanDecisionMakerName('Lana (Spoofed by: Mohammed Magdi)'), 'Lana');
+  assert.equal(
+    formatDecisionByLabel('rejected', 'Lana (attributed by Super Admin: Mohammed Magdi)'),
+    'Rejected by Lana',
+  );
+  assert.equal(
+    formatDecisionSummary('accepted', 'Lana (attributed to Super Admin: Mohammed Magdi)'),
+    'Accepted by Lana',
+  );
   assert.equal(formatDecisionByLabel('rejected', 'Ahmed Magdi'), 'Rejected by Ahmed Magdi');
   assert.equal(formatDecisionByLabel('accepted', 'Layla Hassan'), 'Accepted by Layla Hassan');
   assert.equal(formatDecisionByLabel('waitlisted', 'Naya Barakat'), 'Waitlisted by Naya Barakat');

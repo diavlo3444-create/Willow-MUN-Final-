@@ -59,3 +59,32 @@ test('SpoofDecisionModal renders applicant details, current attribution, decisio
   assert.match(html, /Apply Spoof/);
   assert.match(html, /without sending any automated decision email/);
 });
+
+test('SpoofDecisionModal strips legacy Super Admin attribution tag from current status display', () => {
+  const html = renderToStaticMarkup(
+    createElement(SpoofDecisionModal, {
+      application: {
+        id: 'app-789',
+        applicantName: 'Nadia Karim',
+        applicationCode: 'WM-2027-099',
+        status: 'rejected',
+        finalDecisionBy: 'Lana (attributed by Super Admin: Mohammed Magdi)',
+      },
+      assignableAdmins: [
+        {
+          userId: 'adm-lana',
+          fullName: 'Lana',
+          email: 'lana@willowmun.org',
+          role: 'admin',
+          title: 'Admin',
+        },
+      ],
+      onClose: () => undefined,
+      onConfirm: async () => true,
+    }),
+  );
+
+  assert.match(html, /Rejected by Lana/);
+  assert.doesNotMatch(html, /attributed by Super Admin/i);
+  assert.doesNotMatch(html, /Mohammed Magdi/);
+});

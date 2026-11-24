@@ -24,6 +24,7 @@ import {
   normalizeHeadRecommendation,
 } from '../utils/applicationFilters';
 import {
+  cleanDecisionMakerName,
   normalizeAssignableAdmins,
   type AssignableAdminOption,
   type SpoofAuditEntry,
@@ -248,6 +249,7 @@ export function mapLiveRowToApplication(
 
   const allowMedical =
     canViewConfidentialMedicalInfo(actor, departments) && row.medical_restricted !== true;
+  const cleanDecisionBy = cleanDecisionMakerName(row.decision_by_name);
 
   return {
     id: row.id,
@@ -275,10 +277,10 @@ export function mapLiveRowToApplication(
     recommendedBy: row.recommended_by || null,
     recommendedByName: row.recommended_by_name || null,
     recommendedAt: row.recommended_at || null,
-    finalDecisionBy: row.decision_by_name || null,
+    finalDecisionBy: cleanDecisionBy,
     finalDecisionAt: row.decision_at || null,
     adminDecisionNotes: row.admin_decision_notes ?? row.review_notes ?? '',
-    reviewedBy: row.decision_by_name || null,
+    reviewedBy: cleanDecisionBy,
     reviewedAt: row.decision_at || null,
     signupLinkToken: null,
     signupLinkStatus: 'none',
@@ -318,7 +320,7 @@ export function mapLiveRowToApplication(
           {
             id: `hist-${row.id}`,
             timestamp: row.decision_at,
-            actorName: row.decision_by_name || 'Reviewer',
+            actorName: cleanDecisionBy || 'Reviewer',
             actorRole: row.decision_by ? 'admin' : 'department_head',
             summary: `Status updated to ${row.status.toUpperCase()}`,
           },

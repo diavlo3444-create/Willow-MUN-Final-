@@ -41,11 +41,20 @@ export function canAccessSpoofSection(user: AdminUser | null | undefined): boole
   return canOverrideApplicationDecision(user);
 }
 
+export function cleanDecisionMakerName(decisionBy?: string | null): string | null {
+  const raw = String(decisionBy || '').trim();
+  if (!raw) return null;
+  const cleaned = raw
+    .replace(/\s*\(\s*(?:attributed\s+(?:by|to)\s+super\s*admin|spoofed\s+by)\s*:[^)]*\)\s*$/i, '')
+    .trim();
+  return cleaned || null;
+}
+
 export function formatDecisionByLabel(
   status: ApplicationStatus | string,
   decisionBy?: string | null,
 ): string | null {
-  const cleanName = String(decisionBy || '').trim();
+  const cleanName = cleanDecisionMakerName(decisionBy);
   const cleanStatus = String(status || '').trim().toLowerCase();
   if (!cleanName || cleanStatus === 'pending') return null;
   if (cleanStatus === 'accepted') return `Accepted by ${cleanName}`;

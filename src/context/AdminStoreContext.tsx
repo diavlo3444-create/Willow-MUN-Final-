@@ -32,6 +32,7 @@ import {
 import type { LiveApplicationRow } from '../services/liveBackendService';
 import membersJson from '../data/members.json';
 import { clearAlyaIntroSession } from '../utils/alyaEasterEgg';
+import { cleanDecisionMakerName } from '../utils/decisionAttribution';
 import type {
   AdminNotification,
   AdminUser,
@@ -974,8 +975,8 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
       onUpdated?.(result.application as LiveApplicationRow);
       refreshSnapshot();
       const attributedName =
-        result?.spoof?.attributed_admin_name ||
-        (result.application as LiveApplicationRow)?.decision_by_name ||
+        cleanDecisionMakerName(result?.spoof?.attributed_admin_name) ||
+        cleanDecisionMakerName((result.application as LiveApplicationRow)?.decision_by_name) ||
         null;
       pushToast({
         tone: result.warning ? 'warning' : 'success',
