@@ -937,6 +937,19 @@ Deno.serve(async (req: Request) => {
     if (!["pending", "accepted", "rejected", "waitlisted"].includes(nextStatus)) {
       return json({ error: "Invalid status value." }, 400);
     }
+
+    // Lock accepted/rejected decisions to their original decision-maker.
+    // Only that admin or a Super Admin may change a locked decision.
+    const lockedDecision = ["accepted", "rejected"].includes(String(existing.status || "").toLowerCase());
+    const originalDecisionMaker = String(existing.decision_by || "");
+    if (lockedDecision && !isSuperAdmin && originalDecisionMaker && originalDecisionMaker !== authData.user.id) {
+      return json({
+        error: "This decision is locked. Only the admin who made it or a Super Admin can change it.",
+        locked: true,
+        decision_by_name: existing.decision_by_name || null,
+      }, 403);
+    }
+
     const patch: Record<string, unknown> = {
       status: nextStatus,
       department_id: appDept,
@@ -949,13 +962,22 @@ Deno.serve(async (req: Request) => {
       patch.admin_decision_notes = String(body.review_notes);
     }
 
-    const { data: updated, error: updateError } = await admin
+    // Guard the write against a decision being changed between the read and update.
+    let updateQuery = admin
       .from("wm_applications")
       .update(patch)
       .eq("id", id)
-      .select("*")
-      .single();
+      .eq("status", existing.status);
+    if (existing.decision_by) {
+      updateQuery = updateQuery.eq("decision_by", existing.decision_by);
+    } else {
+      updateQuery = updateQuery.is("decision_by", null);
+    }
+    const { data: updated, error: updateError } = await updateQuery.select("*").maybeSingle();
     if (updateError) return json({ error: updateError.message }, 400);
+    if (!updated) {
+      return json({ error: "Another admin changed this application just now. Refresh to see the latest decision.", locked: true }, 409);
+    }
 
     // Automatically ensure permanent personal QR pass when applicant is accepted
     if (nextStatus === "accepted") {
