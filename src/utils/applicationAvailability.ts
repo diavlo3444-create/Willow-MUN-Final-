@@ -26,7 +26,7 @@ export const WEBSITE_APPLICATION_FORMS: readonly WebsiteApplicationFormDefinitio
     wing: 'Communications & Creative',
     description:
       'Photography, videography, committee reels, and visual storytelling across every session of the conference.',
-    requirementsSummary: 'Camera gear details, 10–15 sample photographs & 5 role questions',
+    requirementsSummary: 'Camera gear details & role questions; photography examples are optional',
   },
   {
     id: 'press',
