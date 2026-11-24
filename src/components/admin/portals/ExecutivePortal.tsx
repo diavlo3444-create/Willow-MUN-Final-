@@ -61,6 +61,10 @@ const SECTION_META: Record<string, { title: string; subtitle: string }> = {
     title: 'All Applications',
     subtitle: 'Review and finalize applicant decisions across departments.',
   },
+  spoof: {
+    title: 'Spoof — Decision Overrides',
+    subtitle: 'Super Admin-only decision correction workspace. Overrides are audit-recorded and do not impersonate the selected admin.',
+  },
   'application-management': {
     title: 'Application Management',
     subtitle: 'Turn public website application forms ON or OFF and monitor intake status.',
@@ -277,7 +281,8 @@ export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePorta
     section === 'admins' ||
     section === 'testing' ||
     section === 'eb-accounts' ||
-    section === 'eb-signup-link';
+    section === 'eb-signup-link' ||
+    section === 'spoof';
   const attemptedForbiddenSuperRoute = authorizedForPortal && !isSuperAdmin && isSuperOnlyRoute;
   const westPortalSections = new Set([
     'dashboard',
@@ -305,6 +310,7 @@ export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePorta
     'admins',
     'eb-accounts',
     'eb-signup-link',
+    'spoof',
     'testing',
     'press-media',
     'volunteering',
@@ -425,6 +431,12 @@ export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePorta
           />
         ) : (
           renderDenied('Your account lacks permission to manage application availability.')
+        )
+      ) : section === 'spoof' ? (
+        currentUser.role === 'super_admin' ? (
+          <LiveApplicationsView externalSearch={globalSearch} />
+        ) : (
+          renderDenied('Spoof is restricted to Super Admin accounts.')
         )
       ) : section === 'applications' || section === 'staff-apps' ? (
         hasPermission(currentUser, 'applications.view') ? (
