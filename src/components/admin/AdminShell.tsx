@@ -5,7 +5,7 @@ import {
   ClipboardList, Clock, ExternalLink, FileCode, FileText, FlaskConical,
   FolderKanban, Globe, HelpCircle, History, Image as ImageIcon, Inbox,
   KeyRound, LayoutDashboard, Lock, LogOut, Mail, MapPin, Megaphone, Menu, Link2,
-  QrCode, ScanLine, Search, Server, Settings, Shield, Tag, ToggleRight, UserCheck,
+  QrCode, ScanLine, Search, Server, Settings, Shield, ShieldAlert, Tag, ToggleRight, UserCheck,
   UserCog, Users, X, ChevronRight, Layers,
 } from 'lucide-react';
 import { useAdminStore } from '../../context/AdminStoreContext';
