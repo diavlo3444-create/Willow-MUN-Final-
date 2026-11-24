@@ -25,6 +25,7 @@ import {
   type SortDirection,
   type SortField,
 } from '../../../utils/applicationFilters';
+import { formatDecisionByLabel } from '../../../utils/decisionAttribution';
 import { ConfirmDialog } from '../ConfirmDialog';
 import { OverrideDecisionModal } from '../OverrideDecisionModal';
 import { RecommendationBadge, StatusBadge } from '../StatusBadge';
@@ -636,6 +637,11 @@ export function ApplicationsView({
                       </td>
                       <td className="py-3 px-3">
                         <StatusBadge status={app.status} />
+                        {formatDecisionByLabel(app.status, app.finalDecisionBy) && (
+                          <p className="mt-1 text-[11px] text-[color:var(--wm-ink-muted)]">
+                            {formatDecisionByLabel(app.status, app.finalDecisionBy)}
+                          </p>
+                        )}
                       </td>
                       <td className="py-3 px-3">
                         {app.signupLinkToken ? (

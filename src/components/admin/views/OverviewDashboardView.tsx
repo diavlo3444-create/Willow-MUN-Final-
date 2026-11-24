@@ -13,6 +13,7 @@ import { supabase } from '../../../lib/supabase';
 import { mapLiveRowToApplication, type LiveApplicationRow } from '../../../services/liveBackendService';
 import type { ApplicationStatus } from '../../../types/admin';
 import { computeApplicationStats, scopeApplicationsForActor } from '../../../utils/applicationFilters';
+import { formatDecisionByLabel } from '../../../utils/decisionAttribution';
 import { StatusBadge } from '../StatusBadge';
 
 interface OverviewDashboardViewProps {
@@ -212,7 +213,14 @@ export function OverviewDashboardView({
                       {app.position} · {app.applicationCode}
                     </p>
                   </div>
-                  <StatusBadge status={app.status} />
+                  <div className="shrink-0 text-right">
+                    <StatusBadge status={app.status} />
+                    {formatDecisionByLabel(app.status, app.finalDecisionBy) && (
+                      <p className="mt-1 text-[10px] text-[color:var(--wm-ink-muted)]">
+                        {formatDecisionByLabel(app.status, app.finalDecisionBy)}
+                      </p>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>

@@ -31,6 +31,7 @@ import {
   getRoleLabel,
   hasPermission,
 } from '../../../utils/adminPermissions';
+import { formatDecisionByLabel } from '../../../utils/decisionAttribution';
 import { ConfirmDialog } from '../ConfirmDialog';
 import { ApplicationAttachmentsViewer } from '../ApplicationAttachmentsViewer';
 import { RecommendationBadge, RoleBadge, StatusBadge } from '../StatusBadge';
@@ -448,6 +449,22 @@ export function ApplicationDetailView({
               </p>
               <StatusBadge status={application.status} />
             </div>
+
+            {formatDecisionByLabel(application.status, application.finalDecisionBy) && (
+              <p className="text-xs text-[color:var(--wm-ink-secondary)]">
+                <strong className="text-[color:var(--wm-ink)]">
+                  {formatDecisionByLabel(application.status, application.finalDecisionBy)}
+                </strong>
+                {application.finalDecisionAt ? (
+                  <>
+                    {' · '}
+                    <span className="font-mono text-[11px] text-[color:var(--wm-ink-muted)]">
+                      {new Date(application.finalDecisionAt).toLocaleString()}
+                    </span>
+                  </>
+                ) : null}
+              </p>
+            )}
 
             {canDoFinalDecision ? (
               <div className="space-y-3">

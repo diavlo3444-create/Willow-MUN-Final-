@@ -23,6 +23,11 @@ import {
   isHeadRecommendedApplication,
   normalizeHeadRecommendation,
 } from '../utils/applicationFilters';
+import {
+  normalizeAssignableAdmins,
+  type AssignableAdminOption,
+  type SpoofAuditEntry,
+} from '../utils/decisionAttribution';
 export { normalizeHeadRecommendation };
 import { conferenceDataService } from './mockDataService';
 import {
@@ -314,7 +319,7 @@ export function mapLiveRowToApplication(
             id: `hist-${row.id}`,
             timestamp: row.decision_at,
             actorName: row.decision_by_name || 'Reviewer',
-            actorRole: 'department_head',
+            actorRole: row.decision_by ? 'admin' : 'department_head',
             summary: `Status updated to ${row.status.toUpperCase()}`,
           },
         ]
@@ -561,6 +566,50 @@ export async function submitHeadRecommendation(
     return { ok: false, error: serverMessage || error?.message || 'Could not save recommendation.' };
   }
   return { ok: true, application: mapLiveRowToApplication(data.application as LiveApplicationRow, actor, departments) };
+}
+
+export async function fetchSpoofAssignableAdmins(): Promise<{
+  admins: AssignableAdminOption[];
+  error?: string;
+}> {
+  const { data, error } = await supabase.functions.invoke('willow-applications', {
+    body: { action: 'list_spoof_admins' },
+  });
+
+  if (!error && data && !data.error && Array.isArray(data.admins)) {
+    return { admins: normalizeAssignableAdmins(data.admins) };
+  }
+
+  // Fallback to willow-staff-admin list if willow-applications does not yet expose list_spoof_admins
+  const staffRes = await supabase.functions.invoke('willow-staff-admin', {
+    body: { action: 'list' },
+  });
+  if (!staffRes.error && staffRes.data && Array.isArray(staffRes.data.accounts)) {
+    return { admins: normalizeAssignableAdmins(staffRes.data.accounts) };
+  }
+
+  const errMsg =
+    data?.error ||
+    (error ? await getQrInvokeError(error, data, 'Could not load active Admin accounts.') : undefined) ||
+    staffRes.data?.error ||
+    'Could not load active Admin accounts.';
+  return { admins: [], error: errMsg };
+}
+
+export async function fetchSpoofAuditLogs(): Promise<{
+  entries: SpoofAuditEntry[];
+  error?: string;
+}> {
+  const { data, error } = await supabase.functions.invoke('willow-applications', {
+    body: { action: 'list_spoof_audit' },
+  });
+
+  if (!error && data && !data.error && Array.isArray(data.entries)) {
+    return { entries: data.entries as SpoofAuditEntry[] };
+  }
+
+  const errMsg = data?.error || (error ? await getQrInvokeError(error, data, 'Could not load spoof audit history.') : 'Could not load spoof audit history.');
+  return { entries: [], error: errMsg };
 }
 // =========================================================
 // COMMITTEES (Supabase wm_committees + Local CMS Sync)

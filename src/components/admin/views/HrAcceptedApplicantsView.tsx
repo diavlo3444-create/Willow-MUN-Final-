@@ -16,6 +16,7 @@ import { fetchHrAcceptedApplications, createHrApplicantSignupInvite } from '../.
 import type { AdminUser, Application } from '../../../types/admin';
 import { isHrActor, normalizeDepartmentSlug } from '../../../utils/adminPermissions';
 import { scopeAcceptedApplicationsForHr } from '../../../utils/applicationFilters';
+import { formatDecisionByLabel } from '../../../utils/decisionAttribution';
 import { ApplicationAttachmentsViewer } from '../ApplicationAttachmentsViewer';
 import { StatusBadge } from '../StatusBadge';
 import { WmSkeleton } from '../WmSkeleton';
@@ -398,6 +399,11 @@ Willow MUN`;
                       <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
                       Accepted
                     </span>
+                    {formatDecisionByLabel(app.status, app.finalDecisionBy) && (
+                      <p className="mt-1 text-[11px] text-[color:var(--wm-ink-muted)]">
+                        {formatDecisionByLabel(app.status, app.finalDecisionBy)}
+                      </p>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <button

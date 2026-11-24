@@ -122,6 +122,13 @@ interface AdminStoreContextValue {
     reason: string,
     onUpdated?: (updatedRow: LiveApplicationRow) => void,
   ) => Promise<boolean>;
+  spoofApplicationDecision: (input: {
+    applicationId: string;
+    status: ApplicationStatus;
+    attributedAdminId: string;
+    reason?: string;
+    onUpdated?: (updatedRow: LiveApplicationRow) => void;
+  }) => Promise<boolean>;
   submitHeadRecommendation: (
     applicationId: string,
     recommendation: RecommendationDecision,
@@ -912,6 +919,78 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
     [currentUser, pushToast, refreshSnapshot],
   );
 
+  const spoofApplicationDecision = useCallback(
+    async ({
+      applicationId,
+      status,
+      attributedAdminId,
+      reason = '',
+      onUpdated,
+    }: {
+      applicationId: string;
+      status: ApplicationStatus;
+      attributedAdminId: string;
+      reason?: string;
+      onUpdated?: (updatedRow: LiveApplicationRow) => void;
+    }) => {
+      if (!canOverrideApplicationDecision(currentUser)) {
+        pushToast({
+          tone: 'error',
+          title: 'Spoof denied',
+          description: 'Only Super Admin can spoof application decisions.',
+        });
+        return false;
+      }
+
+      const { data: result, error } = await supabase.functions.invoke('willow-applications', {
+        body: {
+          action: 'spoof_decision',
+          id: applicationId,
+          status,
+          attributed_admin_id: attributedAdminId,
+          reason,
+        },
+      });
+
+      if (error || !result?.application) {
+        let errorMessage = result?.error || '';
+        const ctx = (error as { context?: { json?: () => Promise<{ error?: string; message?: string }> } } | null)?.context;
+        if (!errorMessage && ctx && typeof ctx.json === 'function') {
+          try {
+            const payload = await ctx.json();
+            errorMessage = payload?.error || payload?.message || '';
+          } catch {
+            // Response body unavailable
+          }
+        }
+        pushToast({
+          tone: 'error',
+          title: 'Spoof failed',
+          description: errorMessage || error?.message || 'Could not apply spoofed decision.',
+        });
+        return false;
+      }
+
+      onUpdated?.(result.application as LiveApplicationRow);
+      refreshSnapshot();
+      const attributedName =
+        result?.spoof?.attributed_admin_name ||
+        (result.application as LiveApplicationRow)?.decision_by_name ||
+        null;
+      pushToast({
+        tone: result.warning ? 'warning' : 'success',
+        title: result.warning ? 'Decision spoofed — audit warning' : 'Decision spoofed',
+        description:
+          result.warning ||
+          (attributedName
+            ? `Updated to ${status} as ${attributedName}. No email sent automatically.`
+            : `Updated to ${status}. Previous attribution cleared.`),
+      });
+      return true;
+    },
+    [currentUser, pushToast, refreshSnapshot],
+  );
+
   const submitHeadRecommendation = useCallback(
     (applicationId: string, recommendation: RecommendationDecision, notes: string) => {
       if (!currentUser) return false;
@@ -1604,6 +1683,7 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
     refreshSnapshot,
     updateApplicationStatus,
     overrideApplicationDecision,
+    spoofApplicationDecision,
     submitHeadRecommendation,
     bulkUpdateApplicationStatus,
     bulkApproveRecommended,

@@ -23,6 +23,7 @@ import {
   canViewHeadRecommended,
   filterHeadRecommendedApplications,
 } from '../../../utils/applicationFilters';
+import { formatDecisionByLabel } from '../../../utils/decisionAttribution';
 import { OverrideDecisionModal } from '../OverrideDecisionModal';
 import { RecommendationBadge, StatusBadge } from '../StatusBadge';
 import { WmSkeleton } from '../WmSkeleton';
@@ -366,6 +367,9 @@ export function HeadRecommendedView({
                   {getRecommendingHeadLabel(active)}
                 </strong>{' '}
                 on {formatRecommendationDate(active)}
+                {formatDecisionByLabel(active.status, active.finalDecisionBy)
+                  ? ` · ${formatDecisionByLabel(active.status, active.finalDecisionBy)}`
+                  : ''}
               </p>
             </div>
 
@@ -552,6 +556,11 @@ export function HeadRecommendedView({
                       )}
                       <RecommendationBadge decision={app.headRecommendation} />
                       <StatusBadge status={app.status} />
+                      {formatDecisionByLabel(app.status, app.finalDecisionBy) && (
+                        <span className="rounded border border-[color:var(--wm-hairline)] bg-[color:var(--wm-inset)] px-2 py-0.5 text-[11px] text-[color:var(--wm-ink-secondary)]">
+                          {formatDecisionByLabel(app.status, app.finalDecisionBy)}
+                        </span>
+                      )}
                     </div>
 
                     <div>

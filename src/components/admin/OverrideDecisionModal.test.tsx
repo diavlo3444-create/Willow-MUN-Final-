@@ -37,7 +37,7 @@ test('OverrideDecisionModal renders applicant details, all 4 decision statuses, 
   assert.match(html, /value="accepted"/);
   assert.match(html, /value="rejected"/);
   assert.match(html, /value="waitlisted"/);
-  assert.match(html, /Override reason \(required\)/);
+  assert.match(html, /Override reason \(optional\)/);
   assert.match(html, /Confirm Override/);
   assert.match(html, /Cancel/);
 });

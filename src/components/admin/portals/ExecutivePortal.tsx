@@ -63,7 +63,7 @@ const SECTION_META: Record<string, { title: string; subtitle: string }> = {
   },
   spoof: {
     title: 'Spoof',
-    subtitle: 'Super Admin decision override workspace. Overrides remain attributed to the actual actor and audit-logged.',
+    subtitle: 'Super Admin-only workspace to change Accepted, Rejected, Pending, or Waitlisted decisions and attribute them to an existing Admin without sending emails.',
   },
 
   'application-management': {
@@ -345,7 +345,8 @@ export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePorta
     section === 'applications' ||
     section === 'delegates' ||
     section === 'staff-apps' ||
-    section === 'recommendations';
+    section === 'recommendations' ||
+    section === 'spoof';
 
   const renderDenied = (reason: string) => (
     <div

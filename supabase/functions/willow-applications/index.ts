@@ -909,6 +909,262 @@ Deno.serve(async (req: Request) => {
     });
   }
 
+  if (action === "list_spoof_admins") {
+    if (!isSuperAdmin) {
+      return json({ error: "Only Super Admin can access assignable Admin accounts." }, 403);
+    }
+
+    const [{ data: profiles, error: profileErr }, { data: authUsersData }] = await Promise.all([
+      admin
+        .from("wm_profiles")
+        .select("user_id,full_name,role,title,division,department_id,is_active")
+        .in("role", ["admin", "super_admin"])
+        .eq("is_active", true)
+        .order("full_name", { ascending: true }),
+      admin.auth.admin.listUsers({ page: 1, perPage: 1000 }),
+    ]);
+
+    if (profileErr) return json({ error: profileErr.message }, 400);
+
+    const emailById = new Map<string, string>();
+    for (const authUser of authUsersData?.users || []) {
+      if (authUser?.id && authUser?.email) {
+        emailById.set(String(authUser.id), String(authUser.email));
+      }
+    }
+
+    const admins = (profiles || [])
+      .filter((profile: any) => profile?.user_id && String(profile?.full_name || "").trim())
+      .map((profile: any) => ({
+        user_id: String(profile.user_id),
+        full_name: String(profile.full_name).trim(),
+        email: emailById.get(String(profile.user_id)) || "",
+        role: profile.role === "super_admin" ? "super_admin" : "admin",
+        title: String(profile.title || "").trim(),
+        division: profile.division ? String(profile.division).trim() : null,
+        department_id: profile.department_id ? String(profile.department_id) : null,
+      }))
+      .sort((a: any, b: any) => {
+        if (a.role !== b.role) return a.role === "admin" ? -1 : 1;
+        return a.full_name.localeCompare(b.full_name);
+      });
+
+    return json({ admins });
+  }
+
+  if (action === "list_spoof_audit") {
+    if (!isSuperAdmin) {
+      return json({ error: "Only Super Admin can inspect the private spoof audit log." }, 403);
+    }
+
+    let queryRes = await admin
+      .from("wm_application_decision_overrides")
+      .select("id,application_id,previous_status,new_status,reason,actor_user_id,actor_name,actor_role,is_spoof,previous_decision_by,previous_decision_by_name,spoofed_decision_by,spoofed_decision_by_name,created_at")
+      .eq("is_spoof", true)
+      .order("created_at", { ascending: false })
+      .limit(200);
+
+    if (queryRes.error) {
+      const msg = String(queryRes.error.message || "").toLowerCase();
+      if (msg.includes("does not exist") || msg.includes("could not find")) {
+        return json({ entries: [] });
+      }
+      return json({ error: queryRes.error.message }, 400);
+    }
+
+    const rows = queryRes.data || [];
+    const appIds = Array.from(new Set(rows.map((r: any) => String(r.application_id)).filter(Boolean)));
+    const appMeta = new Map<string, { applicant_name: string; application_code: string | null }>();
+    if (appIds.length > 0) {
+      const { data: appRows } = await admin
+        .from("wm_applications")
+        .select("id,applicant_name,application_code")
+        .in("id", appIds);
+      for (const appRow of appRows || []) {
+        appMeta.set(String(appRow.id), {
+          applicant_name: String(appRow.applicant_name || "Applicant"),
+          application_code: appRow.application_code ? String(appRow.application_code) : null,
+        });
+      }
+    }
+
+    const entries = rows.map((entry: any) => {
+      const meta = appMeta.get(String(entry.application_id));
+      return {
+        ...entry,
+        applicant_name: meta?.applicant_name || "Applicant",
+        application_code: meta?.application_code || null,
+      };
+    });
+
+    return json({ entries });
+  }
+
+  if (action === "spoof_decision") {
+    if (!isSuperAdmin) {
+      return json({ error: "Only Super Admin can spoof application decisions." }, 403);
+    }
+
+    const id = String(body?.id || "").trim();
+    const nextStatus = String(body?.status || "").trim().toLowerCase();
+    const attributedAdminId = String(body?.attributed_admin_id || "").trim();
+    const reason = String(body?.reason || "").trim().slice(0, 2000);
+
+    if (!id) return json({ error: "Application ID is required." }, 400);
+    if (!["pending", "accepted", "rejected", "waitlisted"].includes(nextStatus)) {
+      return json({ error: "Invalid decision status." }, 400);
+    }
+
+    let targetAdmin: { user_id: string; full_name: string; role: string; is_active: boolean } | null = null;
+    if (nextStatus !== "pending") {
+      if (!attributedAdminId) {
+        return json({ error: "Select an existing active Admin account to attribute this decision." }, 400);
+      }
+      const { data: matchedAdmin, error: adminLookupErr } = await admin
+        .from("wm_profiles")
+        .select("user_id,full_name,role,is_active")
+        .eq("user_id", attributedAdminId)
+        .maybeSingle();
+
+      if (adminLookupErr) return json({ error: adminLookupErr.message }, 400);
+      if (
+        !matchedAdmin ||
+        matchedAdmin.is_active !== true ||
+        !["admin", "super_admin"].includes(String(matchedAdmin.role || ""))
+      ) {
+        return json({ error: "Selected account is not an active Admin account." }, 400);
+      }
+      targetAdmin = matchedAdmin as { user_id: string; full_name: string; role: string; is_active: boolean };
+    }
+
+    const { data: existing, error: fetchError } = await admin
+      .from("wm_applications")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+    if (fetchError || !existing) return json({ error: "Application not found." }, 404);
+
+    const previousStatus = String(existing.status || "pending");
+    const previousDecisionBy = existing.decision_by ? String(existing.decision_by) : null;
+    const previousDecisionByName = existing.decision_by_name ? String(existing.decision_by_name) : null;
+    const appDept = mapDepartment(existing.application_type, existing.department_id);
+    const { data: appDepartment } = await admin
+      .from("wm_departments")
+      .select("id")
+      .eq("slug", appDept)
+      .maybeSingle();
+
+    const nowIso = new Date().toISOString();
+    const patch: Record<string, unknown> = {
+      status: nextStatus,
+      department_id: appDept,
+      decision_by: targetAdmin ? targetAdmin.user_id : null,
+      decision_by_name: targetAdmin ? targetAdmin.full_name : null,
+      decision_at: targetAdmin ? nowIso : null,
+    };
+
+    const { data: updated, error: updateError } = await admin
+      .from("wm_applications")
+      .update(patch)
+      .eq("id", id)
+      .select("*")
+      .single();
+    if (updateError) return json({ error: updateError.message }, 400);
+
+    if (nextStatus === "accepted") {
+      const { data: existingPass } = await admin
+        .from("wm_qr_passes")
+        .select("id,active")
+        .eq("application_id", String(updated.id))
+        .maybeSingle();
+      if (existingPass) {
+        if (!existingPass.active) {
+          await admin.from("wm_qr_passes").update({ active: true }).eq("id", existingPass.id);
+        }
+      } else {
+        await admin.from("wm_qr_passes").insert({
+          application_id: String(updated.id),
+          holder_name: updated.applicant_name,
+          holder_email: updated.email,
+          role_label: updated.position || `${updated.application_type} Participant`,
+          category: updated.application_type === "delegate" ? "Delegate" : "Staff",
+          department_id: appDepartment?.id ?? null,
+          active: true,
+          token_value: makeOpaqueToken(),
+        });
+      }
+    } else if (previousStatus === "accepted") {
+      await admin
+        .from("wm_qr_passes")
+        .update({ active: false })
+        .eq("application_id", String(updated.id));
+    }
+
+    const auditReason = reason || (targetAdmin
+      ? `Spoofed ${nextStatus} decision attributed to ${targetAdmin.full_name}`
+      : `Spoofed reset to pending decision`);
+
+    let { error: auditError } = await admin.from("wm_application_decision_overrides").insert({
+      application_id: id,
+      previous_status: previousStatus,
+      new_status: nextStatus,
+      reason: auditReason,
+      actor_user_id: authData.user.id,
+      actor_name: actor.full_name,
+      actor_role: actor.role,
+      is_spoof: true,
+      previous_decision_by: previousDecisionBy,
+      previous_decision_by_name: previousDecisionByName,
+      spoofed_decision_by: targetAdmin ? targetAdmin.user_id : null,
+      spoofed_decision_by_name: targetAdmin ? targetAdmin.full_name : null,
+    });
+
+    if (auditError) {
+      const msg = String(auditError.message || "").toLowerCase();
+      if (msg.includes("column") || msg.includes("does not exist")) {
+        const fallbackRes = await admin.from("wm_application_decision_overrides").insert({
+          application_id: id,
+          previous_status: previousStatus,
+          new_status: nextStatus,
+          reason: targetAdmin
+            ? `[SPOOF as ${targetAdmin.full_name}] ${auditReason}`
+            : `[SPOOF reset to pending] ${auditReason}`,
+          actor_user_id: authData.user.id,
+          actor_name: actor.full_name,
+          actor_role: actor.role,
+        });
+        auditError = fallbackRes.error;
+      }
+    }
+
+    const [withRecommender] = await enrichRecommenderNames([{ ...updated, department_id: appDept }]);
+    const [enriched] = await enrichRowsWithConfidentialMedical([withRecommender]);
+
+    const spoofSummary = {
+      previous_status: previousStatus,
+      new_status: nextStatus,
+      attributed_admin_id: targetAdmin ? targetAdmin.user_id : null,
+      attributed_admin_name: targetAdmin ? targetAdmin.full_name : null,
+      email_auto_sent: false,
+    };
+
+    if (auditError) {
+      return json(
+        {
+          application: enriched,
+          spoof: spoofSummary,
+          warning: "Decision spoofed, but private audit record failed: " + auditError.message,
+        },
+        200,
+      );
+    }
+
+    return json({
+      application: enriched,
+      spoof: spoofSummary,
+    });
+  }
+
   if (action === "update") {
     const id = String(body?.id || "").trim();
     const nextStatus = String(body?.status || "").trim().toLowerCase();
