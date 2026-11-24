@@ -397,9 +397,6 @@ Deno.serve(async (req: Request) => {
       if (!cameraModel) {
         return json({ error: "Please specify your camera model or equipment type." }, 400);
       }
-      if (mediaPhotos.length < 10 || mediaPhotos.length > 15) {
-        return json({ error: "Media applicants must upload between 10 and 15 photography examples." }, 400);
-      }
       if (answers.length < 5 || motivation.length < 20) {
         return json({ error: "Please answer all five Media application questions." }, 400);
       }
