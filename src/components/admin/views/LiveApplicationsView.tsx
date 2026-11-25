@@ -22,6 +22,12 @@ import {
 import type { AdminUser, Application, ApplicationStatus } from '../../../types/admin';
 import { canOverrideApplicationDecision } from '../../../utils/adminPermissions';
 import {
+  filterLiveApplicationsQueue,
+  matchesApplicationQueue,
+  type ApplicationQueueMode,
+  type PendingQueueSubFilter,
+} from '../../../utils/applicationFilters';
+import {
   formatDecisionByLabel,
   selectAssignableAdminsFromStore,
   type AssignableAdminOption,
@@ -55,11 +61,13 @@ export function LiveApplicationsView({
   externalSearch,
   onClose,
   spoofMode = false,
+  queueMode = 'all',
 }: {
   selectedId?: string | null;
   externalSearch?: string;
   onClose?: () => void;
   spoofMode?: boolean;
+  queueMode?: ApplicationQueueMode;
 }) {
   const {
     currentUser,
@@ -68,6 +76,7 @@ export function LiveApplicationsView({
     data: storeData,
     overrideApplicationDecision,
     spoofApplicationDecision,
+    pushToast,
   } = useAdminStore();
   const effectiveActor = testModeHeadUser ?? currentUser;
   const canOverride = canOverrideApplicationDecision(effectiveActor);
@@ -78,6 +87,7 @@ export function LiveApplicationsView({
   const [query, setQuery] = useState(externalSearch ?? '');
   const [type, setType] = useState('all');
   const [status, setStatus] = useState('all');
+  const [pendingSubFilter, setPendingSubFilter] = useState<PendingQueueSubFilter>('all_waiting');
   const [busyId, setBusyId] = useState('');
   const [deletingId, setDeletingId] = useState('');
   const [notes, setNotes] = useState<Record<string, string>>({});
@@ -100,6 +110,11 @@ export function LiveApplicationsView({
       setQuery(externalSearch);
     }
   }, [externalSearch]);
+
+  useEffect(() => {
+    setStatus('all');
+    setPendingSubFilter('all_waiting');
+  }, [queueMode]);
 
   const loadSpoofMeta = useCallback(async () => {
     if (!spoofMode || !canOverride) return;
@@ -194,6 +209,8 @@ export function LiveApplicationsView({
     [rawRows, effectiveActor, storeData.departments],
   );
 
+  const effectiveQueueMode: ApplicationQueueMode = spoofMode ? 'all' : queueMode;
+
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = {
       all: applications.length,
@@ -208,33 +225,28 @@ export function LiveApplicationsView({
     return counts;
   }, [applications]);
 
+  const queueBaseApps = useMemo(
+    () => applications.filter((app) => matchesApplicationQueue(app, effectiveQueueMode, 'all_waiting')),
+    [applications, effectiveQueueMode],
+  );
+
   const filtered = useMemo(
     () =>
-      applications.filter((app) => {
-        const q = query.trim().toLowerCase();
-        const appType = (app.applicationType || app.category || '').toLowerCase();
-        return (
-          (type === 'all' || appType === type) &&
-          (status === 'all' || app.status === status) &&
-          (!q ||
-            [
-              app.applicantName,
-              app.applicationCode,
-              app.email,
-              app.phone,
-              app.guardianPhone || '',
-              app.schoolOrUniversity,
-              app.gradeOrYear,
-              app.cameraModel || '',
-              app.finalDecisionBy || '',
-            ]
-              .join(' ')
-              .toLowerCase()
-              .includes(q))
-        );
+      filterLiveApplicationsQueue(applications, {
+        queueMode: effectiveQueueMode,
+        pendingSubFilter,
+        statusFilter: status,
+        typeFilter: type,
+        query,
       }),
-    [applications, query, type, status],
+    [applications, effectiveQueueMode, pendingSubFilter, query, type, status],
   );
+
+  const hasActiveNarrowing =
+    query.trim() !== '' ||
+    type !== 'all' ||
+    (effectiveQueueMode === 'all' && status !== 'all') ||
+    (effectiveQueueMode === 'pending' && pendingSubFilter !== 'all_waiting');
 
   const updateStatus = async (
     app: Application,
@@ -258,6 +270,28 @@ export function LiveApplicationsView({
           item.id === app.id ? (data.application as LiveApplicationRow) : item,
         ),
       );
+      if (next !== app.status) {
+        const destination =
+          next === 'accepted'
+            ? 'Accepted Applicants'
+            : next === 'rejected'
+              ? 'Rejected Applicants'
+              : 'Pending Applications';
+        pushToast({
+          tone: 'success',
+          title: `${app.applicantName} updated to ${next}`,
+          description:
+            next === 'waitlisted'
+              ? 'Waitlisted applicants remain inside Pending Applications.'
+              : `Moved to ${destination}.`,
+        });
+      } else {
+        pushToast({
+          tone: 'success',
+          title: 'Decision notes saved',
+          description: `Updated notes for ${app.applicantName}.`,
+        });
+      }
     }
     setBusyId('');
   };
@@ -279,6 +313,19 @@ export function LiveApplicationsView({
       }));
     });
     setOverrideSaving(false);
+    if (ok) {
+      const destination =
+        nextStatus === 'accepted'
+          ? 'Accepted Applicants'
+          : nextStatus === 'rejected'
+            ? 'Rejected Applicants'
+            : 'Pending Applications';
+      pushToast({
+        tone: 'success',
+        title: `Decision overridden to ${nextStatus}`,
+        description: `Record updated (${destination}).`,
+      });
+    }
     return ok;
   };
 
@@ -396,12 +443,26 @@ export function LiveApplicationsView({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-sm font-semibold text-[color:var(--wm-ink)]">
-              {spoofMode ? 'Spoof — Decision Attribution' : 'Staff & Organizing Team Applications'}
+              {spoofMode
+                ? 'Spoof — Decision Attribution'
+                : effectiveQueueMode === 'pending'
+                  ? 'Pending & Waitlisted Applications'
+                  : effectiveQueueMode === 'accepted'
+                    ? 'Accepted Applicants'
+                    : effectiveQueueMode === 'rejected'
+                      ? 'Rejected Applicants'
+                      : 'All Registrations'}
             </h2>
-            <p className="mt-1 text-xs text-[color:var(--wm-ink-muted)]">
+            <p className="mt-1 text-xs text-[color:var(--wm-ink-muted)] tabular-nums">
               {spoofMode
                 ? 'Change any Accepted, Rejected, Pending, or Waitlisted decision and attribute it to an existing Admin without sending automated emails.'
-                : `${applications.length} submissions · Media, Press, Volunteers, Security`}
+                : effectiveQueueMode === 'pending'
+                  ? `${queueBaseApps.length} awaiting final decision · ${statusCounts.pending} pending · ${statusCounts.waitlisted} waitlisted`
+                  : effectiveQueueMode === 'accepted'
+                    ? `${queueBaseApps.length} accepted applicant${queueBaseApps.length === 1 ? '' : 's'} · notes & status controls enabled`
+                    : effectiveQueueMode === 'rejected'
+                      ? `${queueBaseApps.length} rejected applicant${queueBaseApps.length === 1 ? '' : 's'} · notes & reconsideration controls enabled`
+                      : `${applications.length} submissions · Media, Press, Volunteers, Security`}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -475,7 +536,46 @@ export function LiveApplicationsView({
               </div>
             )}
 
-            <div className="mt-4 grid gap-2 sm:grid-cols-3">
+            {!spoofMode && effectiveQueueMode === 'pending' && (
+              <div
+                className="mt-4 flex flex-wrap gap-1.5"
+                role="tablist"
+                aria-label="Filter pending queue by status"
+              >
+                {(
+                  [
+                    {
+                      id: 'all_waiting',
+                      label: 'All Waiting',
+                      count: statusCounts.pending + statusCounts.waitlisted,
+                    },
+                    { id: 'pending', label: 'Pending', count: statusCounts.pending },
+                    { id: 'waitlisted', label: 'Waitlisted', count: statusCounts.waitlisted },
+                  ] as const
+                ).map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={pendingSubFilter === tab.id}
+                    onClick={() => setPendingSubFilter(tab.id)}
+                    className={`rounded-md border px-3 py-1.5 text-xs font-medium tabular-nums whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
+                      pendingSubFilter === tab.id
+                        ? 'border-[color:var(--wm-accent)]/60 bg-[#2d6a4f]/28 text-[color:var(--wm-ink)]'
+                        : 'border-[color:var(--wm-hairline)] bg-[color:var(--wm-canvas)] text-[color:var(--wm-ink-secondary)] hover:text-[color:var(--wm-ink)]'
+                    }`}
+                  >
+                    {tab.label} ({tab.count})
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div
+              className={`mt-4 grid gap-2 ${
+                effectiveQueueMode === 'all' ? 'sm:grid-cols-3' : 'sm:grid-cols-2'
+              }`}
+            >
               <label className="relative">
                 <Search
                   className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[color:var(--wm-ink-muted)]"
@@ -500,18 +600,20 @@ export function LiveApplicationsView({
                 <option value="volunteer">Volunteers</option>
                 <option value="security">Security</option>
               </select>
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
-                aria-label="Filter by status"
-                className="h-10 rounded-md border border-[color:var(--wm-hairline)] bg-[color:var(--wm-canvas)] px-3 text-xs text-[color:var(--wm-ink)]"
-              >
-                <option value="all">All statuses</option>
-                <option value="pending">Pending</option>
-                <option value="accepted">Accepted</option>
-                <option value="rejected">Rejected</option>
-                <option value="waitlisted">Waitlisted</option>
-              </select>
+              {effectiveQueueMode === 'all' && (
+                <select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value)}
+                  aria-label="Filter by status"
+                  className="h-10 rounded-md border border-[color:var(--wm-hairline)] bg-[color:var(--wm-canvas)] px-3 text-xs text-[color:var(--wm-ink)]"
+                >
+                  <option value="all">All statuses</option>
+                  <option value="pending">Pending</option>
+                  <option value="accepted">Accepted</option>
+                  <option value="rejected">Rejected</option>
+                  <option value="waitlisted">Waitlisted</option>
+                </select>
+              )}
             </div>
           </>
         )}
@@ -602,7 +704,31 @@ export function LiveApplicationsView({
         <WmSkeleton variant="table" rows={5} />
       ) : filtered.length === 0 ? (
         <div className="wm-surface-panel p-10 text-center text-sm text-[color:var(--wm-ink-muted)]">
-          No applications found.
+          <p>
+            {hasActiveNarrowing
+              ? 'No applications match your current search or filter.'
+              : effectiveQueueMode === 'pending'
+                ? 'No pending or waitlisted applications waiting for review.'
+                : effectiveQueueMode === 'accepted'
+                  ? 'No accepted applicants yet.'
+                  : effectiveQueueMode === 'rejected'
+                    ? 'No rejected applications.'
+                    : 'No applications found.'}
+          </p>
+          {hasActiveNarrowing && (
+            <button
+              type="button"
+              onClick={() => {
+                setQuery('');
+                setType('all');
+                setStatus('all');
+                setPendingSubFilter('all_waiting');
+              }}
+              className="mt-3 inline-flex min-h-[34px] items-center rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-inset)] px-3 text-xs font-medium text-[color:var(--wm-ink)] hover:bg-[color:var(--wm-overlay)] cursor-pointer"
+            >
+              Reset filters
+            </button>
+          )}
         </div>
       ) : (
         <div className="space-y-3">
@@ -876,24 +1002,44 @@ export function LiveApplicationDossierCard({
           className="mt-2 w-full rounded-md border border-[color:var(--wm-hairline)] bg-[color:var(--wm-canvas)] p-3 text-xs text-[color:var(--wm-ink)]"
         />
       </div>
-      <div className="flex flex-wrap gap-2">
-        {(['accepted', 'rejected', 'waitlisted', 'pending'] as const).map((next) => (
-          <button
-            type="button"
-            key={next}
-            disabled={busy}
-            onClick={() => onStatus(next)}
-            className={`rounded-md px-3 py-2 text-xs capitalize cursor-pointer ${
-              next === 'accepted'
-                ? 'bg-[color:var(--wm-emerald)] text-[#eef4ef]'
-                : next === 'rejected'
-                  ? 'border border-rose-400/35 bg-rose-500/15 text-rose-200'
-                  : 'border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-inset)] text-[color:var(--wm-ink)]'
-            } disabled:opacity-50`}
-          >
-            {busy ? 'Saving…' : next}
-          </button>
-        ))}
+      <div className="flex flex-wrap items-center gap-2">
+        {(['accepted', 'rejected', 'waitlisted', 'pending'] as const).map((next) => {
+          const isCurrent = app.status === next;
+          return (
+            <button
+              type="button"
+              key={next}
+              disabled={busy}
+              onClick={() => onStatus(next)}
+              className={`rounded-md px-3 py-2 text-xs capitalize cursor-pointer ${
+                next === 'accepted'
+                  ? 'bg-[color:var(--wm-emerald)] text-[#eef4ef]'
+                  : next === 'rejected'
+                    ? 'border border-rose-400/35 bg-rose-500/15 text-rose-200'
+                    : 'border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-inset)] text-[color:var(--wm-ink)]'
+              } ${isCurrent ? 'ring-1 ring-[color:var(--wm-focal)] font-semibold' : ''} disabled:opacity-50`}
+            >
+              {busy ? 'Saving…' : isCurrent ? `${next} (current)` : next}
+            </button>
+          );
+        })}
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => {
+            const current =
+              app.status === 'accepted' ||
+              app.status === 'rejected' ||
+              app.status === 'waitlisted' ||
+              app.status === 'pending'
+                ? app.status
+                : 'pending';
+            onStatus(current);
+          }}
+          className="ml-auto rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-canvas)] px-3 py-2 text-xs font-medium text-[color:var(--wm-focal)] hover:bg-[color:var(--wm-inset)] disabled:opacity-50 cursor-pointer"
+        >
+          {busy ? 'Saving…' : 'Save notes'}
+        </button>
       </div>
     </div>
   );

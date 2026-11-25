@@ -13,7 +13,9 @@ import {
   computeDailyApplicationTrend,
   filterAndSortApplications,
   filterHeadRecommendedApplications,
+  filterLiveApplicationsQueue,
   isHeadRecommendedApplication,
+  matchesApplicationQueue,
   normalizeHeadRecommendation,
   paginateItems,
   scopeAcceptedApplicationsForHr,
@@ -264,6 +266,51 @@ test('scopeApplicationsForActor and scopeAcceptedApplicationsForHr resolve UUID 
   assert.equal(hrAcceptedFiltered.length, 1);
   assert.equal(hrAcceptedFiltered[0].id, '2');
 });
+
+test('filterLiveApplicationsQueue separates Pending (including Waitlisted), Accepted, Rejected, and Registrations', () => {
+  const mixedApps: Application[] = [
+    makeSampleApp('1', 'media', 'media', 'pending', '2027-11-10T10:00:00Z', 'female'),
+    makeSampleApp('2', 'press', 'press', 'waitlisted', '2027-11-11T10:00:00Z', 'male'),
+    makeSampleApp('3', 'volunteers', 'volunteer', 'accepted', '2027-11-12T10:00:00Z', 'female'),
+    makeSampleApp('4', 'security', 'security', 'rejected', '2027-11-13T10:00:00Z', 'male'),
+  ];
+
+  // Registrations ('all') preserves all 4
+  assert.equal(filterLiveApplicationsQueue(mixedApps, { queueMode: 'all' }).length, 4);
+
+  // Pending Applications includes both pending AND waitlisted
+  const waiting = filterLiveApplicationsQueue(mixedApps, { queueMode: 'pending', pendingSubFilter: 'all_waiting' });
+  assert.deepEqual(waiting.map((a) => a.id), ['1', '2']);
+  assert.deepEqual(
+    filterLiveApplicationsQueue(mixedApps, { queueMode: 'pending', pendingSubFilter: 'pending' }).map((a) => a.id),
+    ['1'],
+  );
+  assert.deepEqual(
+    filterLiveApplicationsQueue(mixedApps, { queueMode: 'pending', pendingSubFilter: 'waitlisted' }).map((a) => a.id),
+    ['2'],
+  );
+
+  // Accepted Applicants isolates accepted
+  assert.deepEqual(
+    filterLiveApplicationsQueue(mixedApps, { queueMode: 'accepted' }).map((a) => a.id),
+    ['3'],
+  );
+
+  // Rejected Applicants isolates rejected
+  assert.deepEqual(
+    filterLiveApplicationsQueue(mixedApps, { queueMode: 'rejected' }).map((a) => a.id),
+    ['4'],
+  );
+
+  // Supports track + search narrowing inside focused queues
+  assert.deepEqual(
+    filterLiveApplicationsQueue(mixedApps, { queueMode: 'pending', typeFilter: 'press', query: 'Candidate 2' }).map((a) => a.id),
+    ['2'],
+  );
+  assert.equal(matchesApplicationQueue(mixedApps[1], 'pending', 'all_waiting'), true);
+  assert.equal(matchesApplicationQueue(mixedApps[2], 'pending', 'all_waiting'), false);
+});
+
 
 test('normalizeHeadRecommendation normalizes case/whitespace and falls back to none', () => {
   assert.equal(normalizeHeadRecommendation('recommend_accept'), 'recommend_accept');

@@ -830,7 +830,29 @@ test('Super Admin decision override permission strictly checks active super_admi
   assert.equal(canOverrideApplicationDecision(undefined), false);
 });
 
+test('Admin and Super Admin Operations sidebar exposes Registrations plus Pending, Accepted, and Rejected sections without duplicate HR Accepted', () => {
+  for (const [role, portal, base] of [
+    ['admin', 'admin', '/admin'],
+    ['super_admin', 'super_admin', '/super-admin'],
+  ] as const) {
+    const actor = makeUser({
+      role,
+      permissions: role === 'super_admin' ? { ...SUPER_ADMIN_PERMISSIONS } : { ...ADMIN_DEFAULT_PERMISSIONS },
+    });
+    const nav = getNavigationGroups(actor, portal);
+    const ops = nav.find((g) => g.id === 'operations');
+    assert.ok(ops);
+    const ids = ops.items.map((item) => item.id);
+    assert.equal(ids.includes('applications'), true);
+    assert.equal(ids.includes('pending-applications'), true);
+    assert.equal(ids.includes('accepted-applicants'), true);
+    assert.equal(ids.includes('rejected-applicants'), true);
+    assert.equal(ids.includes('hr-accepted'), false);
+    assert.equal(ops.items.find((i) => i.id === 'pending-applications')?.path, `${base}/pending-applications`);
+    assert.equal(ops.items.find((i) => i.id === 'accepted-applicants')?.path, `${base}/accepted-applicants`);
+    assert.equal(ops.items.find((i) => i.id === 'rejected-applicants')?.path, `${base}/rejected-applicants`);
 
-
-
-
+    const acceptedLabels = nav.flatMap((g) => g.items).filter((i) => i.label === 'Accepted Applicants');
+    assert.equal(acceptedLabels.length, 1);
+  }
+});

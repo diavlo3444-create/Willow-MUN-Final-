@@ -61,6 +61,66 @@ export function scopeApplicationsForActor(
   return applications;
 }
 
+export type ApplicationQueueMode = 'all' | 'pending' | 'accepted' | 'rejected';
+export type PendingQueueSubFilter = 'all_waiting' | 'pending' | 'waitlisted';
+
+export function matchesApplicationQueue(
+  app: Pick<Application, 'status'>,
+  queueMode: ApplicationQueueMode,
+  pendingSubFilter: PendingQueueSubFilter = 'all_waiting',
+): boolean {
+  const normalizedStatus = String(app.status || '').trim().toLowerCase();
+  if (queueMode === 'pending') {
+    if (pendingSubFilter === 'pending') return normalizedStatus === 'pending';
+    if (pendingSubFilter === 'waitlisted') return normalizedStatus === 'waitlisted';
+    return normalizedStatus === 'pending' || normalizedStatus === 'waitlisted';
+  }
+  if (queueMode === 'accepted') return normalizedStatus === 'accepted';
+  if (queueMode === 'rejected') return normalizedStatus === 'rejected';
+  return true;
+}
+
+export function filterLiveApplicationsQueue(
+  applications: Application[],
+  options: {
+    queueMode?: ApplicationQueueMode;
+    pendingSubFilter?: PendingQueueSubFilter;
+    statusFilter?: string;
+    typeFilter?: string;
+    query?: string;
+  } = {},
+): Application[] {
+  const queueMode = options.queueMode ?? 'all';
+  const pendingSubFilter = options.pendingSubFilter ?? 'all_waiting';
+  const statusFilter = options.statusFilter ?? 'all';
+  const typeFilter = options.typeFilter ?? 'all';
+  const q = (options.query ?? '').trim().toLowerCase();
+
+  return applications.filter((app) => {
+    if (!matchesApplicationQueue(app, queueMode, pendingSubFilter)) return false;
+    if (queueMode === 'all' && statusFilter !== 'all' && app.status !== statusFilter) {
+      return false;
+    }
+    const appType = (app.applicationType || app.category || '').toLowerCase();
+    if (typeFilter !== 'all' && appType !== typeFilter) return false;
+    if (!q) return true;
+    return [
+      app.applicantName,
+      app.applicationCode,
+      app.email,
+      app.phone,
+      app.guardianPhone || '',
+      app.schoolOrUniversity,
+      app.gradeOrYear,
+      app.cameraModel || '',
+      app.finalDecisionBy || '',
+    ]
+      .join(' ')
+      .toLowerCase()
+      .includes(q);
+  });
+}
+
 export function scopeAcceptedApplicationsForHr(
   applications: Application[],
   actor: AdminUser | null | undefined,

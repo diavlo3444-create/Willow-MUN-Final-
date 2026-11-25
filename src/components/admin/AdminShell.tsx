@@ -2,11 +2,11 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { AnimatePresence, MotionConfig, motion } from 'motion/react';
 import {
   Activity, Award, BarChart3, BookOpen, Building2, Calendar, Camera, ClipboardCheck,
-  ClipboardList, Clock, ExternalLink, FileCode, FileText, FlaskConical,
+  ClipboardList, Clock, Clock3, ExternalLink, FileCode, FileText, FlaskConical,
   FolderKanban, Globe, HelpCircle, History, Image as ImageIcon, Inbox,
   KeyRound, LayoutDashboard, Lock, LogOut, Mail, MapPin, Megaphone, Menu, Link2,
   QrCode, ScanLine, Search, Server, Settings, Shield, ShieldAlert, Tag, ToggleRight, UserCheck,
-  UserCog, Users, X, ChevronRight, Layers,
+  UserCog, Users, X, XCircle, ChevronRight, Layers,
 } from 'lucide-react';
 import { useAdminStore } from '../../context/AdminStoreContext';
 import type { PortalKey } from '../../types/admin';
@@ -29,6 +29,7 @@ interface AdminShellProps {
 
 const NAV_ICONS: Record<string, typeof LayoutDashboard> = {
   dashboard: LayoutDashboard, overview: LayoutDashboard, applications: FileText,
+  'pending-applications': Clock3, 'accepted-applicants': UserCheck, 'rejected-applicants': XCircle,
   'application-management': ToggleRight,
   'hr-accepted': UserCheck, delegates: Award, 'staff-apps': Users, recommendations: ClipboardCheck,
   forms: ClipboardList, committees: BookOpen, secretariat: UserCheck,

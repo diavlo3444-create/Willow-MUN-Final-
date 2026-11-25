@@ -1042,11 +1042,11 @@ export function getNavigationGroups(
       items: [
         { id: 'dashboard', label: 'Overview', path: base },
         { id: 'applications', label: 'Registrations', path: base + '/applications', requiredPermission: 'applications.view' },
+        { id: 'pending-applications', label: 'Pending Applications', path: base + '/pending-applications', requiredPermission: 'applications.view' },
+        { id: 'accepted-applicants', label: 'Accepted Applicants', path: base + '/accepted-applicants', requiredPermission: 'applications.view' },
+        { id: 'rejected-applicants', label: 'Rejected Applicants', path: base + '/rejected-applicants', requiredPermission: 'applications.view' },
         { id: 'recommendations', label: 'Head-Approved Applicants', path: base + '/recommendations', requiredPermission: 'applications.review' },
         { id: 'application-management', label: 'Application Management', path: base + '/application-management', requiredPermission: 'departments.toggle_registration' },
-        ...(isHrActor(user, departments)
-          ? [{ id: 'hr-accepted', label: 'Accepted Applicants', path: base + '/hr-accepted' } satisfies NavItemConfig]
-          : []),
         { id: 'reports', label: 'Reports', path: base + '/reports', requiredPermission: 'reports.view' },
         { id: 'qr', label: 'QR Pass Scanner', path: base + '/qr', requiredPermission: 'qr.view_pass' },
         { id: 'attendance', label: 'Check-In Records', path: base + '/attendance', requiredPermission: 'qr.manage' },

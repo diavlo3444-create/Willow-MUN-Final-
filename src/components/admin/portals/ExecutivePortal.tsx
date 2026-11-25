@@ -58,8 +58,20 @@ const SECTION_META: Record<string, { title: string; subtitle: string }> = {
     subtitle: 'Conference-wide metrics, intake trends, and governance shortcuts.',
   },
   applications: {
-    title: 'All Applications',
-    subtitle: 'Review and finalize applicant decisions across departments.',
+    title: 'Registrations',
+    subtitle: 'All submitted applications across every status and department.',
+  },
+  'pending-applications': {
+    title: 'Pending Applications',
+    subtitle: 'Review active pending and waitlisted applications awaiting final administrative decisions.',
+  },
+  'accepted-applicants': {
+    title: 'Accepted Applicants',
+    subtitle: 'Directory of accepted applicants with full dossiers, notes, and decision controls.',
+  },
+  'rejected-applicants': {
+    title: 'Rejected Applicants',
+    subtitle: 'Archive of rejected applications with full dossiers, notes, and reconsideration controls.',
   },
   spoof: {
     title: 'Spoof',
@@ -288,6 +300,9 @@ export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePorta
   const westPortalSections = new Set([
     'dashboard',
     'applications',
+    'pending-applications',
+    'accepted-applicants',
+    'rejected-applicants',
     'recommendations',
     'application-management',
     'hr-accepted',
@@ -343,6 +358,9 @@ export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePorta
   const portalLabel = portal === 'super_admin' ? 'Super Admin' : 'Admin';
   const searchableSection =
     section === 'applications' ||
+    section === 'pending-applications' ||
+    section === 'accepted-applicants' ||
+    section === 'rejected-applicants' ||
     section === 'delegates' ||
     section === 'staff-apps' ||
     section === 'recommendations' ||
@@ -370,7 +388,15 @@ export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePorta
   const navigateFilteredApps = (status: ApplicationStatus | 'all' = 'all', deptId = 'all') => {
     setAppFilterStatus(status);
     setAppFilterDept(deptId);
-    onNavigate(`${basePath}/applications`);
+    if (status === 'pending' || status === 'waitlisted') {
+      onNavigate(`${basePath}/pending-applications`);
+    } else if (status === 'accepted') {
+      onNavigate(`${basePath}/accepted-applicants`);
+    } else if (status === 'rejected') {
+      onNavigate(`${basePath}/rejected-applicants`);
+    } else {
+      onNavigate(`${basePath}/applications`);
+    }
   };
 
   return (
@@ -443,9 +469,43 @@ export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePorta
       ) : section === 'applications' || section === 'staff-apps' ? (
         hasPermission(currentUser, 'applications.view') ? (
           <LiveApplicationsView
+            queueMode="all"
             selectedId={paramId}
             externalSearch={globalSearch}
             onClose={() => onNavigate(basePath + '/applications')}
+          />
+        ) : (
+          renderDenied('Your account lacks applications.view permission.')
+        )
+      ) : section === 'pending-applications' ? (
+        hasPermission(currentUser, 'applications.view') ? (
+          <LiveApplicationsView
+            queueMode="pending"
+            selectedId={paramId}
+            externalSearch={globalSearch}
+            onClose={() => onNavigate(basePath + '/pending-applications')}
+          />
+        ) : (
+          renderDenied('Your account lacks applications.view permission.')
+        )
+      ) : section === 'accepted-applicants' ? (
+        hasPermission(currentUser, 'applications.view') ? (
+          <LiveApplicationsView
+            queueMode="accepted"
+            selectedId={paramId}
+            externalSearch={globalSearch}
+            onClose={() => onNavigate(basePath + '/accepted-applicants')}
+          />
+        ) : (
+          renderDenied('Your account lacks applications.view permission.')
+        )
+      ) : section === 'rejected-applicants' ? (
+        hasPermission(currentUser, 'applications.view') ? (
+          <LiveApplicationsView
+            queueMode="rejected"
+            selectedId={paramId}
+            externalSearch={globalSearch}
+            onClose={() => onNavigate(basePath + '/rejected-applicants')}
           />
         ) : (
           renderDenied('Your account lacks applications.view permission.')
