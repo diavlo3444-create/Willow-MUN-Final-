@@ -4,7 +4,9 @@ import { useAdminStore } from '../../../context/AdminStoreContext';
 import {
   canAccessEmailsDashboard,
   canViewDepartmentQr,
+  getActorDepartmentSlug,
   getActorGenderScope,
+  getActorRoleDisplayLabel,
   getRoleLabel,
   hasPermission,
   isDccActor,
@@ -42,13 +44,18 @@ export function DepartmentHeadPortal({ pathname, onNavigate }: DepartmentHeadPor
 
   const isDirectHeadOrEb =
     currentUser !== null &&
-    (currentUser.role === 'department_head' || currentUser.role === 'executive_board') &&
+    (currentUser.role === 'department_head' ||
+      currentUser.role === 'executive_board' ||
+      currentUser.role === 'super_admin') &&
     currentUser.isActive &&
     currentUser.status === 'active';
 
   const effectiveHead = testModeHeadUser ?? (isDirectHeadOrEb ? currentUser : null);
+  const isSuperHead = effectiveHead?.role === 'super_admin';
 
-  const assignedDepartment =
+  const resolvedDeptSlug = getActorDepartmentSlug(effectiveHead, data.departments);
+
+  const explicitDepartment =
     effectiveHead && (effectiveHead.departmentId || effectiveHead.departmentSlug)
       ? data.departments.find(
           (d) =>
@@ -58,6 +65,43 @@ export function DepartmentHeadPortal({ pathname, onNavigate }: DepartmentHeadPor
               normalizeDepartmentSlug(d.slug) === normalizeDepartmentSlug(effectiveHead.departmentSlug)),
         ) ?? null
       : null;
+
+  const inferredDepartment =
+    !explicitDepartment && effectiveHead && resolvedDeptSlug
+      ? data.departments.find((d) => normalizeDepartmentSlug(d.slug) === resolvedDeptSlug) ?? {
+          id: effectiveHead.departmentId || resolvedDeptSlug,
+          slug: resolvedDeptSlug,
+          name: resolvedDeptSlug.toUpperCase(),
+          description: '',
+          cluster: 'Delegate Affairs & Operations' as const,
+          headUserIds: [],
+          registrationOpen: true,
+          capacity: 0,
+          positions: [],
+          instructions: '',
+          updatedAt: '',
+        }
+      : null;
+
+  const assignedDepartment =
+    explicitDepartment ??
+    inferredDepartment ??
+    (isSuperHead
+      ? data.departments.find((d) => normalizeDepartmentSlug(d.slug) === 'it') ??
+        data.departments[0] ?? {
+          id: effectiveHead?.departmentId || 'it',
+          slug: 'it',
+          name: 'Information Technology',
+          description: '',
+          cluster: 'Logistics & Administration',
+          headUserIds: [],
+          registrationOpen: true,
+          capacity: 0,
+          positions: [],
+          instructions: '',
+          updatedAt: '',
+        }
+      : null);
 
   const canViewApps = hasPermission(effectiveHead, 'applications.view', data.departments);
   const canScanQr = hasPermission(effectiveHead, 'qr.scan', data.departments);
@@ -85,6 +129,7 @@ export function DepartmentHeadPortal({ pathname, onNavigate }: DepartmentHeadPor
   const section = hasExplicitSection ? requestedSection : defaultSection;
 
   const isAllowedSection =
+    isSuperHead ||
     (section === 'applications' && canViewApps) ||
     (section === 'volunteering' && canViewVolunteeringQr) ||
     (section === 'press-media' && canViewPressMediaQr) ||
@@ -95,6 +140,7 @@ export function DepartmentHeadPortal({ pathname, onNavigate }: DepartmentHeadPor
     (section === 'committees' && isDccHead);
 
   const isQrOtherUserAttempt =
+    !isSuperHead &&
     effectiveHead !== null &&
     section === 'qr' &&
     paramId !== null &&
@@ -160,8 +206,11 @@ export function DepartmentHeadPortal({ pathname, onNavigate }: DepartmentHeadPor
   }
 
   const actorGender = getActorGenderScope(effectiveHead);
-  const roleDisplay =
-    effectiveHead.role === 'executive_board' ? 'Executive Board · Head' : 'Department Head';
+  const roleDisplay = isSuperHead
+    ? getActorRoleDisplayLabel(effectiveHead)
+    : effectiveHead.role === 'executive_board'
+      ? 'Executive Board · Head'
+      : 'Department Head';
 
   const activeNavId =
     section === 'volunteering' && canViewVolunteeringQr
@@ -201,9 +250,25 @@ export function DepartmentHeadPortal({ pathname, onNavigate }: DepartmentHeadPor
       portal="department_head"
       portalLabel={roleDisplay}
       pageTitle={pageTitles[activeNavId] ?? `${assignedDepartment.name} Applications`}
-      pageSubtitle={`Isolated scope: ${assignedDepartment.name}${actorGender ? ` (${actorGender} division)` : ''}.`}
+      pageSubtitle={
+        isSuperHead
+          ? `Full access preview · ${assignedDepartment.name}`
+          : `Isolated scope: ${assignedDepartment.name}${actorGender ? ` (${actorGender} division)` : ''}.`
+      }
       activeNavId={activeNavId}
       onNavigate={onNavigate}
+      topActions={
+        isSuperHead && !testModeHeadUser ? (
+          <button
+            type="button"
+            onClick={() => onNavigate('/super-admin')}
+            className="inline-flex items-center gap-1.5 rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-inset)] px-3 py-1.5 text-xs font-medium text-[color:var(--wm-focal)] transition-colors hover:bg-[color:var(--wm-overlay)]"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>Return to {getActorRoleDisplayLabel(effectiveHead)}</span>
+          </button>
+        ) : undefined
+      }
     >
       {isUnauthorizedRoute ? (
         <div

@@ -379,15 +379,22 @@ export async function fetchScopedApplicationsForActor(
   }
 
   // Fallback to direct RLS table read if Edge Function returned error or is mid-deploy
+  let tableErrorMsg = '';
   try {
     let query = supabase.from('wm_applications').select('*').order('created_at', { ascending: false });
     if (actor.role === 'department_head' || actor.role === 'executive_board') {
       const deptSlug = getActorDepartmentSlug(actor, departments);
       const gender = getActorGenderScope(actor);
-      if (!deptSlug || !gender || !hasPermission(actor, 'applications.view', departments)) {
-        return { applications: [], source: 'table' };
+      if (!deptSlug || !hasPermission(actor, 'applications.view', departments)) {
+        return {
+          applications: [],
+          source: 'table',
+          error: data?.error || error?.message || 'Department assignment or view permission is missing.',
+        };
       }
-      query = query.eq('status', 'pending').eq('gender', gender);
+      if (gender) {
+        query = query.eq('gender', gender);
+      }
     }
     const { data: rows, error: tableError } = await query;
     if (!tableError && Array.isArray(rows)) {
@@ -402,8 +409,11 @@ export async function fetchScopedApplicationsForActor(
         source: 'table',
       };
     }
-  } catch {
-    // Ignore table fallback errors and surface message below
+    if (tableError) {
+      tableErrorMsg = tableError.message || '';
+    }
+  } catch (err: any) {
+    tableErrorMsg = err?.message || '';
   }
 
   const localApps = conferenceDataService.getSnapshot().applications;
@@ -418,7 +428,7 @@ export async function fetchScopedApplicationsForActor(
   return {
     applications: [],
     source: 'live',
-    error: data?.error || error?.message || 'Could not load applications from the server.',
+    error: data?.error || error?.message || tableErrorMsg || 'Could not load applications from the server.',
   };
 }
 

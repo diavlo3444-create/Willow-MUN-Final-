@@ -262,7 +262,7 @@ export function ExecutiveBoardPortal({
     setSwapReason('');
   };
 
-  if (!currentUser || currentUser.role !== 'executive_board') return null;
+  if (!currentUser || (currentUser.role !== 'executive_board' && currentUser.role !== 'super_admin')) return null;
 
   return (
     <MotionConfig reducedMotion="user">

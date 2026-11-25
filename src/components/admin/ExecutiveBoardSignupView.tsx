@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { ArrowLeft, CheckCircle2, Lock, UserPlus } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { isSuperItAdminEmail } from '../../utils/adminPermissions';
 
 export function ExecutiveBoardSignupView({ onNavigate }: { onNavigate: (path: string) => void }) {
   const [email, setEmail] = useState('');
@@ -28,14 +29,25 @@ export function ExecutiveBoardSignupView({ onNavigate }: { onNavigate: (path: st
       return;
     }
 
-    const { error: signInError } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
+    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
     if (signInError) {
       setBusy(false);
       setError('Your account was created, but automatic sign-in failed. Return to EB login and sign in with the password you just created.');
       return;
     }
+    let destination = isSuperItAdminEmail(normalizedEmail) ? '/super-admin' : '/head';
+    if (destination === '/head' && signInData.user?.id) {
+      const { data: profileRow } = await supabase
+        .from('wm_profiles')
+        .select('role')
+        .eq('user_id', signInData.user.id)
+        .maybeSingle();
+      if (profileRow?.role === 'super_admin') {
+        destination = '/super-admin';
+      }
+    }
     setComplete(true);
-    window.location.assign('/head');
+    window.location.assign(destination);
   };
 
   return (

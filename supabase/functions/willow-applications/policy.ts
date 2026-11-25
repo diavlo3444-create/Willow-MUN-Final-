@@ -31,18 +31,34 @@ export interface ResolvedHeadContext {
   actorGender: "male" | "female" | null;
 }
 
-const ALLOWED_HEAD_APPLICATION_DEPTS = new Set([
-  "media",
-  "press",
-  "media-press",
-  "security",
-  "volunteers",
-]);
-
 export function normalizeDeptSlug(value: unknown): string {
   const clean = String(value || "").trim().toLowerCase();
-  if (clean === "volunteer") return "volunteers";
+  if (!clean) return "";
+  if (clean === "volunteer" || clean === "volunteering") return "volunteers";
+  if (clean === "human-resources" || clean === "human_resources") return "hr";
+  if (clean === "delegate-affairs" || clean === "delegate_affairs") return "dcc";
+  if (clean === "public-relations" || clean === "public_relations" || clean === "public relations") return "pr";
+  if (clean === "ceremonies" || clean === "ceremony") return "ceremony";
   return clean;
+}
+
+export function inferDeptSlugFromLabel(labelRaw: string): string {
+  const label = String(labelRaw || "").toLowerCase();
+  if (!label) return "";
+  if (/\b(hr|human\s+resources)\b/.test(label)) return "hr";
+  if (/\b(dcc|delegate\s+affairs|delegate\s+care)\b/.test(label)) return "dcc";
+  if (/\b(press|journalis[tm]|reporter|correspondent|editorial)\b/.test(label)) return "press";
+  if (/\b(media|photograph(y|er)|videograph(y|er)|broadcast|reel)\b/.test(label)) return "media";
+  if (/\b(security|guard|checkpoint|entrance\s+control)\b/.test(label)) return "security";
+  if (/\b(volunteers?|volunteering|usher|floor\s+team)\b/.test(label)) return "volunteers";
+  if (/\b(pr|public\s+relations)\b/.test(label)) return "pr";
+  if (/\b(marketing|outreach)\b/.test(label)) return "marketing";
+  if (/\b(logistics)\b/.test(label)) return "logistics";
+  if (/\b(ceremon(y|ies))\b/.test(label)) return "ceremony";
+  if (/\b(finance|treasury)\b/.test(label)) return "finance";
+  if (/\b(it|technical|systems)\b/.test(label)) return "it";
+  if (/\b(design|creative|visual)\b/.test(label)) return "design";
+  return "";
 }
 
 export function mapDepartment(appType: string, explicitDept?: string | null): string {
@@ -92,8 +108,8 @@ export function getActorGender(profile: {
     return "male";
   }
   const label = `${profile.title || ""} ${profile.division || ""}`.toLowerCase();
-  if (/\b(female|women|woman)\b/.test(label)) return "female";
-  if (/\b(male|men|man)\b/.test(label)) return "male";
+  if (/\b(female|women|woman|girls?)\b/.test(label)) return "female";
+  if (/\b(male|men|man|boys?)\b/.test(label)) return "male";
   return null;
 }
 
@@ -101,11 +117,13 @@ export function resolveHeadContext(
   actor: HeadPolicyActorInput,
   actorDeptSlugRaw: string | null | undefined,
 ): ResolvedHeadContext {
-  const actorDeptSlug = normalizeDeptSlug(actorDeptSlugRaw);
   const actorLabel = `${actor.title || ""} ${actor.division || ""}`.toLowerCase();
-  const labelType: "media" | "press" | null = actorLabel.includes("press")
+  const actorDeptSlug =
+    normalizeDeptSlug(actorDeptSlugRaw) || inferDeptSlugFromLabel(actorLabel);
+
+  const labelType: "media" | "press" | null = /\bpress\b/.test(actorLabel)
     ? "press"
-    : actorLabel.includes("media")
+    : /\bmedia\b/.test(actorLabel)
       ? "media"
       : null;
 
@@ -133,11 +151,11 @@ export function resolveHeadContext(
     (actor.eb_rank === "head" ||
       actor.eb_rank === "co_head" ||
       actorEbPerms.manage_department === true ||
-      /\bhead\b/i.test(String(actor.title || "")) ||
+      /\b(head|co-head|director)\b/i.test(String(actor.title || "")) ||
       actorPerms["applications.view"] === true);
 
   const headApplicationDepartmentAllowed =
-    ALLOWED_HEAD_APPLICATION_DEPTS.has(actorDeptSlug) &&
+    Boolean(actorDeptSlug) &&
     (actorDeptSlug !== "media-press" || actorApplicationType !== null);
 
   const isHead =
@@ -164,7 +182,7 @@ export function isHeadActorScopeMatch(
   row: HeadPolicyApplicationRow,
   deptSlugById?: ReadonlyMap<string, string>,
 ): boolean {
-  if (!ctx.isHead || !ctx.actorDeptSlug || !ctx.actorGender) return false;
+  if (!ctx.isHead || !ctx.actorDeptSlug) return false;
 
   const appDeptSlug = resolveApplicationDepartmentSlug(
     row.application_type,
@@ -177,7 +195,9 @@ export function isHeadActorScopeMatch(
   const matchesDept =
     appDeptSlug === ctx.actorDeptSlug ||
     (ctx.actorDeptSlug === "media-press" &&
-      (appDeptSlug === "media" || appDeptSlug === "press" || appDeptSlug === "media-press"));
+      (appDeptSlug === "media" || appDeptSlug === "press" || appDeptSlug === "media-press")) ||
+    ((ctx.actorDeptSlug === "media" || ctx.actorDeptSlug === "press") &&
+      appDeptSlug === "media-press");
 
   if (!matchesDept) return false;
 
@@ -186,12 +206,16 @@ export function isHeadActorScopeMatch(
     ctx.actorDeptSlug === "press" ||
     ctx.actorDeptSlug === "media-press"
   ) {
-    if (!ctx.actorApplicationType || appType !== ctx.actorApplicationType) {
+    if (!ctx.actorApplicationType || (appType && appType !== ctx.actorApplicationType)) {
       return false;
     }
   }
 
-  return appGender === ctx.actorGender;
+  if (ctx.actorGender) {
+    return Boolean(appGender) && appGender === ctx.actorGender;
+  }
+
+  return true;
 }
 
 export function canHeadAccessApplication(
@@ -199,8 +223,7 @@ export function canHeadAccessApplication(
   row: HeadPolicyApplicationRow,
   deptSlugById?: ReadonlyMap<string, string>,
 ): boolean {
-  if (!isHeadActorScopeMatch(ctx, row, deptSlugById)) return false;
-  return String(row.status || "").trim().toLowerCase() === "pending";
+  return isHeadActorScopeMatch(ctx, row, deptSlugById);
 }
 
 export function redactApplicationForHead<T extends Record<string, unknown>>(row: T): T {

@@ -7,6 +7,7 @@ import {
   canAccessPortal,
   canManageAccountsOrRoles,
   canViewDepartmentQr,
+  getActorRoleDisplayLabel,
   hasPermission,
   isHrActor,
 } from '../../../utils/adminPermissions';
@@ -332,7 +333,9 @@ export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePorta
     'volunteering',
     'security',
   ]);
-  const unsupportedPortalSection = !westPortalSections.has(section);
+  const unsupportedPortalSection = isSuperAdmin
+    ? !SECTION_META[section]
+    : !westPortalSections.has(section);
 
   const loggedViolationRef = useRef<string | null>(null);
   useEffect(() => {
@@ -355,7 +358,7 @@ export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePorta
   }
 
   const meta = SECTION_META[section] ?? SECTION_META.dashboard;
-  const portalLabel = portal === 'super_admin' ? 'Super Admin' : 'Admin';
+  const portalLabel = portal === 'super_admin' ? getActorRoleDisplayLabel(currentUser) : 'Admin';
   const searchableSection =
     section === 'applications' ||
     section === 'pending-applications' ||
@@ -405,7 +408,7 @@ export function ExecutivePortal({ portal, pathname, onNavigate }: ExecutivePorta
       portalLabel={portalLabel}
       pageTitle={
         portal === 'super_admin' && section === 'dashboard'
-          ? 'Super Admin Command Dashboard'
+          ? `${portalLabel} Command Dashboard`
           : meta.title
       }
       pageSubtitle={meta.subtitle}

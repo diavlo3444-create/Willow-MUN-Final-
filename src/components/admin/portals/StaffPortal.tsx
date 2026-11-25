@@ -143,32 +143,10 @@ export function StaffPortal({ pathname, onNavigate }: StaffPortalProps) {
   const [workSearch, setWorkSearch] = useState('');
   const loggedViolationRef = useRef<string>('');
 
-  const departmentSlug = getActorDepartmentSlug(currentUser, data.departments);
-
-  const matchedDepartment = useMemo<Department | null>(() => {
-    if (!currentUser) return null;
-    const found = data.departments.find(
-      (item) =>
-        item.id === currentUser.departmentId ||
-        item.slug === currentUser.departmentId ||
-        (departmentSlug !== null && normalizeDepartmentSlug(item.slug) === departmentSlug),
-    );
-    if (found) return found;
-    if (!departmentSlug) return null;
-    return {
-      id: currentUser.departmentId || departmentSlug,
-      slug: departmentSlug,
-      name: formatDepartmentNameFromSlug(departmentSlug),
-      description: '',
-      cluster: 'Logistics & Administration',
-      headUserIds: [],
-      registrationOpen: true,
-      capacity: 0,
-      positions: [],
-      instructions: '',
-      updatedAt: '',
-    };
-  }, [currentUser, data.departments, departmentSlug]);
+  const isSuperAdminActor =
+    currentUser?.role === 'super_admin' &&
+    currentUser.isActive &&
+    currentUser.status === 'active';
 
   const parsedRoute = useMemo(() => {
     const raw = pathname.replace(/^\/staff\/?/, '');
@@ -190,8 +168,39 @@ export function StaffPortal({ pathname, onNavigate }: StaffPortalProps) {
     };
   }, [pathname]);
 
+  const actorDepartmentSlug = getActorDepartmentSlug(currentUser, data.departments);
+  const departmentSlug = isSuperAdminActor
+    ? parsedRoute.requestedDeptSlug || actorDepartmentSlug || data.departments[0]?.slug || 'it'
+    : actorDepartmentSlug;
+
+  const matchedDepartment = useMemo<Department | null>(() => {
+    if (!currentUser) return null;
+    const found = data.departments.find(
+      (item) =>
+        (departmentSlug !== null && normalizeDepartmentSlug(item.slug) === departmentSlug) ||
+        (!isSuperAdminActor &&
+          (item.id === currentUser.departmentId || item.slug === currentUser.departmentId)),
+    );
+    if (found) return found;
+    if (!departmentSlug) return null;
+    return {
+      id: isSuperAdminActor ? departmentSlug : currentUser.departmentId || departmentSlug,
+      slug: departmentSlug,
+      name: formatDepartmentNameFromSlug(departmentSlug),
+      description: '',
+      cluster: 'Logistics & Administration',
+      headUserIds: [],
+      registrationOpen: true,
+      capacity: 0,
+      positions: [],
+      instructions: '',
+      updatedAt: '',
+    };
+  }, [currentUser, data.departments, departmentSlug, isSuperAdminActor]);
+
   const crossDepartmentMismatch = Boolean(
     currentUser &&
+      !isSuperAdminActor &&
       departmentSlug &&
       parsedRoute.requestedDeptSlug &&
       parsedRoute.requestedDeptSlug !== departmentSlug,
@@ -213,7 +222,7 @@ export function StaffPortal({ pathname, onNavigate }: StaffPortalProps) {
     return <PortalAuthView portal="staff" onNavigate={onNavigate} />;
   }
 
-  if (isSecurityAccount(currentUser, data.departments)) {
+  if (!isSuperAdminActor && isSecurityAccount(currentUser, data.departments)) {
     return (
       <div className="wm-admin min-h-[100dvh] grid place-items-center bg-[color:var(--wm-canvas)] p-6 text-[color:var(--wm-ink)]">
         <section className="wm-surface-panel max-w-md p-6 text-center">
@@ -357,14 +366,26 @@ export function StaffPortal({ pathname, onNavigate }: StaffPortalProps) {
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={signOut}
-              className="inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-[color:var(--wm-hairline-strong)] px-3.5 text-xs font-medium text-[color:var(--wm-ink-secondary)] transition-colors hover:border-rose-400/40 hover:text-rose-200"
-            >
-              <LogOut className="h-3.5 w-3.5" aria-hidden="true" />
-              Sign out
-            </button>
+            <div className="flex items-center gap-2">
+              {isSuperAdminActor && (
+                <button
+                  type="button"
+                  onClick={() => onNavigate('/super-admin')}
+                  className="inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-inset)] px-3 text-xs font-medium text-[color:var(--wm-focal)] transition-colors hover:bg-[color:var(--wm-overlay)]"
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+                  Super Admin
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={signOut}
+                className="inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-[color:var(--wm-hairline-strong)] px-3.5 text-xs font-medium text-[color:var(--wm-ink-secondary)] transition-colors hover:border-rose-400/40 hover:text-rose-200"
+              >
+                <LogOut className="h-3.5 w-3.5" aria-hidden="true" />
+                Sign out
+              </button>
+            </div>
           </div>
         </header>
 
@@ -473,14 +494,26 @@ export function StaffPortal({ pathname, onNavigate }: StaffPortalProps) {
             })}
           </nav>
 
-          <button
-            type="button"
-            onClick={signOut}
-            className="inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-[color:var(--wm-hairline-strong)] px-3.5 text-xs font-medium text-[color:var(--wm-ink-secondary)] transition-colors hover:border-rose-400/40 hover:text-rose-200"
-          >
-            <LogOut className="h-3.5 w-3.5" aria-hidden="true" />
-            Sign out
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            {isSuperAdminActor && (
+              <button
+                type="button"
+                onClick={() => onNavigate('/super-admin')}
+                className="inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-inset)] px-3 text-xs font-medium text-[color:var(--wm-focal)] transition-colors hover:bg-[color:var(--wm-overlay)]"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+                Super Admin
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={signOut}
+              className="inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-[color:var(--wm-hairline-strong)] px-3.5 text-xs font-medium text-[color:var(--wm-ink-secondary)] transition-colors hover:border-rose-400/40 hover:text-rose-200"
+            >
+              <LogOut className="h-3.5 w-3.5" aria-hidden="true" />
+              Sign out
+            </button>
+          </div>
         </div>
 
         <nav className="mx-auto flex max-w-6xl gap-1 overflow-x-auto border-t border-[color:var(--wm-hairline)] px-4 py-2 md:hidden" aria-label="Mobile navigation">

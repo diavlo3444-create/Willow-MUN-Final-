@@ -12,9 +12,11 @@ import {
   canOverrideApplicationDecision,
   canReviewFinalDecision,
   canSubmitRecommendation,
+  canViewConfidentialMedicalInfo,
   canViewDepartmentQr,
   canViewHrAcceptedApplication,
   DEPARTMENT_HEAD_DEFAULT_PERMISSIONS,
+  getActorDepartmentSlug,
   getActorGenderScope,
   getNavigationGroups,
   getPortalHomeRoute,
@@ -220,7 +222,7 @@ test('HR actor gains cross-department & cross-gender Accepted Applicants access 
   const nav = getNavigationGroups(hrHead, 'department_head');
   assert.deepEqual(
     nav[0].items.map((i) => i.id),
-    ['hr-accepted', 'emails', 'qr'],
+    ['applications', 'hr-accepted', 'emails', 'qr'],
   );
 });
 
@@ -248,7 +250,7 @@ test('DCC actor can manage committees without gaining Admin/Super Admin permissi
   const nav = getNavigationGroups(dccHead, 'department_head');
   assert.deepEqual(
     nav[0].items.map((i) => i.id),
-    ['committees', 'qr'],
+    ['applications', 'committees', 'qr'],
   );
 });
 
@@ -310,7 +312,7 @@ test('Executive Board Head uses the unified /head portal, Media/Press isolation,
   const nav = getNavigationGroups(ebHrHead, 'department_head', departments);
   assert.deepEqual(
     nav[0].items.map((i) => i.id),
-    ['hr-accepted', 'emails', 'qr'],
+    ['applications', 'hr-accepted', 'emails', 'qr'],
   );
 
   // Non-head EB member lacking applications.view cannot view/review apps
@@ -856,3 +858,194 @@ test('Admin and Super Admin Operations sidebar exposes Registrations plus Pendin
     assert.equal(acceptedLabels.length, 1);
   }
 });
+
+test('All department Heads (including PR, Volunteers, HR, Logistics) see pending, accepted, and rejected apps strictly for their own department without division lockout', () => {
+  const departments: Department[] = [
+    {
+      id: 'dept-pr-uuid',
+      slug: 'pr',
+      name: 'Public Relations',
+      cluster: 'Communications & Creative',
+      description: '',
+      headUserIds: [],
+      registrationOpen: true,
+      capacity: 12,
+      positions: [],
+      instructions: '',
+      updatedAt: '',
+    },
+    {
+      id: 'dept-vol-uuid',
+      slug: 'volunteers',
+      name: 'Volunteers',
+      cluster: 'Delegate Affairs & Operations',
+      description: '',
+      headUserIds: [],
+      registrationOpen: true,
+      capacity: 30,
+      positions: [],
+      instructions: '',
+      updatedAt: '',
+    },
+    {
+      id: 'dept-sec-uuid',
+      slug: 'security',
+      name: 'Security',
+      cluster: 'Logistics & Administration',
+      description: '',
+      headUserIds: [],
+      registrationOpen: true,
+      capacity: 20,
+      positions: [],
+      instructions: '',
+      updatedAt: '',
+    },
+  ];
+
+  // Head of PR without Female/Male division configured
+  const prEbHead = makeUser({
+    id: 'eb-pr-head',
+    role: 'executive_board',
+    departmentId: 'dept-pr-uuid',
+    division: null,
+    title: 'Head of PR',
+    ebRank: 'head',
+    permissions: resolveUserPermissions('executive_board', null, 'head', {}, 'Head of PR'),
+  });
+
+  // Head of Volunteers without departmentId set (inferred via title) & without division
+  const volHead = makeUser({
+    id: 'head-vol',
+    role: 'department_head',
+    departmentId: null,
+    division: null,
+    title: 'Head of Volunteers',
+    permissions: resolveUserPermissions('department_head'),
+  });
+
+  const prPending = makeApp('pr', 'female', 'pending');
+  const prAccepted = makeApp('pr', 'male', 'accepted');
+  const prRejected = makeApp('pr', 'female', 'rejected');
+  const volPending = makeApp('volunteers', 'female', 'pending');
+  const volAccepted = makeApp('volunteers', 'male', 'accepted');
+  const volRejected = makeApp('volunteers', 'male', 'rejected');
+  const secAccepted = makeApp('security', 'female', 'accepted');
+
+  assert.equal(getActorDepartmentSlug(prEbHead, departments), 'pr');
+  assert.equal(getActorDepartmentSlug(volHead, departments), 'volunteers');
+  assert.equal(hasPermission(prEbHead, 'applications.view', departments), true);
+  assert.equal(hasPermission(prEbHead, 'applications.recommend', departments), true);
+  assert.equal(hasPermission(prEbHead, 'applications.review', departments), false);
+  assert.equal(hasPermission(volHead, 'applications.view', departments), true);
+  assert.equal(hasPermission(volHead, 'applications.recommend', departments), true);
+
+  // Strict own-department visibility across Pending, Accepted, and Rejected
+  assert.equal(canAccessApplication(prEbHead, prPending, departments), true);
+  assert.equal(canAccessApplication(prEbHead, prAccepted, departments), true);
+  assert.equal(canAccessApplication(prEbHead, prRejected, departments), true);
+  assert.equal(canAccessApplication(prEbHead, volAccepted, departments), false);
+  assert.equal(canAccessApplication(prEbHead, secAccepted, departments), false);
+
+  assert.equal(canAccessApplication(volHead, volPending, departments), true);
+  assert.equal(canAccessApplication(volHead, volAccepted, departments), true);
+  assert.equal(canAccessApplication(volHead, volRejected, departments), true);
+  assert.equal(canAccessApplication(volHead, prAccepted, departments), false);
+
+  // Confidential medical disclosures remain strictly hidden from Heads
+  assert.equal(canViewConfidentialMedicalInfo(prEbHead, departments), false);
+  assert.equal(canViewConfidentialMedicalInfo(volHead, departments), false);
+});
+
+test('Edge Function policy.ts allows all department Heads to view Pending/Accepted/Rejected for their dept and redacts admin decision metadata', async () => {
+  const {
+    canHeadAccessApplication,
+    isHeadActorScopeMatch,
+    redactApplicationForHead,
+    resolveHeadContext,
+  } = await import('../../supabase/functions/willow-applications/policy');
+
+  const prHeadCtx = resolveHeadContext(
+    {
+      role: 'executive_board',
+      title: 'Head of PR',
+      division: null,
+      eb_rank: 'head',
+      permissions: { 'applications.view': true, 'applications.recommend': true },
+    },
+    'pr',
+  );
+  assert.equal(prHeadCtx.isHead, true);
+  assert.equal(prHeadCtx.canHeadRecommend, true);
+  assert.equal(prHeadCtx.actorDeptSlug, 'pr');
+  assert.equal(prHeadCtx.actorGender, null);
+
+  const prPending = { status: 'pending', application_type: 'pr', department_id: 'pr', gender: 'female' };
+  const prAccepted = { status: 'accepted', application_type: 'pr', department_id: 'pr', gender: 'male' };
+  const prRejected = { status: 'rejected', application_type: 'pr', department_id: 'pr', gender: 'female' };
+  const volAccepted = { status: 'accepted', application_type: 'volunteer', department_id: 'volunteers', gender: 'female' };
+
+  assert.equal(canHeadAccessApplication(prHeadCtx, prPending), true);
+  assert.equal(canHeadAccessApplication(prHeadCtx, prAccepted), true);
+  assert.equal(canHeadAccessApplication(prHeadCtx, prRejected), true);
+  assert.equal(canHeadAccessApplication(prHeadCtx, volAccepted), false);
+  assert.equal(isHeadActorScopeMatch(prHeadCtx, volAccepted), false);
+
+  // Gendered Media Head still strictly excludes Male Media and all Press records
+  const femaleMediaCtx = resolveHeadContext(
+    {
+      role: 'department_head',
+      title: 'Head of Media (Female)',
+      division: 'Female Division',
+    },
+    'media',
+  );
+  assert.equal(
+    canHeadAccessApplication(femaleMediaCtx, {
+      status: 'accepted',
+      application_type: 'media',
+      department_id: 'media',
+      gender: 'female',
+    }),
+    true,
+  );
+  assert.equal(
+    canHeadAccessApplication(femaleMediaCtx, {
+      status: 'accepted',
+      application_type: 'media',
+      department_id: 'media',
+      gender: 'male',
+    }),
+    false,
+  );
+  assert.equal(
+    canHeadAccessApplication(femaleMediaCtx, {
+      status: 'pending',
+      application_type: 'press',
+      department_id: 'press',
+      gender: 'female',
+    }),
+    false,
+  );
+
+  // Redaction removes internal admin decision-maker attribution while preserving status and head recommendation
+  const redacted = redactApplicationForHead({
+    id: 'app-1',
+    status: 'accepted',
+    head_recommendation: 'recommend_accept',
+    head_notes: 'Strong portfolio',
+    decision_by: 'admin-uuid',
+    decision_by_name: 'Admin User',
+    decision_at: '2027-11-20T00:00:00Z',
+    admin_decision_notes: 'Approved by SG',
+    review_notes: 'Internal note',
+  });
+  assert.equal(redacted.status, 'accepted');
+  assert.equal(redacted.head_recommendation, 'recommend_accept');
+  assert.equal(redacted.head_notes, 'Strong portfolio');
+  assert.equal(redacted.decision_by, null);
+  assert.equal(redacted.decision_by_name, null);
+  assert.equal(redacted.decision_at, null);
+  assert.equal(redacted.admin_decision_notes, null);
+  assert.equal(redacted.review_notes, null);
+});
+

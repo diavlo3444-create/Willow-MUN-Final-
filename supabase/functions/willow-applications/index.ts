@@ -712,13 +712,12 @@ Deno.serve(async (req: Request) => {
     }
 
     if (isHead) {
-      if (!headCtx.actorDeptSlug || !headCtx.actorGender) {
-        return json({ error: "Department and gender division are required on your Head profile." }, 403);
+      if (!headCtx.actorDeptSlug) {
+        return json({ error: "A valid department assignment is required on your Head profile." }, 403);
       }
       const { data: rows, error } = await admin
         .from("wm_applications")
         .select("*")
-        .eq("status", "pending")
         .order("created_at", { ascending: false });
       if (error) return json({ error: error.message }, 400);
       const scoped = (rows || [])

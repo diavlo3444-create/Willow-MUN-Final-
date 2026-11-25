@@ -92,6 +92,16 @@ export function SecurityScannerPortal({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {currentUser.role === 'super_admin' && (
+              <button
+                type="button"
+                onClick={() => onNavigate('/super-admin')}
+                className="inline-flex min-h-[40px] items-center gap-1.5 rounded-md border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-inset)] px-3 text-[11px] text-[color:var(--wm-focal)] hover:bg-[color:var(--wm-overlay)]"
+              >
+                <ArrowLeft className="h-3 w-3" aria-hidden="true" />
+                Super Admin
+              </button>
+            )}
             {canViewHeadApps && (
               <button
                 type="button"

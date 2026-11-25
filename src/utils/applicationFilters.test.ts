@@ -128,13 +128,26 @@ const sampleApps: Application[] = [
   makeSampleApp('5', 'hr', 'staff', 'accepted', '2027-11-16T11:00:00Z', 'male'),
 ];
 
-test('scopeApplicationsForActor isolates Department Head strictly by department AND gender', () => {
+test('scopeApplicationsForActor isolates Department Head strictly by department AND gender across statuses', () => {
   assert.equal(scopeApplicationsForActor(sampleApps, superActor).length, 5);
   const hrScoped = scopeApplicationsForActor(sampleApps, headHrActor);
   assert.equal(hrScoped.length, 1);
   assert.equal(hrScoped[0].id, '1');
   assert.equal(hrScoped[0].departmentId, 'hr');
   assert.equal(hrScoped[0].gender, 'female');
+
+  // Adding a rejected HR Female app and accepted HR Female app are visible to Female HR Head,
+  // while Male HR app #5 stays hidden due to Female division scope.
+  const extraHrApps: Application[] = [
+    ...sampleApps,
+    makeSampleApp('6', 'hr', 'staff', 'accepted', '2027-11-17T10:00:00Z', 'female'),
+    makeSampleApp('7', 'hr', 'staff', 'rejected', '2027-11-18T10:00:00Z', 'female'),
+  ];
+  const hrScopedWithDecisions = scopeApplicationsForActor(extraHrApps, headHrActor);
+  assert.deepEqual(
+    hrScopedWithDecisions.map((a) => a.id),
+    ['1', '6', '7'],
+  );
 });
 
 test('scopeAcceptedApplicationsForHr gives HR cross-department & cross-gender accepted applicants with search/filters', () => {

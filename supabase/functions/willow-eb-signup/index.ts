@@ -2,7 +2,13 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const APP_ORIGIN = "https://willow-mun.vercel.app";
-const allowedOrigins = new Set([APP_ORIGIN, "https://thenrqgqunwjjsbceayn.supabase.co", "https://ais-dev-kkieazvdfq7e6qb6ncnbbe-432410478862.europe-west2.run.app"]);
+const allowedOrigins = new Set([
+  APP_ORIGIN,
+  "https://thenrqgqunwjjsbceayn.supabase.co",
+  "https://ais-dev-kkieazvdfq7e6qb6ncnbbe-432410478862.europe-west2.run.app",
+  "https://ais-dev-t4pb3tcvqz2zwsalycrhv3-746878411539.europe-west2.run.app",
+  "https://ais-pre-t4pb3tcvqz2zwsalycrhv3-746878411539.europe-west2.run.app",
+]);
 const corsFor = (origin: string | null) => ({
   "Access-Control-Allow-Origin": origin && allowedOrigins.has(origin) ? origin : APP_ORIGIN,
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -13,6 +19,22 @@ const json = (body: unknown, status = 200, origin: string | null = null) =>
   new Response(JSON.stringify(body), { status, headers: { ...corsFor(origin), "Content-Type": "application/json", "Cache-Control": "no-store" } });
 const cleanEmail = (value: unknown) => String(value || "").trim().toLowerCase();
 const validEmail = (value: string) => /^[^\s@]+@[^\s@]+$/.test(value);
+const SUPER_IT_ADMIN_EMAIL = "ahmedmagdialkik@gmail.com";
+const ALL_PERMISSION_KEYS = [
+  "applications.view", "applications.view_confidential", "applications.review", "applications.recommend",
+  "applications.bulk_actions", "applications.notes", "applications.export", "applications.signup_links",
+  "forms.manage", "departments.view_all", "departments.manage", "departments.assign_head",
+  "departments.toggle_registration", "committees.manage", "secretariat.view", "secretariat.manage",
+  "executive_board.manage", "sponsors.manage", "schedule.manage", "content.conference_assets",
+  "departments.workspace", "operations.teams", "operations.shifts", "operations.deployment",
+  "qr.view_pass", "qr.scan", "qr.manage", "website.view", "website.edit", "website.publish",
+  "media.manage", "email.view", "email.send", "email.bulk_send", "inquiries.manage",
+  "registration.view", "registration.manage", "reports.view", "reports.export", "logs.view",
+  "system.settings", "system.monitoring", "accounts.view", "accounts.manage_admins",
+  "accounts.manage_heads", "roles.manage", "permissions.manage", "testing.impersonate_head",
+];
+const buildSuperAdminPermissions = (): Record<string, boolean> =>
+  Object.fromEntries(ALL_PERMISSION_KEYS.map((key) => [key, true]));
 
 Deno.serve(async (req: Request) => {
   const origin = req.headers.get("origin");
@@ -62,18 +84,27 @@ Deno.serve(async (req: Request) => {
     if (createError || !created.user) throw createError || new Error("Could not create the account.");
     createdUserId = created.user.id;
 
+    const isSuperItAdmin = email === SUPER_IT_ADMIN_EMAIL;
+    const assignedRole = isSuperItAdmin ? "super_admin" : "executive_board";
+    const assignedTitle = isSuperItAdmin ? "Super IT Admin" : member.title;
+    const assignedPermissions = isSuperItAdmin
+      ? buildSuperAdminPermissions()
+      : (member.permissions && typeof member.permissions === "object" ? member.permissions : {});
+
     const { error: profileError } = await admin.from("wm_profiles").upsert({
       user_id: createdUserId,
       full_name: member.full_name,
-      role: "executive_board",
+      role: assignedRole,
       department_id: member.department_id,
       is_active: true,
-      title: member.title,
+      title: assignedTitle,
       avatar_url: member.avatar_url || null,
       phone_number: member.phone_number || null,
-      eb_rank: member.eb_rank || "member",
-      eb_permissions: member.eb_permissions || {},
-      permissions: member.permissions && typeof member.permissions === "object" ? member.permissions : {},
+      eb_rank: isSuperItAdmin ? "head" : (member.eb_rank || "member"),
+      eb_permissions: isSuperItAdmin
+        ? { ...(member.eb_permissions || {}), manage_department: true, manage_committees: true, scan_qr: true }
+        : (member.eb_permissions || {}),
+      permissions: assignedPermissions,
     }, { onConflict: "user_id" });
     if (profileError) throw profileError;
 
@@ -82,7 +113,7 @@ Deno.serve(async (req: Request) => {
       .eq("member_key", member.member_key).eq("claim_started_at", claimStartedAt).is("claimed_at", null)
       .select("member_key").maybeSingle();
     if (finalizeError || !finalized) throw finalizeError || new Error("Could not finalize the EB roster claim.");
-    return json({ success: true, email, message: "Your EB account has been created." }, 200, origin);
+    return json({ success: true, email, role: assignedRole, title: assignedTitle, message: isSuperItAdmin ? "Your Super IT Admin account has been created." : "Your EB account has been created." }, 200, origin);
   } catch (error) {
     if (createdUserId) await admin.auth.admin.deleteUser(createdUserId);
     await admin.from("wm_eb_signup_allowlist").update({ claim_started_at: null })
