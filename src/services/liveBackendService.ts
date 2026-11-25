@@ -359,36 +359,38 @@ export async function fetchScopedApplicationsForActor(
     return { applications: [], source: 'live', error: 'Authentication required.' };
   }
 
+  const isHeadRole = actor.role === 'department_head' || actor.role === 'executive_board';
+
   // Try Edge Function first
   const { data, error } = await supabase.functions.invoke('willow-applications', {
     body: { action: 'list' },
   });
 
-  if (!error && data && !data.error && Array.isArray(data.applications)) {
-    const mapped = (data.applications as LiveApplicationRow[]).map((r) =>
-      mapLiveRowToApplication(r, actor, departments),
-    );
-    // Apply exact client-side head scope (used both for real heads and Super Admin "Sign In As" preview)
-    if (actor.role === 'department_head' || actor.role === 'executive_board') {
-      return {
-        applications: mapped.filter((app) => canAccessApplication(actor, app, departments)),
-        source: 'live',
-      };
-    }
-    return { applications: mapped, source: 'live' };
+  const edgeRows: Application[] =
+    !error && data && !data.error && Array.isArray(data.applications)
+      ? (data.applications as LiveApplicationRow[]).map((r) =>
+          mapLiveRowToApplication(r, actor, departments),
+        )
+      : [];
+  const edgeSucceeded = !error && data && !data.error && Array.isArray(data.applications);
+
+  if (edgeSucceeded && !isHeadRole) {
+    return { applications: edgeRows, source: 'live' };
   }
 
-  // Fallback to direct RLS table read if Edge Function returned error or is mid-deploy
+  // For Heads (or when Edge Function returned error/partial pending-only list), also query RLS-enforced wm_applications table
+  let tableRows: Application[] = [];
+  let tableSucceeded = false;
   let tableErrorMsg = '';
   try {
     let query = supabase.from('wm_applications').select('*').order('created_at', { ascending: false });
-    if (actor.role === 'department_head' || actor.role === 'executive_board') {
+    if (isHeadRole) {
       const deptSlug = getActorDepartmentSlug(actor, departments);
       const gender = getActorGenderScope(actor);
       if (!deptSlug || !hasPermission(actor, 'applications.view', departments)) {
         return {
           applications: [],
-          source: 'table',
+          source: edgeSucceeded ? 'live' : 'table',
           error: data?.error || error?.message || 'Department assignment or view permission is missing.',
         };
       }
@@ -398,30 +400,41 @@ export async function fetchScopedApplicationsForActor(
     }
     const { data: rows, error: tableError } = await query;
     if (!tableError && Array.isArray(rows)) {
-      const mapped = (rows as LiveApplicationRow[]).map((r) =>
+      tableRows = (rows as LiveApplicationRow[]).map((r) =>
         mapLiveRowToApplication(r, actor, departments),
       );
-      return {
-        applications:
-          actor.role === 'department_head' || actor.role === 'executive_board'
-            ? mapped.filter((app) => canAccessApplication(actor, app, departments))
-            : mapped,
-        source: 'table',
-      };
-    }
-    if (tableError) {
+      tableSucceeded = true;
+    } else if (tableError) {
       tableErrorMsg = tableError.message || '';
     }
   } catch (err: any) {
     tableErrorMsg = err?.message || '';
   }
 
+  if (edgeSucceeded || tableSucceeded) {
+    const mergedById = new Map<string, Application>();
+    for (const app of tableRows) {
+      mergedById.set(app.id, app);
+    }
+    for (const app of edgeRows) {
+      mergedById.set(app.id, app);
+    }
+    const combined = Array.from(mergedById.values()).sort((a, b) =>
+      b.submittedAt.localeCompare(a.submittedAt),
+    );
+    return {
+      applications: isHeadRole
+        ? combined.filter((app) => canAccessApplication(actor, app, departments))
+        : combined,
+      source: edgeSucceeded ? 'live' : 'table',
+    };
+  }
+
   const localApps = conferenceDataService.getSnapshot().applications;
   if (localApps.length > 0) {
-    const scopedLocal =
-      actor.role === 'department_head' || actor.role === 'executive_board'
-        ? localApps.filter((app) => canAccessApplication(actor, app, departments))
-        : localApps;
+    const scopedLocal = isHeadRole
+      ? localApps.filter((app) => canAccessApplication(actor, app, departments))
+      : localApps;
     return { applications: scopedLocal, source: 'local' };
   }
 
@@ -589,6 +602,28 @@ export async function submitHeadRecommendation(
     if (!noLongerPending && /no longer pending|only pending/i.test(serverMessage)) {
       noLongerPending = true;
     }
+
+    // If Edge Function is on an older deploy and rejected for dept/gender scope, fall back to RLS-enforced table update
+    if (!noLongerPending && !/already submitted/i.test(serverMessage)) {
+      const { data: updatedRow, error: tableUpdateErr } = await supabase
+        .from('wm_applications')
+        .update({
+          head_recommendation: recommendation,
+          head_notes: String(notes || '').trim().slice(0, 5000),
+        })
+        .eq('id', applicationId)
+        .eq('status', 'pending')
+        .select('*')
+        .maybeSingle();
+
+      if (!tableUpdateErr && updatedRow) {
+        return {
+          ok: true,
+          application: mapLiveRowToApplication(updatedRow as LiveApplicationRow, actor, departments),
+        };
+      }
+    }
+
     return {
       ok: false,
       error: serverMessage || error?.message || 'Could not save recommendation.',
