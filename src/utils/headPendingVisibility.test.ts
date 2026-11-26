@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   canHeadAccessApplication,
   isHeadActorScopeMatch,
+  mapDepartment,
   redactApplicationForHead,
   resolveApplicationDepartmentSlug,
   resolveHeadContext,
@@ -10,22 +11,36 @@ import {
 import type { AdminUser, Application, Department } from '../types/admin';
 import {
   canAccessApplication,
+  canViewConfidentialMedicalInfo,
   canViewHrAcceptedApplication,
+  getActorDepartmentSlug,
   resolveUserPermissions,
 } from './adminPermissions';
-import { filterAndSortApplications, scopeApplicationsForActor } from './applicationFilters';
+import {
+  computeDepartmentBreakdown,
+  filterAndSortApplications,
+  scopeApplicationsForActor,
+} from './applicationFilters';
 import { mapLiveRowToApplication, type LiveApplicationRow } from '../services/liveBackendService';
 
 const DEPT_MEDIA_UUID = '11111111-1111-4111-8111-111111111111';
 const DEPT_PRESS_UUID = '22222222-2222-4222-8222-222222222222';
 const DEPT_VOLUNTEERS_UUID = '33333333-3333-4333-8333-333333333333';
 const DEPT_HR_UUID = '44444444-4444-4444-8444-444444444444';
+const DEPT_PR_UUID = '55555555-5555-4555-8555-555555555555';
+const DEPT_CEREMONY_UUID = '66666666-6666-4666-8666-666666666666';
+const DEPT_LOGISTICS_UUID = '77777777-7777-4777-8777-777777777777';
+const DEPT_SECURITY_UUID = '88888888-8888-4888-8888-888888888888';
 
 const deptSlugById = new Map<string, string>([
   [DEPT_MEDIA_UUID, 'media'],
   [DEPT_PRESS_UUID, 'press'],
-  [DEPT_VOLUNTEERS_UUID, 'volunteers'],
+  [DEPT_VOLUNTEERS_UUID, 'volunteering'],
   [DEPT_HR_UUID, 'hr'],
+  [DEPT_PR_UUID, 'pr'],
+  [DEPT_CEREMONY_UUID, 'ceremonies'],
+  [DEPT_LOGISTICS_UUID, 'logistics'],
+  [DEPT_SECURITY_UUID, 'security'],
 ]);
 
 const makeDept = (id: string, slug: string, name: string): Department => ({
@@ -45,8 +60,12 @@ const makeDept = (id: string, slug: string, name: string): Department => ({
 const departments: Department[] = [
   makeDept(DEPT_MEDIA_UUID, 'media', 'Media'),
   makeDept(DEPT_PRESS_UUID, 'press', 'Press'),
-  makeDept(DEPT_VOLUNTEERS_UUID, 'volunteers', 'Volunteering'),
+  makeDept(DEPT_VOLUNTEERS_UUID, 'volunteering', 'Volunteering'),
   makeDept(DEPT_HR_UUID, 'hr', 'Human Resources'),
+  makeDept(DEPT_PR_UUID, 'pr', 'Public Relations'),
+  makeDept(DEPT_CEREMONY_UUID, 'ceremonies', 'Ceremonies'),
+  makeDept(DEPT_LOGISTICS_UUID, 'logistics', 'Logistics'),
+  makeDept(DEPT_SECURITY_UUID, 'security', 'Security'),
 ];
 
 const makeFrontendActor = (overrides: Partial<AdminUser>): AdminUser => ({
@@ -56,7 +75,7 @@ const makeFrontendActor = (overrides: Partial<AdminUser>): AdminUser => ({
   role: 'department_head',
   roleDefinitionId: 'role-head',
   departmentId: DEPT_VOLUNTEERS_UUID,
-  departmentSlug: 'volunteers',
+  departmentSlug: null,
   title: 'Female Division Department Head',
   division: 'female',
   status: 'active',
@@ -113,12 +132,12 @@ const makeApp = (overrides: Partial<Application>): Application => ({
   ...overrides,
 });
 
-test('Edge policy: Department Heads and Co-Heads only access pending applications in their dept/track/gender', () => {
+test('Edge policy: Department Heads and Co-Heads see Pending, Waitlisted, Accepted, and Rejected apps strictly in their dept/track/gender', () => {
   const mediaHeadCtx = resolveHeadContext(
     {
       role: 'department_head',
       department_id: DEPT_MEDIA_UUID,
-      title: 'Media Head (Female)',
+      title: 'Media & Press Head (Female)',
       division: 'female',
       permissions: { 'applications.view': true, 'applications.recommend': true },
     },
@@ -128,7 +147,7 @@ test('Edge policy: Department Heads and Co-Heads only access pending application
     {
       role: 'executive_board',
       department_id: DEPT_MEDIA_UUID,
-      eb_rank: 'co_head',
+      eb_rank: 'co-head',
       title: 'Media Co-Head',
       division: 'female',
       permissions: { 'applications.view': true, 'applications.recommend': true },
@@ -143,44 +162,106 @@ test('Edge policy: Department Heads and Co-Heads only access pending application
     gender: 'female',
   };
   const pendingRec = {
-    status: 'pending',
-    application_type: 'media',
-    department_id: DEPT_MEDIA_UUID,
-    gender: 'female',
+    ...pendingUnrec,
     head_recommendation: 'recommend_accept',
   };
   const acceptedRow = { ...pendingUnrec, status: 'accepted', decision_by_name: 'Lana Admin' };
   const rejectedRow = { ...pendingUnrec, status: 'rejected', decision_by_name: 'Ahmed Admin' };
   const waitlistedRow = { ...pendingUnrec, status: 'waitlisted' };
-  const pressPendingRow = {
-    status: 'pending',
+  const staleUuidAccepted = {
+    status: 'accepted',
+    application_type: 'media',
+    department_id: '99999999-9999-4999-8999-999999999999',
+    gender: 'female',
+  };
+  const pressAcceptedRow = {
+    status: 'accepted',
     application_type: 'press',
     department_id: DEPT_PRESS_UUID,
     gender: 'female',
   };
-  const malePendingRow = { ...pendingUnrec, gender: 'male' };
+  const maleAcceptedRow = { ...acceptedRow, gender: 'male' };
 
+  assert.equal(mediaHeadCtx.actorApplicationType, 'media');
   assert.equal(resolveApplicationDepartmentSlug('media', DEPT_MEDIA_UUID, deptSlugById), 'media');
-  assert.equal(canHeadAccessApplication(mediaHeadCtx, pendingUnrec, deptSlugById), true);
-  assert.equal(canHeadAccessApplication(mediaHeadCtx, pendingRec, deptSlugById), true);
-  assert.equal(canHeadAccessApplication(mediaCoHeadCtx, pendingUnrec, deptSlugById), true);
-  assert.equal(canHeadAccessApplication(mediaCoHeadCtx, pendingRec, deptSlugById), true);
+  assert.equal(
+    resolveApplicationDepartmentSlug('ceremony', DEPT_CEREMONY_UUID, deptSlugById),
+    'ceremony',
+  );
+  assert.equal(
+    resolveApplicationDepartmentSlug('pr', '99999999-9999-4999-8999-999999999999', deptSlugById),
+    'pr',
+  );
+  assert.equal(mapDepartment('media', 'media-press'), 'media');
+  assert.equal(mapDepartment('ceremonies', 'ceremonies'), 'ceremony');
 
-  for (const blocked of [acceptedRow, rejectedRow, waitlistedRow, pressPendingRow, malePendingRow]) {
+  for (const allowed of [pendingUnrec, pendingRec, acceptedRow, rejectedRow, waitlistedRow, staleUuidAccepted]) {
+    assert.equal(canHeadAccessApplication(mediaHeadCtx, allowed, deptSlugById), true);
+    assert.equal(canHeadAccessApplication(mediaCoHeadCtx, allowed, deptSlugById), true);
+  }
+
+  for (const blocked of [pressAcceptedRow, maleAcceptedRow]) {
     assert.equal(canHeadAccessApplication(mediaHeadCtx, blocked, deptSlugById), false);
     assert.equal(canHeadAccessApplication(mediaCoHeadCtx, blocked, deptSlugById), false);
   }
 
-  // Scope match stays true for accepted in-dept rows (used to return neutral 409) and false for out-of-scope (403)
-  assert.equal(isHeadActorScopeMatch(mediaHeadCtx, acceptedRow, deptSlugById), true);
-  assert.equal(isHeadActorScopeMatch(mediaHeadCtx, pressPendingRow, deptSlugById), false);
-  assert.equal(isHeadActorScopeMatch(mediaHeadCtx, malePendingRow, deptSlugById), false);
+  assert.equal(isHeadActorScopeMatch(mediaHeadCtx, pressAcceptedRow, deptSlugById), false);
+  assert.equal(isHeadActorScopeMatch(mediaHeadCtx, maleAcceptedRow, deptSlugById), false);
+});
+
+test('Edge policy: Every department (Volunteers, Security, PR, Ceremony, Logistics, HR) sees Accepted and Rejected in their own dept', () => {
+  const specs = [
+    { slug: 'volunteering', appType: 'volunteer', deptId: DEPT_VOLUNTEERS_UUID, title: 'Volunteers Head' },
+    { slug: 'ceremonies', appType: 'ceremonies', deptId: DEPT_CEREMONY_UUID, title: 'Ceremonies Coordinator' },
+    { slug: 'pr', appType: 'pr', deptId: DEPT_PR_UUID, title: 'PR Head' },
+    { slug: 'logistics', appType: 'logistics', deptId: DEPT_LOGISTICS_UUID, title: 'Logistics Director' },
+    { slug: 'security', appType: 'security', deptId: DEPT_SECURITY_UUID, title: 'Security Head' },
+  ];
+
+  for (const spec of specs) {
+    const ctx = resolveHeadContext(
+      {
+        role: 'executive_board',
+        department_id: spec.deptId,
+        eb_rank: 'head',
+        title: spec.title,
+        division: null,
+        permissions: { 'applications.view': true, 'applications.recommend': true },
+      },
+      spec.slug,
+    );
+    assert.equal(ctx.isHead, true);
+    assert.equal(
+      canHeadAccessApplication(
+        ctx,
+        { status: 'accepted', application_type: spec.appType, department_id: spec.deptId, gender: 'male' },
+        deptSlugById,
+      ),
+      true,
+    );
+    assert.equal(
+      canHeadAccessApplication(
+        ctx,
+        { status: 'rejected', application_type: spec.appType, department_id: '99999999-9999-4999-8999-999999999999', gender: 'female' },
+        deptSlugById,
+      ),
+      true,
+    );
+    assert.equal(
+      canHeadAccessApplication(
+        ctx,
+        { status: 'accepted', application_type: 'hr', department_id: DEPT_HR_UUID, gender: 'female' },
+        deptSlugById,
+      ),
+      false,
+    );
+  }
 });
 
 test('Edge policy: redactApplicationForHead removes final decision attribution and admin notes', () => {
   const redacted = redactApplicationForHead({
     id: 'app-1',
-    status: 'pending',
+    status: 'accepted',
     head_recommendation: 'recommend_accept',
     recommended_by_name: 'Alya Head',
     decision_by: 'admin-uuid',
@@ -190,6 +271,7 @@ test('Edge policy: redactApplicationForHead removes final decision attribution a
     review_notes: 'Legacy review note',
   });
 
+  assert.equal(redacted.status, 'accepted');
   assert.equal(redacted.decision_by, null);
   assert.equal(redacted.decision_by_name, null);
   assert.equal(redacted.decision_at, null);
@@ -199,43 +281,38 @@ test('Edge policy: redactApplicationForHead removes final decision attribution a
   assert.equal(redacted.recommended_by_name, 'Alya Head');
 });
 
-test('Frontend RBAC & filters: Heads/Co-Heads see only pending apps (including recommended); Admins retain all statuses', () => {
+test('Frontend RBAC & filters: Heads/Co-Heads across all departments and aliases see Pending, Waitlisted, Accepted, Rejected in their own dept', () => {
   const volHead = makeFrontendActor({
     id: 'head-vol-f',
     role: 'department_head',
     departmentId: DEPT_VOLUNTEERS_UUID,
     departmentSlug: 'volunteers',
   });
-  const volCoHead = makeFrontendActor({
-    id: 'cohead-vol-f',
+  const ceremonyCoHead = makeFrontendActor({
+    id: 'cohead-ceremony',
     role: 'executive_board',
-    ebRank: 'co_head',
-    departmentId: DEPT_VOLUNTEERS_UUID,
-    departmentSlug: 'volunteers',
-    title: 'Volunteers Co-Head (Female)',
-    permissions: resolveUserPermissions('executive_board', {}, 'co_head', undefined, 'Volunteers Co-Head (Female)'),
+    ebRank: 'co-head',
+    departmentId: DEPT_CEREMONY_UUID,
+    departmentSlug: null,
+    division: null,
+    title: 'Ceremonies Co-Head',
+    permissions: resolveUserPermissions('executive_board', {}, 'co-head', undefined, 'Ceremonies Co-Head'),
   });
   const adminActor = makeFrontendActor({
     id: 'admin-1',
     role: 'admin',
     departmentId: null,
     departmentSlug: null,
+    division: null,
     title: 'Admin',
     permissions: resolveUserPermissions('admin', { 'applications.view': true, 'applications.review': true }),
-  });
-  const superAdminActor = makeFrontendActor({
-    id: 'super-1',
-    role: 'super_admin',
-    departmentId: null,
-    departmentSlug: null,
-    title: 'Super Admin',
-    permissions: resolveUserPermissions('super_admin'),
   });
   const hrActor = makeFrontendActor({
     id: 'hr-1',
     role: 'department_head',
     departmentId: DEPT_HR_UUID,
     departmentSlug: 'hr',
+    division: null,
     title: 'HR Head',
   });
 
@@ -246,42 +323,62 @@ test('Frontend RBAC & filters: Heads/Co-Heads see only pending apps (including r
     makeApp({ id: 'rej-1', status: 'rejected', finalDecisionBy: 'Mohammed Admin' }),
     makeApp({ id: 'wait-1', status: 'waitlisted', finalDecisionBy: 'Mohammed Admin' }),
     makeApp({ id: 'male-p', status: 'pending', gender: 'male' }),
+    makeApp({
+      id: 'cer-acc',
+      applicationType: 'ceremonies',
+      category: 'staff',
+      departmentId: 'ceremony',
+      gender: 'male',
+      status: 'accepted',
+    }),
+    makeApp({
+      id: 'cer-rej',
+      applicationType: 'ceremonies',
+      category: 'staff',
+      departmentId: '99999999-9999-4999-8999-999999999999',
+      gender: 'female',
+      status: 'rejected',
+    }),
   ];
 
-  // Heads & Co-Heads only see their 2 pending female applications
-  const headIds = scopeApplicationsForActor(apps, volHead, departments).map((a) => a.id);
-  const coHeadIds = scopeApplicationsForActor(apps, volCoHead, departments).map((a) => a.id);
-  assert.deepEqual(headIds, ['p-1', 'p-2']);
-  assert.deepEqual(coHeadIds, ['p-1', 'p-2']);
-
-  // Searching/filtering with status='accepted' must still return 0 for Heads
+  // Volunteers (Female) Head sees Pending, Waitlisted, Accepted, and Rejected female volunteers (not male, not ceremonies)
+  const volHeadIds = scopeApplicationsForActor(apps, volHead, departments).map((a) => a.id);
+  assert.deepEqual(volHeadIds, ['p-1', 'p-2', 'acc-1', 'rej-1', 'wait-1']);
   assert.equal(
-    filterAndSortApplications(apps, volHead, { status: 'accepted' }, departments).length,
-    0,
+    filterAndSortApplications(apps, volHead, { status: 'accepted' }, departments).map((a) => a.id)[0],
+    'acc-1',
   );
   assert.equal(
-    filterAndSortApplications(apps, volCoHead, { status: 'rejected' }, departments).length,
-    0,
+    filterAndSortApplications(apps, volHead, { status: 'rejected' }, departments).map((a) => a.id)[0],
+    'rej-1',
   );
-  assert.equal(canAccessApplication(volHead, apps[2], departments), false);
-  assert.equal(canAccessApplication(volCoHead, apps[3], departments), false);
 
-  // Admins & Super Admins retain full access across all statuses
-  assert.equal(scopeApplicationsForActor(apps, adminActor, departments).length, 6);
-  assert.equal(scopeApplicationsForActor(apps, superAdminActor, departments).length, 6);
+  // Ceremonies Co-Head sees normalized 'ceremony' + stale UUID rows across Accepted & Rejected
+  assert.equal(getActorDepartmentSlug(ceremonyCoHead, departments), 'ceremony');
+  assert.deepEqual(
+    scopeApplicationsForActor(apps, ceremonyCoHead, departments).map((a) => a.id),
+    ['cer-acc', 'cer-rej'],
+  );
+
+  // computeDepartmentBreakdown counts slug-mapped apps cleanly under UUID department definitions
+  const breakdown = computeDepartmentBreakdown(apps, departments);
+  const ceremonyStats = breakdown.find((b) => b.departmentId === DEPT_CEREMONY_UUID);
+  assert.equal(ceremonyStats?.accepted, 1);
+
+  // Admins retain full access; HR keeps accepted directory; confidential medical stays blocked for Heads
+  assert.equal(scopeApplicationsForActor(apps, adminActor, departments).length, 8);
   assert.equal(canAccessApplication(adminActor, apps[2], departments), true);
-  assert.equal(canAccessApplication(superAdminActor, apps[3], departments), true);
-
-  // HR still retains accepted applicant directory access
   assert.equal(canViewHrAcceptedApplication(hrActor, apps[2], departments), true);
+  assert.equal(canViewConfidentialMedicalInfo(volHead, departments), false);
+  assert.equal(canViewConfidentialMedicalInfo(ceremonyCoHead, departments), false);
 });
 
-test('mapLiveRowToApplication redacts final decision metadata for Heads while keeping it for Admins', () => {
+test('mapLiveRowToApplication normalizes UUIDs/aliases and redacts final decision metadata for Heads while keeping it for Admins', () => {
   const row: LiveApplicationRow = {
     id: 'row-1',
     application_code: 'WM-900',
-    application_type: 'media',
-    department_id: 'media',
+    application_type: 'volunteer',
+    department_id: DEPT_VOLUNTEERS_UUID,
     applicant_name: 'Noura',
     gender: 'female',
     email: 'noura@example.com',
@@ -289,11 +386,11 @@ test('mapLiveRowToApplication redacts final decision metadata for Heads while ke
     school: 'Willow School',
     age: 17,
     availability: null,
-    motivation: 'Interested in media coverage',
+    motivation: 'Interested in volunteering',
     experience: null,
     portfolio_url: null,
     review_notes: null,
-    status: 'pending',
+    status: 'accepted',
     head_recommendation: 'recommend_accept',
     recommended_by: 'head-1',
     recommended_by_name: 'Alya',
@@ -301,24 +398,27 @@ test('mapLiveRowToApplication redacts final decision metadata for Heads while ke
     decision_by: 'admin-1',
     decision_by_name: 'Lana Admin',
     decision_at: '2026-11-23T10:00:00Z',
-    admin_decision_notes: 'Spoofed back to pending note',
+    admin_decision_notes: 'Internal admin note',
     created_at: '2026-11-20T09:00:00Z',
   };
 
-  const mediaHead = makeFrontendActor({
+  const volHead = makeFrontendActor({
     role: 'department_head',
-    departmentId: DEPT_MEDIA_UUID,
-    departmentSlug: 'media',
-    title: 'Media Head (Female)',
+    departmentId: DEPT_VOLUNTEERS_UUID,
+    departmentSlug: 'volunteers',
+    title: 'Volunteers Head (Female)',
   });
   const adminActor = makeFrontendActor({
     role: 'admin',
     departmentId: null,
     departmentSlug: null,
+    division: null,
     title: 'Admin',
   });
 
-  const headView = mapLiveRowToApplication(row, mediaHead, departments);
+  const headView = mapLiveRowToApplication(row, volHead, departments);
+  assert.equal(headView.departmentId, 'volunteers');
+  assert.equal(headView.status, 'accepted');
   assert.equal(headView.finalDecisionBy, null);
   assert.equal(headView.finalDecisionAt, null);
   assert.equal(headView.reviewedBy, null);
@@ -329,6 +429,6 @@ test('mapLiveRowToApplication redacts final decision metadata for Heads while ke
   const adminView = mapLiveRowToApplication(row, adminActor, departments);
   assert.equal(adminView.finalDecisionBy, 'Lana Admin');
   assert.equal(adminView.finalDecisionAt, '2026-11-23T10:00:00Z');
-  assert.equal(adminView.adminDecisionNotes, 'Spoofed back to pending note');
+  assert.equal(adminView.adminDecisionNotes, 'Internal admin note');
   assert.equal(adminView.history.length, 1);
 });

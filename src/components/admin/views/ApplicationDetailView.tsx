@@ -30,6 +30,7 @@ import {
   canViewConfidentialApplicantInfo,
   getRoleLabel,
   hasPermission,
+  normalizeDepartmentSlug,
 } from '../../../utils/adminPermissions';
 import { formatDecisionByLabel } from '../../../utils/decisionAttribution';
 import { ConfirmDialog } from '../ConfirmDialog';
@@ -134,7 +135,7 @@ export function ApplicationDetailView({
         </div>
         <h2 className="mt-4 text-lg font-semibold text-rose-100">Application Access Restricted</h2>
         <p className="mx-auto mt-2 max-w-md text-sm text-[color:var(--wm-ink-secondary)]">
-          This application is no longer pending or falls outside your assigned department and division.
+          This application falls outside your assigned department and division.
         </p>
         <button
           type="button"
@@ -148,7 +149,11 @@ export function ApplicationDetailView({
     );
   }
 
-  const department = data.departments.find((d) => d.id === application.departmentId);
+  const department = data.departments.find(
+    (d) =>
+      d.id === application.departmentId ||
+      normalizeDepartmentSlug(d.slug) === normalizeDepartmentSlug(application.departmentId),
+  );
   const isHeadActor =
     effectiveActor?.role === 'department_head' || effectiveActor?.role === 'executive_board';
   const canViewConfidential = canViewConfidentialApplicantInfo(

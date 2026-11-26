@@ -15,7 +15,11 @@ import {
 } from 'lucide-react';
 import { useAdminStore } from '../../../context/AdminStoreContext';
 import type { Application, ApplicationStatus, RecommendationDecision } from '../../../types/admin';
-import { canOverrideApplicationDecision, hasPermission } from '../../../utils/adminPermissions';
+import {
+  canOverrideApplicationDecision,
+  hasPermission,
+  normalizeDepartmentSlug,
+} from '../../../utils/adminPermissions';
 import {
   buildApplicationsCsv,
   filterAndSortApplications,
@@ -108,7 +112,7 @@ export function ApplicationsView({
     effectiveActor?.role === 'department_head' || effectiveActor?.role === 'executive_board';
   const effectiveSearch = externalSearch || search;
   const effectiveDeptFilter = lockedDepartmentId ?? departmentFilter;
-  const effectiveStatusFilter: ApplicationStatus | 'all' = isHeadActor ? 'pending' : statusFilter;
+  const effectiveStatusFilter: ApplicationStatus | 'all' = statusFilter;
 
   const scopedAll = useMemo(
     () => scopeApplicationsForActor(data.applications, effectiveActor, data.departments),
@@ -117,13 +121,31 @@ export function ApplicationsView({
 
   const availablePositions = useMemo(() => {
     const set = new Set<string>();
+    const matchedFilterDept =
+      effectiveDeptFilter !== 'all'
+        ? data.departments.find(
+            (d) =>
+              d.id === effectiveDeptFilter ||
+              normalizeDepartmentSlug(d.slug) === normalizeDepartmentSlug(effectiveDeptFilter),
+          )
+        : undefined;
+    const targetSlug = matchedFilterDept
+      ? normalizeDepartmentSlug(matchedFilterDept.slug)
+      : effectiveDeptFilter !== 'all'
+        ? normalizeDepartmentSlug(effectiveDeptFilter)
+        : null;
     for (const app of scopedAll) {
-      if (effectiveDeptFilter === 'all' || app.departmentId === effectiveDeptFilter) {
+      const appSlug = normalizeDepartmentSlug(app.departmentId);
+      if (
+        effectiveDeptFilter === 'all' ||
+        app.departmentId === effectiveDeptFilter ||
+        (targetSlug !== null && appSlug === targetSlug)
+      ) {
         set.add(app.position);
       }
     }
     return Array.from(set).sort();
-  }, [effectiveDeptFilter, scopedAll]);
+  }, [data.departments, effectiveDeptFilter, scopedAll]);
 
   const filtered = useMemo(
     () =>
@@ -170,10 +192,14 @@ export function ApplicationsView({
   );
 
   const paginated = useMemo(() => paginateItems(filtered, page, PAGE_SIZE), [filtered, page]);
-  const deptNameById = useMemo(
-    () => new Map(data.departments.map((d) => [d.id, d.name])),
-    [data.departments],
-  );
+  const deptNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const d of data.departments) {
+      map.set(d.id, d.name);
+      if (d.slug) map.set(normalizeDepartmentSlug(d.slug), d.name);
+    }
+    return map;
+  }, [data.departments]);
 
   const canReview =
     hasPermission(effectiveActor, 'applications.review', data.departments) && !isHeadActor;
@@ -366,25 +392,18 @@ export function ApplicationsView({
           <select
             aria-label="Filter by status"
             value={effectiveStatusFilter}
-            disabled={isHeadActor}
             onChange={(e) => {
               setStatusFilter(e.target.value as ApplicationStatus | 'all');
               setPage(1);
             }}
-            className="h-9 rounded border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-canvas)] px-3 text-xs text-[color:var(--wm-ink)] focus:border-[color:var(--wm-focal)] focus:outline-none disabled:opacity-75"
+            className="h-9 rounded border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-canvas)] px-3 text-xs text-[color:var(--wm-ink)] focus:border-[color:var(--wm-focal)] focus:outline-none"
           >
-            {isHeadActor ? (
-              <option value="pending">Pending Only</option>
-            ) : (
-              <>
-                <option value="all">All Statuses</option>
-                <option value="pending">Pending</option>
-                <option value="accepted">Accepted</option>
-                <option value="rejected">Rejected</option>
-                <option value="waitlisted">Waitlisted</option>
-                <option value="withdrawn">Withdrawn</option>
-              </>
-            )}
+            <option value="all">All Statuses</option>
+            <option value="pending">Pending</option>
+            <option value="accepted">Accepted</option>
+            <option value="rejected">Rejected</option>
+            <option value="waitlisted">Waitlisted</option>
+            <option value="withdrawn">Withdrawn</option>
           </select>
 
           <select
@@ -609,7 +628,10 @@ export function ApplicationsView({
                 </tr>
               ) : (
                 paginated.items.map((app) => {
-                  const deptName = deptNameById.get(app.departmentId) ?? app.departmentId;
+                  const deptName =
+                    deptNameById.get(app.departmentId) ??
+                    deptNameById.get(normalizeDepartmentSlug(app.departmentId)) ??
+                    app.departmentId;
                   return (
                     <tr
                       key={app.id}

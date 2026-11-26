@@ -34,11 +34,13 @@ export interface ResolvedHeadContext {
 export function normalizeDeptSlug(value: unknown): string {
   const clean = String(value || "").trim().toLowerCase();
   if (!clean) return "";
-  if (clean === "volunteer" || clean === "volunteering") return "volunteers";
-  if (clean === "human-resources" || clean === "human_resources") return "hr";
-  if (clean === "delegate-affairs" || clean === "delegate_affairs") return "dcc";
+  if (clean === "volunteer" || clean === "volunteering" || clean === "volunteers") return "volunteers";
+  if (clean === "human-resources" || clean === "human_resources" || clean === "human resources") return "hr";
+  if (clean === "delegate-affairs" || clean === "delegate_affairs" || clean === "delegate affairs" || clean === "delegate") return "dcc";
   if (clean === "public-relations" || clean === "public_relations" || clean === "public relations") return "pr";
+  if (clean === "information-technology" || clean === "information_technology" || clean === "information technology") return "it";
   if (clean === "ceremonies" || clean === "ceremony") return "ceremony";
+  if (clean === "media_press") return "media-press";
   return clean;
 }
 
@@ -47,6 +49,8 @@ export function inferDeptSlugFromLabel(labelRaw: string): string {
   if (!label) return "";
   if (/\b(hr|human\s+resources)\b/.test(label)) return "hr";
   if (/\b(dcc|delegate\s+affairs|delegate\s+care)\b/.test(label)) return "dcc";
+  if (/\bpress\b/.test(label) && !/\bmedia\b/.test(label)) return "press";
+  if (/\bmedia\b/.test(label) && !/\bpress\b/.test(label)) return "media";
   if (/\b(press|journalis[tm]|reporter|correspondent|editorial)\b/.test(label)) return "press";
   if (/\b(media|photograph(y|er)|videograph(y|er)|broadcast|reel)\b/.test(label)) return "media";
   if (/\b(security|guard|checkpoint|entrance\s+control)\b/.test(label)) return "security";
@@ -56,14 +60,29 @@ export function inferDeptSlugFromLabel(labelRaw: string): string {
   if (/\b(logistics)\b/.test(label)) return "logistics";
   if (/\b(ceremon(y|ies))\b/.test(label)) return "ceremony";
   if (/\b(finance|treasury)\b/.test(label)) return "finance";
-  if (/\b(it|technical|systems)\b/.test(label)) return "it";
+  if (/\b(it|information\s+technology|technical|systems)\b/.test(label)) return "it";
   if (/\b(design|creative|visual)\b/.test(label)) return "design";
   return "";
 }
 
 export function mapDepartment(appType: string, explicitDept?: string | null): string {
-  const cleanExplicit = normalizeDeptSlug(explicitDept);
-  if (cleanExplicit) return cleanExplicit;
+  const normalizedType = normalizeDeptSlug(appType);
+  const rawExplicit = String(explicitDept || "").trim();
+  const cleanExplicit = normalizeDeptSlug(rawExplicit);
+  const looksLikeUuid =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawExplicit) ||
+    /^legacy-/i.test(rawExplicit);
+
+  if (
+    cleanExplicit &&
+    !looksLikeUuid &&
+    !(
+      (normalizedType === "media" || normalizedType === "press") &&
+      (cleanExplicit === "media-press" || cleanExplicit === "general")
+    )
+  ) {
+    return cleanExplicit;
+  }
   switch (String(appType || "").trim().toLowerCase()) {
     case "volunteer":
     case "volunteers":
@@ -76,9 +95,27 @@ export function mapDepartment(appType: string, explicitDept?: string | null): st
     case "security":
       return "security";
     case "delegate":
+    case "dcc":
       return "dcc";
+    case "hr":
+      return "hr";
+    case "pr":
+      return "pr";
+    case "marketing":
+      return "marketing";
+    case "design":
+      return "design";
+    case "logistics":
+      return "logistics";
+    case "ceremony":
+    case "ceremonies":
+      return "ceremony";
+    case "finance":
+      return "finance";
+    case "it":
+      return "it";
     default:
-      return String(appType || "general").trim().toLowerCase();
+      return normalizedType || String(appType || "general").trim().toLowerCase();
   }
 }
 
@@ -87,10 +124,21 @@ export function resolveApplicationDepartmentSlug(
   explicitDept: string | null | undefined,
   deptSlugById?: ReadonlyMap<string, string>,
 ): string {
+  const normalizedType = normalizeDeptSlug(applicationType);
   const rawExplicit = String(explicitDept || "").trim();
   if (rawExplicit && deptSlugById) {
     const byExact = deptSlugById.get(rawExplicit.toLowerCase());
-    if (byExact) return normalizeDeptSlug(byExact);
+    if (byExact) {
+      const normalizedMatched = normalizeDeptSlug(byExact);
+      if (
+        !(
+          (normalizedType === "media" || normalizedType === "press") &&
+          (normalizedMatched === "media-press" || normalizedMatched === "general")
+        )
+      ) {
+        return normalizedMatched;
+      }
+    }
   }
   return mapDepartment(String(applicationType || ""), explicitDept);
 }
@@ -118,23 +166,33 @@ export function resolveHeadContext(
   actorDeptSlugRaw: string | null | undefined,
 ): ResolvedHeadContext {
   const actorLabel = `${actor.title || ""} ${actor.division || ""}`.toLowerCase();
+  const normalizedRawDept = normalizeDeptSlug(actorDeptSlugRaw);
   const actorDeptSlug =
-    normalizeDeptSlug(actorDeptSlugRaw) || inferDeptSlugFromLabel(actorLabel);
+    (normalizedRawDept &&
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(normalizedRawDept)
+      ? normalizedRawDept
+      : "") || inferDeptSlugFromLabel(actorLabel);
 
-  const labelType: "media" | "press" | null = /\bpress\b/.test(actorLabel)
+  const hasPressWord = /\bpress\b/.test(actorLabel);
+  const hasMediaWord = /\bmedia\b/.test(actorLabel);
+  const exclusiveLabelType: "media" | "press" | null =
+    hasPressWord && !hasMediaWord
+      ? "press"
+      : hasMediaWord && !hasPressWord
+        ? "media"
+        : null;
+  const combinedLabelType: "media" | "press" | null = hasPressWord
     ? "press"
-    : /\bmedia\b/.test(actorLabel)
+    : hasMediaWord
       ? "media"
       : null;
 
   const actorApplicationType: "media" | "press" | null =
-    actorDeptSlug === "press"
-      ? labelType ?? "press"
-      : actorDeptSlug === "media"
-        ? labelType ?? "media"
-        : actorDeptSlug === "media-press"
-          ? labelType
-          : null;
+    actorDeptSlug === "press" || actorDeptSlug === "media"
+      ? exclusiveLabelType ?? actorDeptSlug
+      : actorDeptSlug === "media-press"
+        ? combinedLabelType
+        : null;
 
   const actorPerms = (
     actor.permissions && typeof actor.permissions === "object" ? actor.permissions : {}
@@ -146,12 +204,14 @@ export function resolveHeadContext(
   const isSuperAdmin = actor.role === "super_admin";
   const isAdmin = isSuperAdmin || actor.role === "admin";
 
+  const normalizedRank = String(actor.eb_rank || "").trim().toLowerCase().replace(/-/g, "_");
   const isEbHead =
     actor.role === "executive_board" &&
-    (actor.eb_rank === "head" ||
-      actor.eb_rank === "co_head" ||
+    (normalizedRank === "head" ||
+      normalizedRank === "co_head" ||
+      normalizedRank === "cohead" ||
       actorEbPerms.manage_department === true ||
-      /\b(head|co-head|director)\b/i.test(String(actor.title || "")) ||
+      /\b(head|co-head|cohead|director|lead)\b/i.test(String(actor.title || "")) ||
       actorPerms["applications.view"] === true);
 
   const headApplicationDepartmentAllowed =
@@ -212,7 +272,13 @@ export function isHeadActorScopeMatch(
     ctx.actorDeptSlug === "press" ||
     ctx.actorDeptSlug === "media-press"
   ) {
-    if (!ctx.actorApplicationType || (appType && appType !== ctx.actorApplicationType)) {
+    const effectiveTrack =
+      appType === "media" || appType === "press"
+        ? appType
+        : appDeptSlug === "media" || appDeptSlug === "press"
+          ? appDeptSlug
+          : "";
+    if (!ctx.actorApplicationType || !effectiveTrack || effectiveTrack !== ctx.actorApplicationType) {
       return false;
     }
   }

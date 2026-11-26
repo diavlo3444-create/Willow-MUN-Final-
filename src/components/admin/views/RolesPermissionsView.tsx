@@ -644,11 +644,17 @@ export function DepartmentTestingView() {
       press: 'press',
       marketing: 'marketing',
       design: 'design',
+      pr: 'pr',
       security: 'security',
       it: 'it',
       hr: 'hr',
       'delegate-affairs': 'dcc',
+      dcc: 'dcc',
       volunteers: 'volunteers',
+      logistics: 'logistics',
+      ceremonies: 'ceremony',
+      ceremony: 'ceremony',
+      finance: 'finance',
     };
     for (const member of membersJson.members) {
       if (!member.role || !/\bhead\b/i.test(member.role)) continue;
@@ -707,6 +713,17 @@ export function DepartmentTestingView() {
   const openHeadTestTab = (head: (typeof headRows)[number]) => {
     const targetId = head.testUserId || head.id;
     const dept = resolveDepartmentForHead(head.departmentId, head.title);
+    const requestedNormalizedSlug = head.departmentId
+      ? normalizeDepartmentSlug(head.departmentId)
+      : null;
+    const resolvedDeptSlug =
+      requestedNormalizedSlug === 'press' &&
+      dept &&
+      normalizeDepartmentSlug(dept.slug) !== 'press'
+        ? 'press'
+        : dept
+          ? normalizeDepartmentSlug(dept.slug)
+          : requestedNormalizedSlug;
     const profile = {
       id: targetId,
       role: head.role,
@@ -714,7 +731,7 @@ export function DepartmentTestingView() {
       email: head.email,
       title: head.title,
       departmentId: dept?.id ?? head.departmentId,
-      departmentSlug: dept?.slug ?? null,
+      departmentSlug: resolvedDeptSlug ?? null,
       division: head.division ?? null,
       ebRank: head.ebRank ?? null,
       ebPermissions: head.ebPermissions ?? {},
@@ -756,17 +773,23 @@ export function DepartmentTestingView() {
           <div className="divide-y divide-[color:var(--wm-hairline)]">
             {headRows.map((head) => {
               const dept = resolveDepartmentForHead(head.departmentId, head.title);
-              const deptApps = data.applications.filter((a) => a.departmentId === (dept?.id ?? head.departmentId));
+              const targetSlug = normalizeDepartmentSlug(dept?.slug ?? head.departmentId);
+              const deptApps = data.applications.filter(
+                (a) =>
+                  a.departmentId === (dept?.id ?? head.departmentId) ||
+                  (targetSlug !== '' && normalizeDepartmentSlug(a.departmentId) === targetSlug),
+              );
+              const canLaunchTest = Boolean(dept || head.departmentId);
               return (
                 <article key={head.email || head.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-[color:var(--wm-ink)]">{head.fullName}</p>
                     <p className="mt-1 text-xs text-[color:var(--wm-ink-secondary)]">{head.email || 'Email not recorded'}</p>
-                    <p className="mt-1 text-xs text-[color:var(--wm-ink-muted)]">{dept?.name || head.title} · {deptApps.length} application(s)</p>
+                    <p className="mt-1 text-xs text-[color:var(--wm-ink-muted)]">{dept?.name || (head.departmentId ? head.departmentId.toUpperCase() : head.title)} · {deptApps.length} application(s)</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className={`rounded border px-2 py-1 text-[10px] ${head.status === 'Active' ? 'border-emerald-400/30 text-emerald-300' : head.status === 'Suspended' ? 'border-rose-400/30 text-rose-300' : 'border-amber-400/30 text-amber-200'}`}>{head.status}</span>
-                    <button type="button" disabled={!dept} onClick={() => openHeadTestTab(head)} title={!dept ? 'This head has no linked department' : 'Open head portal in a new tab'} className="inline-flex h-9 items-center gap-2 rounded bg-[color:var(--wm-focal)] px-3 text-xs font-semibold text-[#12170c] hover:bg-[#dad3b4] disabled:opacity-40">
+                    <button type="button" disabled={!canLaunchTest} onClick={() => openHeadTestTab(head)} title={!canLaunchTest ? 'This head has no linked department' : 'Open head portal in a new tab'} className="inline-flex h-9 items-center gap-2 rounded bg-[color:var(--wm-focal)] px-3 text-xs font-semibold text-[#12170c] hover:bg-[#dad3b4] disabled:opacity-40">
                       <FlaskConical className="h-3.5 w-3.5" aria-hidden="true" />
                       Sign in as
                     </button>

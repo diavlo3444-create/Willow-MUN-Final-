@@ -446,9 +446,10 @@ export const SUPER_ADMIN_ONLY_KEYS = new Set<PermissionKey>(
 export function normalizeDepartmentSlug(value: string | null | undefined): string {
   const clean = String(value || '').trim().toLowerCase();
   if (!clean) return '';
-  if (clean === 'human-resources' || clean === 'human_resources') return 'hr';
-  if (clean === 'delegate-affairs' || clean === 'delegate_affairs') return 'dcc';
+  if (clean === 'human-resources' || clean === 'human_resources' || clean === 'human resources') return 'hr';
+  if (clean === 'delegate-affairs' || clean === 'delegate_affairs' || clean === 'delegate affairs' || clean === 'delegate') return 'dcc';
   if (clean === 'public-relations' || clean === 'public_relations' || clean === 'public relations') return 'pr';
+  if (clean === 'information-technology' || clean === 'information_technology' || clean === 'information technology') return 'it';
   if (clean === 'ceremonies' || clean === 'ceremony') return 'ceremony';
   if (
     clean === 'media-press' ||
@@ -464,7 +465,7 @@ export function normalizeDepartmentSlug(value: string | null | undefined): strin
   }
   if (clean === 'media') return 'media';
   if (clean === 'press') return 'press';
-  if (clean === 'volunteer' || clean === 'volunteering') return 'volunteers';
+  if (clean === 'volunteer' || clean === 'volunteering' || clean === 'volunteers') return 'volunteers';
   return clean;
 }
 
@@ -494,6 +495,8 @@ export function getActorDepartmentSlug(
   const label = `${user.title || ''} ${user.division || ''}`.toLowerCase();
   if (/\b(hr|human\s+resources)\b/.test(label)) return 'hr';
   if (/\b(dcc|delegate\s+affairs|delegate\s+care)\b/.test(label)) return 'dcc';
+  if (/\bpress\b/.test(label) && !/\bmedia\b/.test(label)) return 'press';
+  if (/\bmedia\b/.test(label) && !/\bpress\b/.test(label)) return 'media';
   if (/\b(press|journalis[tm]|reporter|correspondent|editorial)\b/.test(label)) return 'press';
   if (/\b(media|photograph(y|er)|videograph(y|er)|broadcast|reel)\b/.test(label)) return 'media';
   if (/\b(security|guard|checkpoint|entrance\s+control)\b/.test(label)) return 'security';
@@ -503,7 +506,7 @@ export function getActorDepartmentSlug(
   if (/\b(logistics)\b/.test(label)) return 'logistics';
   if (/\b(ceremon(y|ies))\b/.test(label)) return 'ceremony';
   if (/\b(finance|treasury)\b/.test(label)) return 'finance';
-  if (/\b(it|technical|systems)\b/.test(label)) return 'it';
+  if (/\b(it|information\s+technology|technical|systems)\b/.test(label)) return 'it';
   if (/\b(design|creative|visual)\b/.test(label)) return 'design';
   return null;
 }
@@ -518,10 +521,10 @@ export function isEbHeadActor(profile: {
   if (!profile) return false;
   if (profile.role === 'department_head') return true;
   if (profile.role !== 'executive_board') return false;
-  const rank = String(profile.ebRank || '').toLowerCase();
-  if (rank === 'head' || rank === 'co_head') return true;
+  const rank = String(profile.ebRank || '').trim().toLowerCase().replace(/-/g, '_');
+  if (rank === 'head' || rank === 'co_head' || rank === 'cohead') return true;
   if (profile.ebPermissions?.manage_department === true) return true;
-  if (/\b(head|co-head|director)\b/i.test(String(profile.title || ''))) return true;
+  if (/\b(head|co-head|cohead|director|lead)\b/i.test(String(profile.title || ''))) return true;
   if (profile.permissions?.['applications.view'] === true) return true;
   return false;
 }
@@ -864,11 +867,35 @@ export function canAccessApplication(
     )
       .trim()
       .toLowerCase();
+    const normalizedAppTypeDept = appType ? normalizeDepartmentSlug(appType) : '';
+
+    const rawAppDept = String(application.departmentId || '').trim();
+    const matchedAppDept = rawAppDept
+      ? departments?.find(
+          (d) =>
+            d.id === rawAppDept ||
+            normalizeDepartmentSlug(d.slug) === normalizeDepartmentSlug(rawAppDept),
+        )
+      : undefined;
+    const isUnknownUuid =
+      Boolean(rawAppDept) &&
+      !matchedAppDept &&
+      (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawAppDept) ||
+        /^legacy-/i.test(rawAppDept));
 
     const matchesTrackFallback =
       (actorDeptSlug === 'media' || actorDeptSlug === 'press') && appType === actorDeptSlug;
+    const matchesUnknownUuidTypeFallback =
+      Boolean(actorDeptSlug) &&
+      (!rawAppDept || isUnknownUuid) &&
+      Boolean(normalizedAppTypeDept) &&
+      normalizedAppTypeDept === actorDeptSlug;
 
-    if (!canAccessDepartment(user, application.departmentId, departments) && !matchesTrackFallback) {
+    if (
+      !canAccessDepartment(user, application.departmentId, departments) &&
+      !matchesTrackFallback &&
+      !matchesUnknownUuidTypeFallback
+    ) {
       return false;
     }
 
@@ -876,7 +903,13 @@ export function canAccessApplication(
       const subScope =
         getMediaPressSubScope(user) ??
         (actorDeptSlug === 'press' ? 'press' : actorDeptSlug === 'media' ? 'media' : null);
-      if (subScope && appType && subScope !== appType) return false;
+      const effectiveTrack =
+        appType === 'media' || appType === 'press'
+          ? appType
+          : matchedAppDept && (normalizeDepartmentSlug(matchedAppDept.slug) === 'media' || normalizeDepartmentSlug(matchedAppDept.slug) === 'press')
+            ? normalizeDepartmentSlug(matchedAppDept.slug)
+            : '';
+      if (subScope && effectiveTrack && subScope !== effectiveTrack) return false;
     }
 
     const actorGender = getActorGenderScope(user);

@@ -2,7 +2,7 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { Edit2, X } from 'lucide-react';
 import { useAdminStore } from '../../../context/AdminStoreContext';
 import type { Department } from '../../../types/admin';
-import { canManageAccountsOrRoles, hasPermission } from '../../../utils/adminPermissions';
+import { canManageAccountsOrRoles, hasPermission, normalizeDepartmentSlug } from '../../../utils/adminPermissions';
 import { computeDepartmentBreakdown, scopeApplicationsForActor } from '../../../utils/applicationFilters';
 
 interface DepartmentsViewProps {
@@ -34,9 +34,15 @@ export function DepartmentsView({
   const canAssignHead = canManageAccountsOrRoles(effectiveActor);
 
   const visibleDepartments = useMemo(() => {
-    const core = data.departments.filter((d) => ['media', 'press', 'security', 'volunteers'].includes(d.slug.toLowerCase()));
-    if (lockedDepartmentId) return core.filter((d) => d.id === lockedDepartmentId);
-    return core;
+    if (lockedDepartmentId) {
+      const targetSlug = normalizeDepartmentSlug(lockedDepartmentId);
+      return data.departments.filter(
+        (d) =>
+          d.id === lockedDepartmentId ||
+          normalizeDepartmentSlug(d.slug) === targetSlug,
+      );
+    }
+    return data.departments;
   }, [data.departments, lockedDepartmentId]);
 
   const scopedApplications = useMemo(
@@ -109,29 +115,37 @@ export function DepartmentsView({
 
                 {/* Flush Rule-Divided Metric Band (No nested bordered box) */}
                 {isHeadActor ? (
-                  <div className="grid grid-cols-3 border-y border-[color:var(--wm-hairline)] bg-[color:var(--wm-inset)]/60 divide-x divide-[color:var(--wm-hairline)] text-center text-xs tabular-nums">
+                  <div className="grid grid-cols-4 border-y border-[color:var(--wm-hairline)] bg-[color:var(--wm-inset)]/60 divide-x divide-[color:var(--wm-hairline)] text-center text-xs tabular-nums">
+                    <div className="py-2.5 px-2">
+                      <p className="text-[10px] uppercase tracking-wider text-[color:var(--wm-ink-muted)]">
+                        Total
+                      </p>
+                      <p className="mt-0.5 font-mono font-semibold text-[color:var(--wm-ink)]">
+                        {stats?.total ?? 0}
+                      </p>
+                    </div>
                     <div className="py-2.5 px-2">
                       <p className="text-[10px] uppercase tracking-wider text-[color:var(--wm-ink-muted)]">
                         Pending
                       </p>
                       <p className="mt-0.5 font-mono font-semibold text-amber-200">
-                        {stats?.pending ?? 0}
+                        {(stats?.pending ?? 0) + (stats?.waitlisted ?? 0)}
                       </p>
                     </div>
                     <div className="py-2.5 px-2">
                       <p className="text-[10px] uppercase tracking-wider text-[color:var(--wm-ink-muted)]">
-                        Recommended
+                        Accepted
                       </p>
                       <p className="mt-0.5 font-mono font-semibold text-emerald-200">
-                        {stats?.recommended ?? 0}
+                        {stats?.accepted ?? 0}
                       </p>
                     </div>
                     <div className="py-2.5 px-2">
                       <p className="text-[10px] uppercase tracking-wider text-[color:var(--wm-ink-muted)]">
-                        Target
+                        Rejected
                       </p>
-                      <p className="mt-0.5 font-mono font-semibold text-[color:var(--wm-accent)]">
-                        {dept.capacity}
+                      <p className="mt-0.5 font-mono font-semibold text-rose-200">
+                        {stats?.rejected ?? 0}
                       </p>
                     </div>
                   </div>

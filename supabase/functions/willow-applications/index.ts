@@ -521,7 +521,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: actor, error: actorError } = await admin
     .from("wm_profiles")
-    .select("user_id,full_name,role,department_id,title,division,eb_rank,eb_permissions,permissions,is_active")
+    .select("*")
     .eq("user_id", authData.user.id)
     .maybeSingle();
 
@@ -529,17 +529,25 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Your account is not active." }, 403);
   }
 
-  const [{ data: actorDepartment }, { data: allDepartments }] = await Promise.all([
-    actor.department_id
-      ? admin.from("wm_departments").select("id,slug").eq("id", actor.department_id).maybeSingle()
-      : Promise.resolve({ data: null }),
-    admin.from("wm_departments").select("id,slug"),
-  ]);
+  const { data: allDepartments } = await admin.from("wm_departments").select("id,slug");
   const deptSlugById = new Map<string, string>();
+  const deptIdBySlug = new Map<string, string>();
   for (const d of allDepartments || []) {
-    if (d?.id && d?.slug) deptSlugById.set(String(d.id).toLowerCase(), String(d.slug).toLowerCase());
+    if (d?.id && d?.slug) {
+      const slug = String(d.slug).trim().toLowerCase();
+      const normSlug = normalizeDeptSlug(slug);
+      deptSlugById.set(String(d.id).toLowerCase(), slug);
+      deptIdBySlug.set(slug, String(d.id));
+      if (normSlug) deptIdBySlug.set(normSlug, String(d.id));
+    }
   }
-  const actorDeptSlug = String(actorDepartment?.slug || "").trim().toLowerCase();
+  const rawActorDept = String(actor.department_id || "").trim();
+  const actorDepartment = (allDepartments || []).find(
+    (d: any) =>
+      String(d.id).toLowerCase() === rawActorDept.toLowerCase() ||
+      normalizeDeptSlug(d.slug) === normalizeDeptSlug(rawActorDept),
+  );
+  const actorDeptSlug = normalizeDeptSlug(actorDepartment?.slug || rawActorDept || "");
   const actorPerms = (
     actor.permissions && typeof actor.permissions === "object" ? actor.permissions : {}
   ) as Record<string, boolean>;
@@ -830,12 +838,8 @@ Deno.serve(async (req: Request) => {
     if (fetchError || !existing) return json({ error: "Application not found." }, 404);
 
     const previousStatus = String(existing.status || "pending");
-    const appDept = mapDepartment(existing.application_type, existing.department_id);
-    const { data: appDepartment } = await admin
-      .from("wm_departments")
-      .select("id")
-      .eq("slug", appDept)
-      .maybeSingle();
+    const appDept = resolveApplicationDepartmentSlug(existing.application_type, existing.department_id, deptSlugById);
+    const appDepartment = deptIdBySlug.get(appDept) ? { id: deptIdBySlug.get(appDept)! } : null;
 
     const patch: Record<string, unknown> = {
       status: nextStatus,
@@ -1052,12 +1056,8 @@ Deno.serve(async (req: Request) => {
     const previousStatus = String(existing.status || "pending");
     const previousDecisionBy = existing.decision_by ? String(existing.decision_by) : null;
     const previousDecisionByName = existing.decision_by_name ? String(existing.decision_by_name) : null;
-    const appDept = mapDepartment(existing.application_type, existing.department_id);
-    const { data: appDepartment } = await admin
-      .from("wm_departments")
-      .select("id")
-      .eq("slug", appDept)
-      .maybeSingle();
+    const appDept = resolveApplicationDepartmentSlug(existing.application_type, existing.department_id, deptSlugById);
+    const appDepartment = deptIdBySlug.get(appDept) ? { id: deptIdBySlug.get(appDept)! } : null;
 
     const cleanTargetName = targetAdmin ? cleanDecisionByName(targetAdmin.full_name) || targetAdmin.full_name : null;
     const nowIso = new Date().toISOString();
@@ -1183,12 +1183,8 @@ Deno.serve(async (req: Request) => {
       .maybeSingle();
     if (fetchError || !existing) return json({ error: "Application not found." }, 404);
 
-    const appDept = mapDepartment(existing.application_type, existing.department_id);
-    const { data: appDepartment } = await admin
-      .from("wm_departments")
-      .select("id")
-      .eq("slug", appDept)
-      .maybeSingle();
+    const appDept = resolveApplicationDepartmentSlug(existing.application_type, existing.department_id, deptSlugById);
+    const appDepartment = deptIdBySlug.get(appDept) ? { id: deptIdBySlug.get(appDept)! } : null;
 
     if (!isAdmin) {
       return json({ error: "Only Administrators can make final application decisions. Department Heads submit recommendations." }, 403);

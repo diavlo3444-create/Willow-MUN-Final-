@@ -9,9 +9,8 @@ import {
   XCircle,
 } from 'lucide-react';
 import { useAdminStore } from '../../../context/AdminStoreContext';
-import { supabase } from '../../../lib/supabase';
-import { mapLiveRowToApplication, type LiveApplicationRow } from '../../../services/liveBackendService';
-import type { ApplicationStatus } from '../../../types/admin';
+import { fetchScopedApplicationsForActor } from '../../../services/liveBackendService';
+import type { Application, ApplicationStatus } from '../../../types/admin';
 import { computeApplicationStats, scopeApplicationsForActor } from '../../../utils/applicationFilters';
 import { formatDecisionByLabel } from '../../../utils/decisionAttribution';
 import { StatusBadge } from '../StatusBadge';
@@ -26,20 +25,20 @@ export function OverviewDashboardView({
   onSelectApplication,
 }: OverviewDashboardViewProps) {
   const { data, currentUser } = useAdminStore();
-  const [liveApplications, setLiveApplications] = useState<ReturnType<typeof mapLiveRowToApplication>[] | null>(null);
+  const [liveApplications, setLiveApplications] = useState<Application[] | null>(null);
   const [liveLoadError, setLiveLoadError] = useState<string | null>(null);
   useEffect(() => {
     let cancelled = false;
     const loadLiveApplications = async () => {
       setLiveLoadError(null);
-      const { data: response, error } = await supabase.functions.invoke('willow-applications', { body: { action: 'list' } });
+      const res = await fetchScopedApplicationsForActor(currentUser, data.departments);
       if (cancelled) return;
-      if (error || response?.error || !Array.isArray(response?.applications)) {
-        setLiveLoadError(error?.message || response?.error || 'Unable to load live applications.');
+      if (res.error && res.applications.length === 0) {
+        setLiveLoadError(res.error);
         setLiveApplications(null);
         return;
       }
-      setLiveApplications((response.applications as LiveApplicationRow[]).map((row) => mapLiveRowToApplication(row, currentUser, data.departments)));
+      setLiveApplications(res.source === 'local' ? null : res.applications);
     };
     void loadLiveApplications();
     return () => { cancelled = true; };
@@ -97,32 +96,32 @@ export function OverviewDashboardView({
   const kpiCards = isHeadViewer
     ? [
         {
-          label: 'Pending queue',
-          value: stats.pending,
-          helper: 'Assigned pending applications',
+          label: 'Total applications',
+          value: stats.total,
+          helper: 'All assigned department applications',
           icon: Users,
-          action: () => onFilterApplications('pending'),
+          action: () => onFilterApplications('all'),
         },
         {
-          label: 'Awaiting recommendation',
-          value: Math.max(0, stats.pending - stats.recommended),
-          helper: 'Not yet recommended',
+          label: 'Pending queue',
+          value: stats.pending + stats.waitlisted,
+          helper: 'Pending & waitlisted applications',
           icon: Clock3,
           action: () => onFilterApplications('pending'),
         },
         {
-          label: 'Recommend accept',
-          value: stats.recommendedAccept,
-          helper: 'Awaiting Admin review',
+          label: 'Accepted',
+          value: stats.accepted,
+          helper: 'Accepted into your department',
           icon: CheckCircle2,
-          action: () => onFilterApplications('pending'),
+          action: () => onFilterApplications('accepted'),
         },
         {
-          label: 'Recommend reject',
-          value: stats.recommendedReject,
-          helper: 'Awaiting Admin review',
+          label: 'Rejected',
+          value: stats.rejected,
+          helper: 'Declined department applicants',
           icon: XCircle,
-          action: () => onFilterApplications('pending'),
+          action: () => onFilterApplications('rejected'),
         },
       ]
     : [

@@ -333,11 +333,17 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
       press: 'press',
       marketing: 'marketing',
       design: 'design',
+      pr: 'pr',
       security: 'security',
       it: 'it',
       hr: 'hr',
       'delegate-affairs': 'dcc',
+      dcc: 'dcc',
       volunteers: 'volunteers',
+      logistics: 'logistics',
+      ceremonies: 'ceremony',
+      ceremony: 'ceremony',
+      finance: 'finance',
     };
     const departmentKey = member ? departmentByGroup[member.group] : null;
     const requestedDepartment = profile?.departmentId || provisioned?.departmentId || departmentKey;
@@ -490,7 +496,11 @@ export function AdminStoreProvider({ children }: { children: ReactNode }) {
       const snapshot = conferenceDataService.getSnapshot();
       const template = snapshot.users.find((u) => u.role === role) ?? snapshot.users[0];
       const matchedDept = departments.find(
-        (d) => d.id === profile.department_id || d.slug === profile.department_id,
+        (d) =>
+          d.id === profile.department_id ||
+          d.slug === profile.department_id ||
+          (profile.department_id &&
+            normalizeDepartmentSlug(d.slug) === normalizeDepartmentSlug(profile.department_id)),
       );
       const resolvedTitle =
         profile.title ||

@@ -263,6 +263,19 @@ export function filterAndSortApplications(
   const scoped = scopeApplicationsForActor(applications, actor, departments);
   const query = (options.search ?? '').trim().toLowerCase();
   const deptFilter = options.departmentId && options.departmentId !== 'all' ? options.departmentId : null;
+  const matchedFilterDept =
+    deptFilter && departments?.length
+      ? departments.find(
+          (d) =>
+            d.id === deptFilter ||
+            normalizeDepartmentSlug(d.slug) === normalizeDepartmentSlug(deptFilter),
+        )
+      : null;
+  const deptFilterSlug = matchedFilterDept
+    ? normalizeDepartmentSlug(matchedFilterDept.slug)
+    : deptFilter
+      ? normalizeDepartmentSlug(deptFilter)
+      : null;
   const genderFilter = options.gender && options.gender !== 'all' ? options.gender : null;
   const catFilter = options.category && options.category !== 'all' ? options.category : null;
   const posFilter = options.position && options.position !== 'all' ? options.position : null;
@@ -273,7 +286,20 @@ export function filterAndSortApplications(
   const dateToMs = options.dateTo ? Date.parse(`${options.dateTo}T23:59:59.999Z`) : null;
 
   const filtered = scoped.filter((app) => {
-    if (deptFilter && app.departmentId !== deptFilter) return false;
+    if (deptFilter) {
+      const appDept = departments?.find(
+        (d) =>
+          d.id === app.departmentId ||
+          normalizeDepartmentSlug(d.slug) === normalizeDepartmentSlug(app.departmentId),
+      );
+      const appDeptSlug = appDept
+        ? normalizeDepartmentSlug(appDept.slug)
+        : normalizeDepartmentSlug(app.departmentId);
+      const matchesDept =
+        app.departmentId === deptFilter ||
+        (deptFilterSlug !== null && appDeptSlug === deptFilterSlug);
+      if (!matchesDept) return false;
+    }
     if (genderFilter && (app.gender || '').toLowerCase() !== genderFilter) return false;
     if (catFilter === 'staff_group') {
       if (app.category === 'delegate') return false;
@@ -427,7 +453,19 @@ export function computeDepartmentBreakdown(
   departments: Department[],
 ): DepartmentApplicationBreakdown[] {
   return departments.map((dept) => {
-    const deptApps = applications.filter((a) => a.departmentId === dept.id);
+    const deptSlug = normalizeDepartmentSlug(dept.slug);
+    const deptApps = applications.filter((a) => {
+      if (a.departmentId === dept.id) return true;
+      const appDept = departments.find(
+        (d) =>
+          d.id === a.departmentId ||
+          normalizeDepartmentSlug(d.slug) === normalizeDepartmentSlug(a.departmentId),
+      );
+      const appSlug = appDept
+        ? normalizeDepartmentSlug(appDept.slug)
+        : normalizeDepartmentSlug(a.departmentId);
+      return Boolean(deptSlug) && appSlug === deptSlug;
+    });
     const stats = computeApplicationStats(deptApps);
     return {
       departmentId: dept.id,

@@ -15,6 +15,7 @@ import {
   hasPermission,
   isDccActor,
   isHrActor,
+  normalizeDepartmentSlug,
 } from '../utils/adminPermissions';
 import { decodeLegacyExperienceMeta } from '../utils/applicationForm';
 import {
@@ -127,18 +128,47 @@ export interface LiveQrPass {
   created_at?: string;
 }
 
-export function mapApplicationTypeToDepartment(appType: string | null | undefined, explicitDept?: string | null): string {
-  const normalizedType = (appType || '').trim().toLowerCase();
+export function mapApplicationTypeToDepartment(
+  appType: string | null | undefined,
+  explicitDept?: string | null,
+  departments?: Department[],
+): string {
+  const normalizedType = normalizeDepartmentSlug(appType || '');
   const cleanExplicit = String(explicitDept || '').trim();
   const normalizedExplicit = cleanExplicit.toLowerCase();
+
+  if (cleanExplicit && departments?.length) {
+    const matched = departments.find(
+      (d) =>
+        d.id === cleanExplicit ||
+        normalizeDepartmentSlug(d.slug) === normalizeDepartmentSlug(cleanExplicit),
+    );
+    if (matched) {
+      const matchedSlug = normalizeDepartmentSlug(matched.slug);
+      if (
+        !(
+          (normalizedType === 'media' || normalizedType === 'press') &&
+          (matchedSlug === 'media-press' || matchedSlug === 'general' || normalizedExplicit === 'media-press')
+        )
+      ) {
+        return matchedSlug;
+      }
+    }
+  }
+
+  const looksLikeUuid =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cleanExplicit) ||
+    /^legacy-/i.test(cleanExplicit);
+
   if (
     cleanExplicit &&
+    !looksLikeUuid &&
     !(
       (normalizedType === 'media' || normalizedType === 'press') &&
       (normalizedExplicit === 'media-press' || normalizedExplicit === 'media_press' || normalizedExplicit === 'general')
     )
   ) {
-    return cleanExplicit;
+    return normalizeDepartmentSlug(cleanExplicit);
   }
   switch (normalizedType) {
     case 'press':
@@ -152,17 +182,25 @@ export function mapApplicationTypeToDepartment(appType: string | null | undefine
       return 'security';
     case 'hr':
       return 'hr';
+    case 'pr':
+      return 'pr';
     case 'marketing':
       return 'marketing';
     case 'design':
       return 'design';
+    case 'logistics':
+      return 'logistics';
+    case 'ceremony':
+      return 'ceremony';
+    case 'finance':
+      return 'finance';
     case 'it':
       return 'it';
     case 'dcc':
     case 'delegate':
       return 'dcc';
     default:
-      return (normalizedType || 'volunteers');
+      return normalizedType || cleanExplicit || 'volunteers';
   }
 }
 
@@ -202,7 +240,7 @@ export function mapLiveRowToApplication(
   actor?: AdminUser | null,
   departments?: Department[],
 ): Application {
-  const deptId = mapApplicationTypeToDepartment(row.application_type, row.department_id);
+  const deptId = mapApplicationTypeToDepartment(row.application_type, row.department_id, departments);
   const rawType = (row.application_type || '').toLowerCase();
   const category = (['delegate', 'staff', 'security', 'media', 'press', 'volunteer'].includes(rawType)
     ? rawType
