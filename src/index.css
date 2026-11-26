@@ -452,6 +452,11 @@
   animation: ft-word-fade 160ms ease-out forwards;
 }
 
+html:has(body.intro-on) {
+  overflow: hidden;
+  scrollbar-gutter: auto;
+}
+
 body.intro-on {
   overflow: hidden;
 }
@@ -459,14 +464,14 @@ body.intro-on {
 .willow-intro-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 40;
-  background: #393f24;
+  z-index: 50;
+  background: #121605;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.45s ease;
+  transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity;
 }
-.willow-intro-backdrop.is-active,
-body.intro-on .willow-intro-backdrop {
+.willow-intro-backdrop.is-active {
   opacity: 1;
   pointer-events: auto;
 }
@@ -980,10 +985,10 @@ section.mun-scroll-section::before {
 }
 
 
-/* Mobile visual system: preserve exact #393f24 intro backdrop and consistent olive section veils. */
+/* Mobile visual system: preserve seamless #121605 intro video backdrop and consistent olive section veils. */
 @media (max-width: 767px) {
-   body.intro-on .willow-intro-backdrop {
-    background: #393f24;
+  .willow-intro-backdrop {
+    background: #121605;
   }
 
   section.mun-scroll-section::before,
