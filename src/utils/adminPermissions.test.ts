@@ -1049,3 +1049,120 @@ test('Edge Function policy.ts allows all department Heads to view Pending/Accept
   assert.equal(redacted.review_notes, null);
 });
 
+test('Female Media division handles legacy media-press or stale UUIDs, Female casing, and Press isolation', async () => {
+  const { mapApplicationTypeToDepartment, mapLiveRowToApplication } = await import(
+    '../services/liveBackendService'
+  );
+  const { canHeadAccessApplication, resolveHeadContext } = await import(
+    '../../supabase/functions/willow-applications/policy'
+  );
+
+  const departments: Department[] = [
+    {
+      id: 'dept-media-uuid',
+      slug: 'media',
+      name: 'Media',
+      cluster: 'Communications & Creative',
+      description: '',
+      headUserIds: [],
+      registrationOpen: true,
+      capacity: 15,
+      positions: [],
+      instructions: '',
+      updatedAt: '',
+    },
+    {
+      id: 'dept-press-uuid',
+      slug: 'press',
+      name: 'Press',
+      cluster: 'Communications & Creative',
+      description: '',
+      headUserIds: [],
+      registrationOpen: true,
+      capacity: 15,
+      positions: [],
+      instructions: '',
+      updatedAt: '',
+    },
+  ];
+
+  const femaleMediaHead = makeUser({
+    id: 'head-media-female',
+    role: 'department_head',
+    departmentId: 'dept-media-uuid',
+    departmentSlug: null,
+    division: 'Female Division',
+    title: 'Head of Media',
+    permissions: resolveUserPermissions('department_head'),
+  });
+
+  // mapApplicationTypeToDepartment maps legacy 'media-press' media rows cleanly to 'media'
+  assert.equal(mapApplicationTypeToDepartment('media', 'media-press'), 'media');
+  assert.equal(mapApplicationTypeToDepartment('press', 'media-press'), 'press');
+
+  const acceptedFemaleMediaLegacy = mapLiveRowToApplication(
+    {
+      id: 'media-acc-1',
+      application_type: 'media',
+      department_id: 'legacy-unknown-uuid',
+      gender: 'Female ' as unknown as string,
+      applicant_name: 'Nourhan Adel',
+      email: 'nourhan@example.com',
+      phone: '+20100000001',
+      school: 'Willow High',
+      age: 17,
+      availability: null,
+      motivation: 'Photography',
+      experience: null,
+      portfolio_url: null,
+      status: 'accepted',
+      head_recommendation: 'recommend_accept',
+      review_notes: null,
+      created_at: '2026-11-20T10:00:00Z',
+    },
+    femaleMediaHead,
+    departments,
+  );
+  const rejectedFemaleMedia = makeApp('media', 'female', 'rejected');
+  const acceptedMaleMedia = makeApp('media', 'male', 'accepted');
+  const acceptedFemalePress = makeApp('press', 'female', 'accepted');
+
+  assert.equal(canAccessApplication(femaleMediaHead, acceptedFemaleMediaLegacy, departments), true);
+  assert.equal(canAccessApplication(femaleMediaHead, rejectedFemaleMedia, departments), true);
+  assert.equal(canAccessApplication(femaleMediaHead, acceptedMaleMedia, departments), false);
+  assert.equal(canAccessApplication(femaleMediaHead, acceptedFemalePress, departments), false);
+
+  const femaleMediaCtx = resolveHeadContext(
+    { role: 'department_head', title: 'Head of Media', division: 'Female Division' },
+    'media',
+  );
+  assert.equal(
+    canHeadAccessApplication(femaleMediaCtx, {
+      status: 'accepted',
+      application_type: 'media',
+      department_id: 'legacy-unknown-uuid',
+      gender: 'Female ',
+    }),
+    true,
+  );
+  assert.equal(
+    canHeadAccessApplication(femaleMediaCtx, {
+      status: 'rejected',
+      application_type: 'media',
+      department_id: 'media-press',
+      gender: 'woman',
+    }),
+    true,
+  );
+  assert.equal(
+    canHeadAccessApplication(femaleMediaCtx, {
+      status: 'accepted',
+      application_type: 'press',
+      department_id: 'media-press',
+      gender: 'female',
+    }),
+    false,
+  );
+});
+
+

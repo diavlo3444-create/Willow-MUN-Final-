@@ -190,14 +190,20 @@ export function isHeadActorScopeMatch(
     deptSlugById,
   );
   const appType = String(row.application_type || "").trim().toLowerCase();
-  const appGender = String(row.gender || "").trim().toLowerCase();
+  const rawAppGender = String(row.gender || "").trim().toLowerCase();
+  const appGender =
+    rawAppGender === "female" || rawAppGender === "woman" || rawAppGender === "women"
+      ? "female"
+      : rawAppGender === "male" || rawAppGender === "man" || rawAppGender === "men"
+        ? "male"
+        : rawAppGender;
 
   const matchesDept =
     appDeptSlug === ctx.actorDeptSlug ||
     (ctx.actorDeptSlug === "media-press" &&
       (appDeptSlug === "media" || appDeptSlug === "press" || appDeptSlug === "media-press")) ||
     ((ctx.actorDeptSlug === "media" || ctx.actorDeptSlug === "press") &&
-      appDeptSlug === "media-press");
+      (appDeptSlug === "media-press" || appType === ctx.actorDeptSlug));
 
   if (!matchesDept) return false;
 

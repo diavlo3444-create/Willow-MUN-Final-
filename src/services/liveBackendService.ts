@@ -12,7 +12,6 @@ import {
   canAccessApplication,
   canViewConfidentialMedicalInfo,
   getActorDepartmentSlug,
-  getActorGenderScope,
   hasPermission,
   isDccActor,
   isHrActor,
@@ -128,12 +127,25 @@ export interface LiveQrPass {
 }
 
 export function mapApplicationTypeToDepartment(appType: string | null | undefined, explicitDept?: string | null): string {
-  if (explicitDept) return explicitDept;
-  switch ((appType || '').toLowerCase()) {
+  const normalizedType = (appType || '').trim().toLowerCase();
+  const cleanExplicit = String(explicitDept || '').trim();
+  const normalizedExplicit = cleanExplicit.toLowerCase();
+  if (
+    cleanExplicit &&
+    !(
+      (normalizedType === 'media' || normalizedType === 'press') &&
+      (normalizedExplicit === 'media-press' || normalizedExplicit === 'media_press' || normalizedExplicit === 'general')
+    )
+  ) {
+    return cleanExplicit;
+  }
+  switch (normalizedType) {
     case 'press':
+      return 'press';
     case 'media':
-      return 'media-press';
+      return 'media';
     case 'volunteer':
+    case 'volunteers':
       return 'volunteers';
     case 'security':
       return 'security';
@@ -149,7 +161,7 @@ export function mapApplicationTypeToDepartment(appType: string | null | undefine
     case 'delegate':
       return 'dcc';
     default:
-      return (appType || 'volunteers').toLowerCase();
+      return (normalizedType || 'volunteers');
   }
 }
 
@@ -194,9 +206,13 @@ export function mapLiveRowToApplication(
     ? rawType
     : 'staff') as ApplicationCategory;
   const code = row.application_code || `WM-${row.id.slice(0, 6).toUpperCase()}`;
-  const rawGender = (row.gender || '').toLowerCase();
+  const rawGender = (row.gender || '').trim().toLowerCase();
   const gender: 'male' | 'female' | null =
-    rawGender === 'female' ? 'female' : rawGender === 'male' ? 'male' : null;
+    rawGender === 'female' || rawGender === 'woman' || rawGender === 'women'
+      ? 'female'
+      : rawGender === 'male' || rawGender === 'man' || rawGender === 'men'
+        ? 'male'
+        : null;
 
   const { cleanExperience, meta } = decodeLegacyExperienceMeta(row.experience);
   const cameraModel = row.camera_model ?? meta?.cameraModel ?? null;
@@ -386,16 +402,12 @@ export async function fetchScopedApplicationsForActor(
     let query = supabase.from('wm_applications').select('*').order('created_at', { ascending: false });
     if (isHeadRole) {
       const deptSlug = getActorDepartmentSlug(actor, departments);
-      const gender = getActorGenderScope(actor);
       if (!deptSlug || !hasPermission(actor, 'applications.view', departments)) {
         return {
           applications: [],
           source: edgeSucceeded ? 'live' : 'table',
           error: data?.error || error?.message || 'Department assignment or view permission is missing.',
         };
-      }
-      if (gender) {
-        query = query.eq('gender', gender);
       }
     }
     const { data: rows, error: tableError } = await query;

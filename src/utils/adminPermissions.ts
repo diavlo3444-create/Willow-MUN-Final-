@@ -850,29 +850,44 @@ export function canAccessApplication(
   }
   if (user.role === 'department_head' || user.role === 'executive_board') {
     if (!hasPermission(user, 'applications.view', departments)) return false;
-    if (!canAccessDepartment(user, application.departmentId, departments)) return false;
 
     const actorDeptSlug = getActorDepartmentSlug(user, departments);
+    const appType = String(
+      application.applicationType ||
+        (application.category === 'press'
+          ? 'press'
+          : /\bpress\b/i.test(application.position || '')
+            ? 'press'
+            : application.category === 'media'
+              ? 'media'
+              : ''),
+    )
+      .trim()
+      .toLowerCase();
+
+    const matchesTrackFallback =
+      (actorDeptSlug === 'media' || actorDeptSlug === 'press') && appType === actorDeptSlug;
+
+    if (!canAccessDepartment(user, application.departmentId, departments) && !matchesTrackFallback) {
+      return false;
+    }
+
     if (actorDeptSlug === 'media-press' || actorDeptSlug === 'media' || actorDeptSlug === 'press') {
       const subScope =
         getMediaPressSubScope(user) ??
         (actorDeptSlug === 'press' ? 'press' : actorDeptSlug === 'media' ? 'media' : null);
-      const appType = String(
-        application.applicationType ||
-          (application.category === 'press'
-            ? 'press'
-            : /\bpress\b/i.test(application.position || '')
-              ? 'press'
-              : application.category === 'media'
-                ? 'media'
-                : ''),
-      ).toLowerCase();
       if (subScope && appType && subScope !== appType) return false;
     }
 
     const actorGender = getActorGenderScope(user);
     if (actorGender) {
-      const applicantGender = application.gender ? application.gender.toLowerCase() : null;
+      const rawAppGender = application.gender ? application.gender.trim().toLowerCase() : '';
+      const applicantGender =
+        rawAppGender === 'female' || rawAppGender === 'woman' || rawAppGender === 'women'
+          ? 'female'
+          : rawAppGender === 'male' || rawAppGender === 'man' || rawAppGender === 'men'
+            ? 'male'
+            : null;
       if (!applicantGender) return false;
       return actorGender === applicantGender;
     }
