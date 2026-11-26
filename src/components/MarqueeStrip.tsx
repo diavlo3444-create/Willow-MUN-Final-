@@ -29,7 +29,7 @@ export function MarqueeStrip(_props: MarqueeStripProps) {
   return (
     <nav
       aria-label="Conference prospectus index"
-      className="mun-chapter-index relative z-[2] w-full border-y border-[#ede6ca]/20 bg-[#101408]/90 backdrop-blur-sm"
+      className="mun-chapter-index relative z-[2] w-full border-y border-[#ede6ca]/20 bg-[#101408]"
     >
       <div className="mx-auto max-w-[1320px] px-[clamp(18px,5vw,76px)]">
         <div className="mun-no-scrollbar flex overflow-x-auto divide-x divide-[#ede6ca]/14 lg:grid lg:grid-cols-6">

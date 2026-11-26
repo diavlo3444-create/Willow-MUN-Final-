@@ -1080,7 +1080,7 @@ export function AccountManagementView({
       {/* Create / Edit Modal */}
       {modalOpen && (
         <div
-          className="fixed inset-0 z-[130] overflow-y-auto bg-[#030906]/82 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-[130] overflow-y-auto bg-[#030906]/84 p-4"
           role="dialog"
           aria-modal="true"
           aria-label={editingAccount ? 'Edit staff account' : 'Create staff account'}
@@ -1089,7 +1089,7 @@ export function AccountManagementView({
           <form
             onClick={(e) => e.stopPropagation()}
             onSubmit={(e) => void handleSaveAccount(e)}
-            className="mx-auto my-6 w-full max-w-3xl rounded-xl border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-surface)] p-5 shadow-2xl sm:p-6"
+            className="mx-auto my-6 w-full max-w-3xl rounded-xl border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-surface)] p-5 sm:p-6"
           >
             <div className="flex items-start justify-between gap-3 border-b border-[color:var(--wm-hairline)] pb-4">
               <div>
@@ -1344,7 +1344,7 @@ export function AccountManagementView({
       {/* Reset Access Modal */}
       {resetTarget && (
         <div
-          className="fixed inset-0 z-[130] grid place-items-center bg-[#030906]/82 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-[130] grid place-items-center bg-[#030906]/84 p-4"
           role="dialog"
           aria-modal="true"
           aria-label={`Reset access for ${resetTarget.full_name}`}
@@ -1352,7 +1352,7 @@ export function AccountManagementView({
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-md rounded-xl border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-surface)] p-5 shadow-2xl"
+            className="w-full max-w-md rounded-xl border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-surface)] p-5"
           >
             <div className="flex items-start justify-between gap-3 border-b border-[color:var(--wm-hairline)] pb-3">
               <div>
@@ -1416,7 +1416,7 @@ export function AccountManagementView({
       {/* Private Setup / Invite Link Dialog */}
       {setupLinkDialog && (
         <div
-          className="fixed inset-0 z-[135] grid place-items-center bg-[#030906]/82 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-[135] grid place-items-center bg-[#030906]/84 p-4"
           role="dialog"
           aria-modal="true"
           aria-label="Private account setup link"
@@ -1424,7 +1424,7 @@ export function AccountManagementView({
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-lg rounded-xl border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-surface)] p-5 shadow-2xl"
+            className="w-full max-w-lg rounded-xl border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-surface)] p-5"
           >
             <div className="flex items-start justify-between gap-3 border-b border-[color:var(--wm-hairline)] pb-3">
               <div>

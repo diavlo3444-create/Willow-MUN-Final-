@@ -3,6 +3,7 @@ import {
   AlertCircle,
   CheckCircle2,
   FileText,
+  Film,
   ImagePlus,
   Loader2,
   RefreshCw,
@@ -20,7 +21,7 @@ const MAX_FILE_BYTES = 100 * 1024 * 1024; // 100 MB
 interface ApplicationFileUploaderProps {
   id: string;
   track: ApplicationTrack;
-  fieldKind: 'proof_files' | 'media_photos' | 'writing_samples';
+  fieldKind: 'proof_files' | 'media_photos' | 'media_videos' | 'writing_samples';
   draftSessionId: string;
   files: UploadedApplicationFile[];
   onFilesChange: (
@@ -49,11 +50,24 @@ function getFileExtension(name: string): string {
   return parts.length > 1 ? parts[parts.length - 1] : '';
 }
 
+const ALLOWED_VIDEO_EXTS = ['mp4', 'mov', 'webm', 'm4v'];
+
 function isImageFile(file: File): boolean {
   if (file.type.startsWith('image/')) return true;
   return ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'].includes(
     getFileExtension(file.name),
   );
+}
+
+function isVideoFile(file: File): boolean {
+  if (file.type.startsWith('video/')) return true;
+  return ALLOWED_VIDEO_EXTS.includes(getFileExtension(file.name));
+}
+
+function isVideoItem(item: UploadedApplicationFile): boolean {
+  if (item.category === 'video') return true;
+  if (item.fileType.startsWith('video/')) return true;
+  return ALLOWED_VIDEO_EXTS.includes(getFileExtension(item.name));
 }
 
 async function createCompactImageDataUrl(file: File): Promise<string | undefined> {
@@ -147,6 +161,7 @@ export function ApplicationFileUploader({
   const replaceInputRef = useRef<HTMLInputElement | null>(null);
 
   const remainingSlots = Math.max(0, maxFiles - files.length);
+  const isVideoUpload = fieldKind === 'media_videos';
 
   const validateSelectedFile = (file: File): string | null => {
     if (file.size <= 0) return `"${file.name}" appears to be empty.`;
@@ -158,6 +173,10 @@ export function ApplicationFileUploader({
       const allowedImgExts = ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'];
       if (!file.type.startsWith('image/') && !allowedImgExts.includes(ext)) {
         return `"${file.name}" is not a supported image format (${acceptedFormatsLabel}).`;
+      }
+    } else if (isVideoUpload) {
+      if (!file.type.startsWith('video/') && !ALLOWED_VIDEO_EXTS.includes(ext)) {
+        return `"${file.name}" is not a supported video format (${acceptedFormatsLabel}).`;
       }
     } else {
       const allowedDocExts = ['pdf', 'doc', 'docx', 'txt', 'jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'];
@@ -287,7 +306,7 @@ export function ApplicationFileUploader({
           ? crypto.randomUUID()
           : `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       const previewUrl =
-        isImageFile(file) && typeof URL !== 'undefined'
+        (isImageFile(file) || isVideoFile(file)) && typeof URL !== 'undefined'
           ? URL.createObjectURL(file)
           : undefined;
       const entry: UploadedApplicationFile = {
@@ -327,7 +346,7 @@ export function ApplicationFileUploader({
     }
 
     const previewUrl =
-      isImageFile(file) && typeof URL !== 'undefined'
+      (isImageFile(file) || isVideoFile(file)) && typeof URL !== 'undefined'
         ? URL.createObjectURL(file)
         : undefined;
 
@@ -454,6 +473,8 @@ export function ApplicationFileUploader({
           <div className="flex h-10 w-10 items-center justify-center rounded-[2px] border border-[#ede6ca]/20 bg-[#171c0d] text-[#a9b47e]">
             {isImageGallery ? (
               <ImagePlus className="h-5 w-5" aria-hidden="true" />
+            ) : isVideoUpload ? (
+              <Film className="h-5 w-5" aria-hidden="true" />
             ) : (
               <Upload className="h-5 w-5" aria-hidden="true" />
             )}
@@ -464,7 +485,9 @@ export function ApplicationFileUploader({
                 ? `Maximum ${maxFiles} files uploaded — remove or replace a file below`
                 : isImageGallery
                   ? 'Upload photography examples if you have them (optional)'
-                  : 'Choose files from your device or drag & drop here'}
+                  : isVideoUpload
+                    ? 'Upload edited video clips or reels if you have them (optional)'
+                    : 'Choose files from your device or drag & drop here'}
             </p>
             <p className="font-mono text-[10px] tracking-[0.06em] text-[#c9c2a6]/75">
               Accepted: {acceptedFormatsLabel} · Max 100 MB per file
@@ -482,10 +505,14 @@ export function ApplicationFileUploader({
               {files.length === 0
                 ? isImageGallery
                   ? 'Select Photographs'
-                  : 'Select File(s)'
+                  : isVideoUpload
+                    ? 'Select Video Edit(s)'
+                    : 'Select File(s)'
                 : isImageGallery
                   ? `Add More Photos (${remainingSlots} left)`
-                  : `Add Another File (${remainingSlots} left)`}
+                  : isVideoUpload
+                    ? `Add Another Video (${remainingSlots} left)`
+                    : `Add Another File (${remainingSlots} left)`}
             </span>
           </button>
         </div>
@@ -584,7 +611,7 @@ export function ApplicationFileUploader({
           {files.map((item) => (
             <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 px-3.5 py-2.5">
               <div className="flex min-w-0 flex-1 items-center gap-3">
-                {item.previewUrl ? (
+                {item.previewUrl && !isVideoItem(item) ? (
                   <img
                     src={item.previewUrl}
                     alt={item.name}
@@ -592,7 +619,11 @@ export function ApplicationFileUploader({
                   />
                 ) : (
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[2px] border border-[#ede6ca]/18 bg-[#0e1208] text-[#a9b47e]">
-                    <FileText className="h-4 w-4" aria-hidden="true" />
+                    {isVideoItem(item) ? (
+                      <Film className="h-4 w-4" aria-hidden="true" />
+                    ) : (
+                      <FileText className="h-4 w-4" aria-hidden="true" />
+                    )}
                   </div>
                 )}
 

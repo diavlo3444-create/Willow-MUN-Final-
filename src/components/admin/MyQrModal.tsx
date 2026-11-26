@@ -181,11 +181,9 @@ export function MyQrCard({ actorOverride = null, compact = false }: MyQrCardProp
 
         <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-start">
           <div className="flex flex-col items-center">
-            <motion.div
-              layout
-              transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+            <div
               ref={svgContainerRef}
-              className="rounded-xl border-2 border-[color:var(--wm-hairline-strong)] bg-white p-3 shadow-lg"
+              className="rounded-xl border-2 border-[color:var(--wm-hairline-strong)] bg-white p-3"
             >
               <QRCodeSVG
                 value={pass.token_value}
@@ -195,7 +193,7 @@ export function MyQrCard({ actorOverride = null, compact = false }: MyQrCardProp
                 bgColor="#ffffff"
                 fgColor="#06110c"
               />
-            </motion.div>
+            </div>
             <span className="mt-2.5 inline-flex items-center gap-1.5 rounded border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-inset)] px-2.5 py-1 text-[10px] font-mono uppercase tracking-[0.14em] text-[color:var(--wm-focal)]">
               <ShieldCheck className="h-3 w-3" aria-hidden="true" />
               {pass.active ? 'Permanent · Verified' : 'Revoked'}
@@ -272,7 +270,7 @@ export function MyQrCard({ actorOverride = null, compact = false }: MyQrCardProp
             aria-modal="true"
             aria-label="Enlarged personal QR code"
             onClick={() => setEnlarged(false)}
-            className="fixed inset-0 z-[150] flex items-center justify-center bg-[#030906]/92 p-4 backdrop-blur-sm"
+            className="fixed inset-0 z-[150] flex items-center justify-center bg-[#030906]/92 p-4"
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.94 }}
@@ -280,7 +278,7 @@ export function MyQrCard({ actorOverride = null, compact = false }: MyQrCardProp
               exit={{ opacity: 0, scale: 0.95 }}
               transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-md rounded-xl border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-surface)] p-6 text-center shadow-2xl"
+              className="w-full max-w-md rounded-xl border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-surface)] p-6 text-center"
             >
               <div className="flex items-center justify-between gap-3">
                 <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-[color:var(--wm-accent)]">
@@ -295,7 +293,7 @@ export function MyQrCard({ actorOverride = null, compact = false }: MyQrCardProp
                   <Minimize2 className="h-4 w-4" aria-hidden="true" />
                 </button>
               </div>
-              <div className="mx-auto mt-5 inline-block rounded-2xl bg-white p-5 shadow-xl">
+              <div className="mx-auto mt-5 inline-block rounded-2xl bg-white p-5">
                 <QRCodeSVG
                   value={pass.token_value}
                   size={280}
@@ -363,7 +361,7 @@ export function MyQrModal() {
           aria-modal="true"
           aria-labelledby={titleId}
           onClick={closeMyQrModal}
-          className="wm-admin fixed inset-0 z-[130] flex items-center justify-center bg-[#030906]/82 p-4 backdrop-blur-sm"
+          className="wm-admin fixed inset-0 z-[130] flex items-center justify-center bg-[#030906]/84 p-4"
         >
           <motion.div
             initial={{ opacity: 0, y: 10, scale: 0.97 }}
@@ -371,7 +369,7 @@ export function MyQrModal() {
             exit={{ opacity: 0, y: 8, scale: 0.97 }}
             transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-xl rounded-xl border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-surface)] p-5 shadow-2xl sm:p-6"
+            className="w-full max-w-xl rounded-xl border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-surface)] p-5 sm:p-6"
           >
             <div className="mb-4 flex items-center justify-between gap-3 border-b border-[color:var(--wm-hairline)] pb-3">
               <div className="flex items-center gap-2.5">

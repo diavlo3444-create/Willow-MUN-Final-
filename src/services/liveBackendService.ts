@@ -86,6 +86,7 @@ export interface LiveApplicationRow {
   answers?: Array<{ questionId: string; section: string; label: string; answer: string }> | null;
   proof_files?: LiveFileRecord[] | null;
   media_photos?: LiveFileRecord[] | null;
+  media_videos?: LiveFileRecord[] | null;
   writing_samples?: LiveFileRecord[] | null;
   medical_has_conditions?: boolean | null;
   medical_details?: string | null;
@@ -167,7 +168,7 @@ export function mapApplicationTypeToDepartment(appType: string | null | undefine
 
 function normalizeDocList(
   raw: unknown,
-  fallbackCategory: 'photo' | 'cv' | 'portfolio' | 'id_document' | 'other',
+  fallbackCategory: 'photo' | 'video' | 'cv' | 'portfolio' | 'id_document' | 'other',
 ): Application['documents'] {
   if (!Array.isArray(raw)) return [];
   return raw
@@ -175,6 +176,7 @@ function normalizeDocList(
     .map((f, idx) => {
       const cat =
         f.category === 'photo' ||
+        f.category === 'video' ||
         f.category === 'cv' ||
         f.category === 'portfolio' ||
         f.category === 'id_document' ||
@@ -256,6 +258,12 @@ export function mapLiveRowToApplication(
       : meta?.mediaPhotos,
     'photo',
   );
+  const mediaVideoDocs = normalizeDocList(
+    Array.isArray(row.media_videos) && row.media_videos.length > 0
+      ? row.media_videos
+      : meta?.mediaVideos,
+    'video',
+  );
   const writingDocs = normalizeDocList(
     Array.isArray(row.writing_samples) && row.writing_samples.length > 0
       ? row.writing_samples
@@ -325,7 +333,7 @@ export function mapLiveRowToApplication(
         },
     experienceLevel: cleanExperience,
     answers: structuredAnswers,
-    documents: [...mediaDocs, ...writingDocs, ...proofDocs],
+    documents: [...mediaDocs, ...mediaVideoDocs, ...writingDocs, ...proofDocs],
     notes: [],
     legalConsent: {
       privacyPolicyAccepted:

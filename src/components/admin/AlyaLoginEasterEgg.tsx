@@ -158,11 +158,7 @@ export function AlyaLoginEasterEgg({ user, onComplete }: AlyaLoginEasterEggProps
       role="region"
       aria-label={`Welcome intro for ${firstName}`}
     >
-      {/* Subtle Willow canopy radial glow */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none fixed inset-0 bg-[radial-gradient(640px_420px_at_50%_38%,rgba(45,106,79,0.28),transparent_70%)]"
-      />
+      {/* Clean solid canvas background */}
 
       {/* Top minimal bar with Willow wordmark & immediate Skip button */}
       <header className="relative z-10 mx-auto flex w-full max-w-3xl items-center justify-between gap-4">
@@ -227,7 +223,7 @@ export function AlyaLoginEasterEgg({ user, onComplete }: AlyaLoginEasterEggProps
                 initial={prefersReducedMotion ? false : { opacity: 0, scale: 0.72 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ delay: 0.45, duration: 0.55 }}
-                className="h-full w-full select-none object-contain p-2 mix-blend-multiply"
+                className="h-full w-full select-none object-contain p-2"
                 draggable={false}
 />
             </div>

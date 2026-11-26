@@ -42,6 +42,13 @@ const ALLOWED_IMAGE_MIME_TYPES = new Set([
   "image/heif",
 ]);
 
+const ALLOWED_VIDEO_MIME_TYPES = new Set([
+  "video/mp4",
+  "video/quicktime",
+  "video/webm",
+  "video/x-m4v",
+]);
+
 const ALLOWED_DOC_MIME_TYPES = new Set([
   ...ALLOWED_IMAGE_MIME_TYPES,
   "application/pdf",
@@ -61,6 +68,10 @@ const ALLOWED_EXTENSIONS = new Set([
   "doc",
   "docx",
   "txt",
+  "mp4",
+  "mov",
+  "webm",
+  "m4v",
 ]);
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -239,7 +250,7 @@ Deno.serve(async (req: Request) => {
     if (!["media", "press", "volunteer", "security"].includes(applicationType)) {
       return json({ error: "Unsupported application track for uploads." }, 400);
     }
-    if (!["proof_files", "media_photos", "writing_samples"].includes(fieldKind)) {
+    if (!["proof_files", "media_photos", "media_videos", "writing_samples"].includes(fieldKind)) {
       return json({ error: "Unsupported upload field category." }, 400);
     }
     if (!Number.isFinite(sizeBytes) || sizeBytes <= 0 || sizeBytes > MAX_UPLOAD_BYTES) {
@@ -257,6 +268,13 @@ Deno.serve(async (req: Request) => {
       }
       if (!["jpg", "jpeg", "png", "webp", "heic", "heif"].includes(ext)) {
         return json({ error: "Media portfolio only accepts image files." }, 400);
+      }
+    } else if (fieldKind === "media_videos") {
+      if (mimeType && !ALLOWED_VIDEO_MIME_TYPES.has(mimeType)) {
+        return json({ error: "Video edits only accept MP4, MOV, WEBM, or M4V video files." }, 400);
+      }
+      if (!["mp4", "mov", "webm", "m4v"].includes(ext)) {
+        return json({ error: "Video edits only accept MP4, MOV, WEBM, or M4V video files." }, 400);
       }
     } else if (mimeType && !ALLOWED_DOC_MIME_TYPES.has(mimeType)) {
       return json({ error: "Unsupported file format. Accepted: PDF, DOC, DOCX, TXT, JPG, PNG, WEBP." }, 400);
@@ -371,6 +389,7 @@ Deno.serve(async (req: Request) => {
     const answers = sanitizeAnswers(body?.answers);
     const proofFiles = normalizeUploadedFiles(body?.proof_files, applicationType, "other");
     const mediaPhotos = normalizeUploadedFiles(body?.media_photos, applicationType, "photo");
+    const mediaVideos = normalizeUploadedFiles(body?.media_videos, applicationType, "video");
     const writingSamples = normalizeUploadedFiles(body?.writing_samples, applicationType, "portfolio");
 
     if (applicationType === "media") {
@@ -417,39 +436,56 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const { data: inserted, error } = await admin
+    const insertPayload = {
+      application_type: applicationType,
+      department_id: departmentId,
+      applicant_name: applicantName,
+      gender,
+      email,
+      phone,
+      guardian_phone: guardianPhone,
+      grade,
+      school,
+      age: body?.age ? Number(body.age) : null,
+      availability: body?.availability ? String(body.availability).trim() : null,
+      motivation,
+      experience,
+      portfolio_url: body?.portfolio_url ? String(body.portfolio_url).trim() : null,
+      camera_model: applicationType === "media" ? cameraModel : null,
+      attends_all_days: attendsAllDays,
+      absence_reason: attendsAllDays === false ? absenceReason : null,
+      answers,
+      proof_files: proofFiles,
+      media_photos: applicationType === "media" ? mediaPhotos : [],
+      media_videos: applicationType === "media" ? mediaVideos : [],
+      writing_samples: applicationType === "press" ? writingSamples : [],
+      privacy_policy_accepted: true,
+      terms_accepted: true,
+      privacy_policy_version: privacyPolicyVersion,
+      terms_version: termsVersion,
+      consent_accepted_at: consentAcceptedAt,
+      status: "pending",
+    };
+
+    const insertSelectCols =
+      "id,application_type,department_id,applicant_name,gender,status,privacy_policy_accepted,terms_accepted,privacy_policy_version,terms_version,consent_accepted_at,created_at";
+
+    let { data: inserted, error } = await admin
       .from("wm_applications")
-      .insert({
-        application_type: applicationType,
-        department_id: departmentId,
-        applicant_name: applicantName,
-        gender,
-        email,
-        phone,
-        guardian_phone: guardianPhone,
-        grade,
-        school,
-        age: body?.age ? Number(body.age) : null,
-        availability: body?.availability ? String(body.availability).trim() : null,
-        motivation,
-        experience,
-        portfolio_url: body?.portfolio_url ? String(body.portfolio_url).trim() : null,
-        camera_model: applicationType === "media" ? cameraModel : null,
-        attends_all_days: attendsAllDays,
-        absence_reason: attendsAllDays === false ? absenceReason : null,
-        answers,
-        proof_files: proofFiles,
-        media_photos: applicationType === "media" ? mediaPhotos : [],
-        writing_samples: applicationType === "press" ? writingSamples : [],
-        privacy_policy_accepted: true,
-        terms_accepted: true,
-        privacy_policy_version: privacyPolicyVersion,
-        terms_version: termsVersion,
-        consent_accepted_at: consentAcceptedAt,
-        status: "pending",
-      })
-      .select("id,application_type,department_id,applicant_name,gender,status,privacy_policy_accepted,terms_accepted,privacy_policy_version,terms_version,consent_accepted_at,created_at")
+      .insert(insertPayload)
+      .select(insertSelectCols)
       .single();
+
+    if (error && String(error.message || "").toLowerCase().includes("media_videos")) {
+      const { media_videos: _omitMediaVideos, ...fallbackInsertPayload } = insertPayload;
+      const retryInsert = await admin
+        .from("wm_applications")
+        .insert(fallbackInsertPayload)
+        .select(insertSelectCols)
+        .single();
+      inserted = retryInsert.data;
+      error = retryInsert.error;
+    }
 
     if (error || !inserted) return json({ error: error?.message || "Could not submit application." }, 400);
 
@@ -601,11 +637,21 @@ Deno.serve(async (req: Request) => {
     const applicationId = String(body?.application_id || "").trim();
     if (!applicationId) return json({ error: "Application ID is required." }, 400);
 
-    const { data: existing, error: fetchError } = await admin
+    let { data: existing, error: fetchError } = await admin
       .from("wm_applications")
-      .select("id,application_type,department_id,gender,status,proof_files,media_photos,writing_samples")
+      .select("id,application_type,department_id,gender,status,proof_files,media_photos,media_videos,writing_samples")
       .eq("id", applicationId)
       .maybeSingle();
+
+    if (fetchError && String(fetchError.message || "").toLowerCase().includes("media_videos")) {
+      const legacyFetch = await admin
+        .from("wm_applications")
+        .select("id,application_type,department_id,gender,status,proof_files,media_photos,writing_samples")
+        .eq("id", applicationId)
+        .maybeSingle();
+      existing = legacyFetch.data as any;
+      fetchError = legacyFetch.error;
+    }
 
     if (fetchError || !existing) return json({ error: "Application not found." }, 404);
 
@@ -634,6 +680,7 @@ Deno.serve(async (req: Request) => {
       new Set([
         ...collectPaths(existing.proof_files),
         ...collectPaths(existing.media_photos),
+        ...collectPaths((existing as any).media_videos),
         ...collectPaths(existing.writing_samples),
       ]),
     );
@@ -1221,11 +1268,16 @@ Deno.serve(async (req: Request) => {
     if (!isSuperAdmin) return json({ error: "Only Super Admins can permanently delete applications." }, 403);
     const id = String(body?.id || "").trim();
     if (!id) return json({ error: "Application ID is required." }, 400);
-    const { data: existing, error: fetchError } = await admin.from("wm_applications").select("id,application_type,proof_files,media_photos,writing_samples").eq("id", id).maybeSingle();
+    let { data: existing, error: fetchError } = await admin.from("wm_applications").select("id,application_type,proof_files,media_photos,media_videos,writing_samples").eq("id", id).maybeSingle();
+    if (fetchError && String(fetchError.message || "").toLowerCase().includes("media_videos")) {
+      const legacyFetch = await admin.from("wm_applications").select("id,application_type,proof_files,media_photos,writing_samples").eq("id", id).maybeSingle();
+      existing = legacyFetch.data as any;
+      fetchError = legacyFetch.error;
+    }
     if (fetchError) return json({ error: fetchError.message }, 400);
     if (!existing) return json({ error: "Application not found." }, 404);
     const storagePaths = new Set<string>();
-    for (const field of ["proof_files", "media_photos", "writing_samples"] as const) {
+    for (const field of ["proof_files", "media_photos", "media_videos", "writing_samples"] as const) {
       const list = (existing as any)[field];
       if (!Array.isArray(list)) continue;
       for (const item of list) {

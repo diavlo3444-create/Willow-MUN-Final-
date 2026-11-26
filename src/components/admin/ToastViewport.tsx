@@ -39,13 +39,12 @@ export function ToastViewport() {
           return (
             <motion.div
               key={toast.id}
-              layout
               initial={{ opacity: 0, y: 12, scale: 0.96 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, x: 20, scale: 0.96 }}
               transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
               role="status"
-              className={`pointer-events-auto flex items-start gap-3 rounded-lg border ${borderClass} bg-[color:var(--wm-overlay)] px-4 py-3 text-sm text-[color:var(--wm-ink)] shadow-2xl`}
+              className={`pointer-events-auto flex items-start gap-3 rounded-lg border ${borderClass} bg-[color:var(--wm-overlay)] px-4 py-3 text-sm text-[color:var(--wm-ink)]`}
             >
               <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${iconTone}`} aria-hidden="true" />
               <div className="min-w-0 flex-1">

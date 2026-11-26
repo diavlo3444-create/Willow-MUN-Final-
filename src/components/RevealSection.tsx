@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { SectionMotionContext, type ScrollEnterDirection } from './MotionPrimitives';
+import { SectionMotionContext } from './MotionPrimitives';
 
 interface RevealSectionProps {
   id: string;
@@ -11,11 +11,10 @@ interface RevealSectionProps {
 }
 
 /**
- * Bidirectional scroll-choreography section wrapper:
- * - Responds naturally when scrolling BOTH down and up
- * - Tracks entry edge (`down` vs `up`) when re-entering the viewport so section travel
- *   aligns with reading direction
- * - Never keeps intersecting content hidden; respects `prefers-reduced-motion`
+ * Once-only viewport entrance wrapper using IntersectionObserver:
+ * - Fades and slides heading and cards up 24px with 70ms stagger over 400ms ease-out
+ * - Adds will-change: transform, opacity during active entrance and removes it after completion
+ * - Applies content-visibility: auto to below-the-fold sections
  */
 export function RevealSection({
   id,
@@ -26,6 +25,8 @@ export function RevealSection({
   noHorizontalPadding = false,
 }: RevealSectionProps) {
   const ref = useRef<HTMLElement | null>(null);
+  const animTimerRef = useRef<number | null>(null);
+
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(() => {
     if (typeof window === 'undefined') return false;
     return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -36,13 +37,16 @@ export function RevealSection({
     return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   });
 
-  const [enterDirection, setEnterDirection] = useState<ScrollEnterDirection>('down');
+  const [isAnimating, setIsAnimating] = useState(false);
 
   useEffect(() => {
     const media = window.matchMedia('(prefers-reduced-motion: reduce)');
     const onPreferenceChange = (event: MediaQueryListEvent) => {
       setPrefersReducedMotion(event.matches);
-      if (event.matches) setIsVisible(true);
+      if (event.matches) {
+        setIsVisible(true);
+        setIsAnimating(false);
+      }
     };
     media.addEventListener('change', onPreferenceChange);
     return () => media.removeEventListener('change', onPreferenceChange);
@@ -54,51 +58,70 @@ export function RevealSection({
 
     if (prefersReducedMotion || !('IntersectionObserver' in window)) {
       setIsVisible(true);
+      setIsAnimating(false);
       return;
     }
+
+    if (isVisible) return;
+
+    const triggerOnce = () => {
+      setIsAnimating(true);
+      setIsVisible(true);
+      if (animTimerRef.current !== null) {
+        window.clearTimeout(animTimerRef.current);
+      }
+      // Remove will-change once 400ms animation + up to 700ms stagger settles
+      animTimerRef.current = window.setTimeout(() => {
+        animTimerRef.current = null;
+        setIsAnimating(false);
+      }, 1150);
+    };
 
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
           if (entry.isIntersecting) {
-            // Infer entry travel direction from viewport position when crossing threshold
-            const rect = entry.boundingClientRect;
-            setEnterDirection(rect.top < 0 ? 'up' : 'down');
-            setIsVisible(true);
-          } else {
-            // Section has cleanly left viewport: arm opposite directional settle for next visit
-            const exitedBelowViewport = entry.boundingClientRect.top > 0;
-            setEnterDirection(exitedBelowViewport ? 'down' : 'up');
-            setIsVisible(false);
+            triggerOnce();
+            observer.disconnect();
+            break;
           }
         }
       },
       {
-        threshold: [0, 0.03],
-        rootMargin: '20px 0px -3% 0px',
+        threshold: 0.04,
+        rootMargin: '0px 0px -4% 0px',
       },
     );
 
     observer.observe(element);
-    return () => observer.disconnect();
-  }, [prefersReducedMotion]);
+    return () => {
+      observer.disconnect();
+    };
+  }, [isVisible, prefersReducedMotion]);
+
+  useEffect(() => {
+    return () => {
+      if (animTimerRef.current !== null) {
+        window.clearTimeout(animTimerRef.current);
+      }
+    };
+  }, []);
 
   return (
-    <SectionMotionContext.Provider value={{ isVisible, enterDirection }}>
+    <SectionMotionContext.Provider value={{ isVisible, enterDirection: 'down' }}>
       <section
         ref={ref}
         id={id}
         aria-labelledby={ariaLabelledBy}
         data-revealed={isVisible ? 'true' : 'false'}
-        data-enter-dir={enterDirection}
         style={style}
         className={`mun-section-gradient mun-offscreen-section mun-scroll-section relative z-[1] scroll-mt-[var(--nav-height,72px)] py-16 sm:py-20 lg:py-28 ${
           noHorizontalPadding ? '' : 'px-[clamp(18px,5vw,76px)]'
         } ${isVisible ? 'is-visible' : ''} ${
-          enterDirection === 'up' ? 'mun-enter-up' : 'mun-enter-down'
+          isAnimating ? 'mun-is-animating' : ''
         } ${className}`}
       >
-        <div className="mun-section-inner mx-auto w-full max-w-[1320px] min-w-0">
+        <div className="mx-auto w-full max-w-[1320px] min-w-0">
           {children}
         </div>
       </section>
@@ -142,7 +165,7 @@ export function SectionHeading({
   return (
     <div className={`mun-section-heading ${centered ? 'text-center mx-auto max-w-2xl' : ''}`}>
       <p className="mun-section-kicker mun-heading-kicker mb-3 flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.2em] text-[#a9b47e] sm:text-[11px]">
-        <span aria-hidden="true" className="mun-rule-draw h-px w-7 shrink-0 bg-[#a9b47e]/75" />
+        <span aria-hidden="true" className="h-px w-7 shrink-0 bg-[#a9b47e]/75" />
         {indexLabel ? <span className="text-[#ede6ca]/65">{indexLabel}</span> : null}
         <span>{label}</span>
       </p>

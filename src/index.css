@@ -44,12 +44,10 @@
 
 /* Editorial navigation chrome over full-bleed willow background */
 .mun-nav-flat {
-  background-color: rgba(57, 63, 36, 0.94);
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
+  background-color: rgba(57, 63, 36, 0.96);
 }
 
-/* Transparent full-width sections positioned above background video */
+/* Transparent full-width sections positioned above fixed compositor background */
 .mun-section-gradient {
   position: relative;
   z-index: 1;
@@ -282,59 +280,7 @@
   animation: mobile-link-slide 280ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-/* One-time section & card viewport reveals (200-400ms, transform + opacity only) */
-.mun-section-reveal {
-  opacity: 0;
-  transform: translate3d(0, 18px, 0);
-  transition:
-    opacity 320ms cubic-bezier(0.16, 1, 0.3, 1),
-    transform 320ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.mun-heading-reveal {
-  opacity: 0;
-  transform: translate3d(0, 16px, 0);
-  transition:
-    opacity 320ms cubic-bezier(0.16, 1, 0.3, 1),
-    transform 320ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.mun-ornament-reveal {
-  display: inline-block;
-  opacity: 0;
-  transform: rotate(0deg);
-  transition:
-    opacity 300ms ease,
-    transform 340ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.mun-card-reveal {
-  opacity: 0;
-  transform: translate3d(0, 16px, 0);
-  transition:
-    opacity 300ms cubic-bezier(0.16, 1, 0.3, 1),
-    transform 300ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.mun-revealed .mun-section-reveal {
-  opacity: 1;
-  transform: translate3d(0, 0, 0);
-}
-
-.mun-revealed .mun-heading-reveal {
-  opacity: 1;
-  transform: translate3d(0, 0, 0);
-}
-
-.mun-revealed .mun-ornament-reveal {
-  opacity: 1;
-  transform: rotate(90deg);
-}
-
-.mun-revealed .mun-card-reveal {
-  opacity: 1;
-  transform: translate3d(0, 0, 0);
-}
+/* Once-only section entrance animations are defined in the homepage motion section below */
 
 /* Animated underline (transform only, 240ms) */
 .mun-link-underline {
@@ -489,7 +435,6 @@
 .ft-leaf-drift {
   opacity: 0;
   animation: ft-leaf-fall var(--fall-dur, 2200ms) cubic-bezier(0.25, 0.65, 0.35, 1) var(--fall-delay, 120ms) 1 forwards;
-  will-change: transform, opacity;
 }
 
 @keyframes ft-word-fade {
@@ -515,106 +460,110 @@ body.intro-on {
   position: fixed;
   inset: 0;
   z-index: 40;
-  /* Preserved intro backdrop tone */
-  background: #4D542E;
+  background: #393f24;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 1.8s ease;
+  transition: opacity 0.45s ease;
 }
+.willow-intro-backdrop.is-active,
 body.intro-on .willow-intro-backdrop {
   opacity: 1;
+  pointer-events: auto;
 }
 
-.willow-intro-video {
-  position: fixed;
-  inset: 0;
-  width: 100vw;
-  height: 100vh;
-  height: 100dvh;
-  object-fit: cover;
-  object-position: 50% 45%;
-  /* Crush dark olive video matte to black so mix-blend-mode: screen composites seamlessly onto #4D542E */
-  mix-blend-mode: screen;
-  filter: saturate(0.55) brightness(1.42) contrast(2.05);
-  pointer-events: none;
-  opacity: 0;
-  transform: scale(0.96);
-  transform-origin: 50% 48%;
-  z-index: 1;
-  transition: opacity 1.8s ease, transform 1.8s cubic-bezier(0.16, 1, 0.3, 1);
-}
-body.intro-on .willow-intro-video {
-  opacity: 1;
-  transform: scale(1);
-  z-index: 50;
-}
-
-/* Mobile portrait alignment: map 1280x720 willow-intro-grow onto the exact 9:16
-   willow-loop-mobile stage (object-fit: cover; object-position: 50% 18%) both while
-   intro-on is active AND during/after intro-transitioning so zero jump occurs. */
-.willow-intro-video[data-mobile-portrait="true"] {
-  --wm-stage-w: max(100vw, calc(100dvh * 9 / 16));
-  --wm-stage-h: max(100dvh, calc(100vw * 16 / 9));
-  inset: auto;
-  width: calc(var(--wm-stage-w) * 1.141333);
-  height: calc(var(--wm-stage-h) * 0.361125);
-  left: calc((100vw - var(--wm-stage-w)) * 0.5 - var(--wm-stage-w) * 0.071528);
-  top: calc((100dvh - var(--wm-stage-h)) * 0.18 + var(--wm-stage-h) * 0.164063);
-  max-width: none;
-  max-height: none;
-  object-fit: fill;
-  object-position: 50% 50%;
-  transform-origin: 50% 50%;
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    transparent 0%,
-    #000 3%,
-    #000 97%,
-    transparent 100%
-  );
-  mask-image: linear-gradient(
-    to bottom,
-    transparent 0%,
-    #000 3%,
-    #000 97%,
-    transparent 100%
-  );
-}
-
-@media (max-width: 767px) {
-  body.intro-on .willow-intro-backdrop,
-  body.intro-on .willow-intro-controls {
-    position: fixed !important;
-    inset: 0 !important;
-    width: 100vw !important;
-    max-width: none !important;
-    height: 100vh !important;
-    height: 100svh !important;
-    height: 100dvh !important;
+@keyframes willow-intro-emblem-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
   }
 }
 
-/* Final intro handoff: dissolve the intro tree cleanly onto the aligned background tree with no scale jump. */
-body.intro-transitioning .willow-intro-backdrop {
-  opacity: 0;
-}
-body.intro-transitioning .willow-intro-video {
-  opacity: 0;
-  transform: scale(1);
-  z-index: 50;
+.willow-intro-emblem-reveal {
+  animation: willow-intro-emblem-enter 900ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-.willow-intro-controls {
-  position: fixed;
-  inset: 0;
-  z-index: 100;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.4s ease;
+/* Willow canopy sway & doves (compositor-only: transform) */
+@keyframes willow-sway-base {
+  0% {
+    transform: rotate(-1.2deg);
+  }
+  100% {
+    transform: rotate(1.2deg);
+  }
 }
-.willow-intro-controls.is-active {
-  opacity: 1;
-  pointer-events: auto;
+
+@keyframes willow-sway-gust {
+  0% {
+    transform: rotate(-3.6deg);
+  }
+  100% {
+    transform: rotate(3.6deg);
+  }
+}
+
+.willow-strand-layer {
+  transform-origin: 50% 0;
+  animation-name: willow-sway-base;
+  animation-timing-function: ease-in-out;
+  animation-direction: alternate;
+  animation-iteration-count: infinite;
+  will-change: transform;
+}
+
+.willow-gust .willow-strand-layer {
+  animation-name: willow-sway-gust !important;
+  animation-duration: 0.6s !important;
+}
+
+@keyframes willow-dove-ltr {
+  from {
+    transform: translate3d(-12vw, 18vh, 0);
+  }
+  to {
+    transform: translate3d(112vw, 10vh, 0);
+  }
+}
+
+@keyframes willow-dove-rtl {
+  from {
+    transform: translate3d(112vw, 28vh, 0) scaleX(-1);
+  }
+  to {
+    transform: translate3d(-12vw, 22vh, 0) scaleX(-1);
+  }
+}
+
+.willow-dove {
+  position: fixed;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  will-change: transform;
+}
+
+.willow-dove-1 {
+  animation-name: willow-dove-ltr;
+}
+
+.willow-dove-2 {
+  animation-name: willow-dove-rtl;
+}
+
+/* Pause infinite animations whenever off-screen or hidden */
+.willow-anim-paused .willow-strand-layer,
+.willow-anim-paused .willow-dove,
+.willow-anim-paused.wm-skeleton,
+.willow-anim-paused .wm-skeleton,
+.willow-anim-paused.willow-scanline,
+.willow-anim-paused .willow-scanline {
+  animation-play-state: paused !important;
+  will-change: auto !important;
 }
 
 #introSkip {
@@ -657,7 +606,9 @@ body.intro-on footer {
   transition: opacity 0.35s ease;
 }
 
-body.intro-on * {
+body.intro-on main *,
+body.intro-on footer *,
+body.intro-on .willow-bg-stage * {
   animation-play-state: paused !important;
 }
 
@@ -672,17 +623,16 @@ body.intro-on * {
   .mun-modal-backdrop-out,
   .mun-modal-panel-in,
   .mun-modal-panel-out,
-  .mun-step-enter {
+  .mun-step-enter,
+  .willow-intro-emblem-reveal,
+  .willow-strand-layer,
+  .willow-dove {
     animation: none !important;
+    will-change: auto !important;
   }
 
-  .mun-section-reveal,
-  .mun-heading-reveal,
-  .mun-ornament-reveal,
-  .mun-card-reveal {
-    opacity: 1 !important;
-    transform: none !important;
-    transition: none !important;
+  .willow-dove {
+    display: none !important;
   }
 
   .mun-eb-card,
@@ -699,8 +649,6 @@ body.intro-on * {
   .ft-connector-path,
   .ft-node-fade,
   .willow-intro-backdrop,
-  .willow-intro-video,
-  .willow-intro-controls,
   .chrome,
   main,
   footer {
@@ -790,7 +738,6 @@ body.intro-on * {
   background-color: var(--wm-surface);
   border: 1px solid var(--wm-hairline);
   border-radius: 8px;
-  box-shadow: 0 10px 28px -18px rgba(0, 0, 0, 0.55);
 }
 
 .wm-admin .wm-surface-inset {
@@ -956,7 +903,6 @@ html { scroll-padding-top: var(--nav-height, 72px); }
 .mun-hero-content.mun-hero-ready > *:nth-child(3) { transition-delay: 320ms; }
 
 .mun-hero-detail { min-width: 0; border-left: 1px solid rgba(237,230,202,.22); padding-left: 14px; }
-.mun-chapter-index { box-shadow: 0 12px 36px rgba(5,8,2,.12); }
 .mun-chapter-link { position: relative; }
 .mun-chapter-link::after {
   position: absolute; right: 16px; bottom: 0; left: 16px; height: 1px; content: "";
@@ -965,87 +911,48 @@ html { scroll-padding-top: var(--nav-height, 72px); }
 }
 .mun-chapter-link:hover::after, .mun-chapter-link:focus-visible::after { transform: scaleX(1); }
 
-/* Connected inter-section atmospheric surfaces and subtle tonal handoff */
+/* Connected inter-section atmospheric surfaces preserving existing olive veil */
 section.mun-scroll-section { position: relative; isolation: isolate; overflow: clip; }
 section.mun-scroll-section[data-chart-zoomed="true"] { overflow: visible; z-index: 25; }
 section.mun-scroll-section::before {
   position: absolute; z-index: -1; inset: 0; content: ""; pointer-events: none;
-  opacity: 0.72;
-  transition: opacity 640ms cubic-bezier(0.16, 1, 0.3, 1);
-}
-section.mun-scroll-section.is-visible::before {
-  opacity: 1;
-}
-section.mun-scroll-section:nth-of-type(even)::before,
-section.mun-scroll-section:nth-of-type(odd)::before {
-  /* Let the fixed homepage video remain visible through each editorial section. */
   background: rgba(57, 63, 36, 0.56);
   border-top: 1px solid rgba(237,230,202,.10);
   border-bottom: 1px solid rgba(237,230,202,.08);
 }
 
-/* Bidirectional section settle: slides gently up when scrolling down, gently down when scrolling up */
-.mun-section-inner {
-  opacity: 0.14;
+/* Once-only section entrance (transform & opacity only, 24px slide-up, 400ms ease-out, 70ms stagger) */
+.mun-heading-kicker {
+  opacity: 0;
   transform: translate3d(0, 24px, 0);
   transition:
-    opacity 620ms cubic-bezier(.16,1,.3,1),
-    transform 720ms cubic-bezier(.16,1,.3,1);
-}
-.mun-scroll-section.mun-enter-up:not(.is-visible) .mun-section-inner {
-  transform: translate3d(0, -18px, 0);
-}
-.mun-scroll-section.is-visible .mun-section-inner {
-  opacity: 1;
-  transform: translate3d(0, 0, 0);
-}
-
-/* Staggered SectionHeading elements (hairline -> kicker -> serif headline) */
-.mun-rule-draw {
-  transform: scaleX(0.2);
-  transform-origin: left center;
-  transition: transform 560ms cubic-bezier(.16,1,.3,1) 60ms;
-}
-.mun-heading-kicker {
-  opacity: 0.25;
-  transform: translate3d(0, 10px, 0);
-  transition:
-    opacity 500ms cubic-bezier(.16,1,.3,1) 40ms,
-    transform 560ms cubic-bezier(.16,1,.3,1) 40ms;
+    opacity 400ms ease-out 0ms,
+    transform 400ms ease-out 0ms;
 }
 .mun-heading-title {
-  opacity: 0.2;
-  transform: translate3d(0, 16px, 0);
+  opacity: 0;
+  transform: translate3d(0, 24px, 0);
   transition:
-    opacity 620ms cubic-bezier(.16,1,.3,1) 90ms,
-    transform 680ms cubic-bezier(.16,1,.3,1) 90ms;
+    opacity 400ms ease-out 70ms,
+    transform 400ms ease-out 70ms;
 }
-.mun-scroll-section.mun-enter-up:not(.is-visible) .mun-heading-kicker {
-  transform: translate3d(0, -8px, 0);
-}
-.mun-scroll-section.mun-enter-up:not(.is-visible) .mun-heading-title {
-  transform: translate3d(0, -14px, 0);
-}
-.mun-scroll-section.is-visible .mun-rule-draw {
-  transform: scaleX(1);
-}
-.mun-scroll-section.is-visible .mun-heading-kicker,
-.mun-scroll-section.is-visible .mun-heading-title {
-  opacity: 1;
-  transform: translate3d(0, 0, 0);
+.mun-stagger-item {
+  opacity: 0;
+  transform: translate3d(0, 24px, 0);
+  transition:
+    opacity 400ms ease-out var(--mun-stagger-delay, 0ms),
+    transform 400ms ease-out var(--mun-stagger-delay, 0ms);
 }
 
-/* Coordinated staggered content blocks inside sections */
-.mun-stagger-item {
-  opacity: 0.16;
-  transform: translate3d(0, 18px, 0);
-  transition:
-    opacity 560ms cubic-bezier(.16,1,.3,1) var(--mun-stagger-delay, 0ms),
-    transform 640ms cubic-bezier(.16,1,.3,1) var(--mun-stagger-delay, 0ms);
+/* Promote animated layers only during active reveal, removed when settled */
+.mun-scroll-section.mun-is-animating .mun-heading-kicker,
+.mun-scroll-section.mun-is-animating .mun-heading-title,
+.mun-scroll-section.mun-is-animating .mun-stagger-item {
+  will-change: transform, opacity;
 }
-.mun-scroll-section.mun-enter-up:not(.is-visible) .mun-stagger-item {
-  transform: translate3d(0, -14px, 0);
-}
+
+.mun-scroll-section.is-visible .mun-heading-kicker,
+.mun-scroll-section.is-visible .mun-heading-title,
 .mun-scroll-section.is-visible .mun-stagger-item {
   opacity: 1;
   transform: translate3d(0, 0, 0);
@@ -1061,27 +968,22 @@ section.mun-scroll-section:nth-of-type(odd)::before {
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   .mun-hero-content > *,
-  .mun-section-inner,
-  .mun-rule-draw,
   .mun-heading-kicker,
   .mun-heading-title,
   .mun-stagger-item {
     opacity: 1 !important;
     transform: none !important;
     transition: none !important;
-  }
-  section.mun-scroll-section::before {
-    opacity: 1 !important;
-    transition: none !important;
+    will-change: auto !important;
   }
   .mun-chapter-link::after { transition: none; }
 }
 
 
-/* Mobile visual system: preserve exact #4D542E intro backdrop and consistent olive section veils. */
+/* Mobile visual system: preserve exact #393f24 intro backdrop and consistent olive section veils. */
 @media (max-width: 767px) {
    body.intro-on .willow-intro-backdrop {
-    background: #4D542E;
+    background: #393f24;
   }
 
   section.mun-scroll-section::before,
@@ -1133,7 +1035,6 @@ section.mun-scroll-section:nth-of-type(odd)::before {
 
 .willow-scanline {
   animation: willow-scan-sweep 2.1s cubic-bezier(0.45, 0, 0.55, 1) infinite;
-  will-change: transform, opacity;
 }
 
 @media (prefers-reduced-motion: reduce) {

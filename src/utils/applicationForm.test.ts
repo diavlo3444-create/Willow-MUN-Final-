@@ -38,6 +38,21 @@ function makeDummyPhoto(index: number): UploadedApplicationFile {
   };
 }
 
+function makeDummyVideo(index: number): UploadedApplicationFile {
+  return {
+    id: `video-${index}`,
+    name: `edit-reel-${index}.mp4`,
+    category: 'video',
+    fileType: 'video/mp4',
+    sizeBytes: 4_200_000,
+    sizeLabel: '4.0 MB',
+    storageBucket: 'wm-application-files',
+    storagePath: `media/session-1/media_videos/edit-reel-${index}.mp4`,
+    uploadedAt: '2027-11-18T10:00:00.000Z',
+    uploadStatus: 'uploaded',
+  };
+}
+
 function populateValidBaseStep1(draft: TrackDraft) {
   draft.applicant_name = 'Tariq Al-Mansoor';
   draft.email = 'tariq@example.com';
@@ -115,6 +130,7 @@ describe('countryCodes and applicationForm helpers', () => {
         draft.experience = experienceValue;
         if (track === 'media') {
           draft.cameraModel = 'Sony Alpha A7 IV';
+          draft.canEditVideos = 'yes';
           draft.mediaPhotos = Array.from({ length: 10 }, (_, i) => makeDummyPhoto(i + 1));
         }
 
@@ -162,25 +178,61 @@ describe('countryCodes and applicationForm helpers', () => {
     }
   });
 
-  it('enforces Media 10-15 photo requirement and camera model on Step 2', () => {
+  it('requires camera model and video editing capability while keeping video uploads optional on Media Step 2', () => {
     const draft = createEmptyDraft();
     populateValidBaseStep1(draft);
 
     draft.experience = 'Led school photography club and covered regional conferences.';
     draft.cameraModel = '';
-    draft.mediaPhotos = Array.from({ length: 9 }, (_, i) => makeDummyPhoto(i + 1));
+    draft.canEditVideos = '';
+    draft.mediaVideos = [];
 
-    const errUnder10 = validateStep(2, draft, 'media');
-    assert.ok(errUnder10.cameraModel);
-    assert.ok(errUnder10.mediaPhotos);
+    const missingFields = validateStep(2, draft, 'media');
+    assert.ok(missingFields.cameraModel);
+    assert.ok(missingFields.canEditVideos);
+    assert.equal(missingFields.mediaVideos, undefined);
 
     draft.cameraModel = 'Sony Alpha A7 IV';
-    draft.mediaPhotos = Array.from({ length: 10 }, (_, i) => makeDummyPhoto(i + 1));
+
+    // Saying "No" with 0 uploaded video edits is valid
+    draft.canEditVideos = 'no';
     assert.deepEqual(validateStep(2, draft, 'media'), {});
 
-    draft.mediaPhotos = Array.from({ length: 16 }, (_, i) => makeDummyPhoto(i + 1));
-    const errOver15 = validateStep(2, draft, 'media');
-    assert.ok(errOver15.mediaPhotos);
+    // Saying "Yes" with 0 uploaded video edits is also valid (upload is NOT mandatory)
+    draft.canEditVideos = 'yes';
+    assert.deepEqual(validateStep(2, draft, 'media'), {});
+
+    // Uploading up to 5 optional video edits is valid
+    draft.mediaVideos = [makeDummyVideo(1), makeDummyVideo(2)];
+    assert.deepEqual(validateStep(2, draft, 'media'), {});
+
+    // Exceeding the 5-video upload cap triggers an error
+    draft.mediaVideos = Array.from({ length: 6 }, (_, i) => makeDummyVideo(i + 1));
+    const overLimit = validateStep(2, draft, 'media');
+    assert.ok(overLimit.mediaVideos);
+  });
+
+  it('records can_edit_videos in structured answers and legacy meta without leaking medical data', () => {
+    const draft = createEmptyDraft();
+    populateValidBaseStep1(draft);
+    draft.cameraModel = 'Canon EOS R6';
+    draft.canEditVideos = 'yes';
+    draft.mediaVideos = [makeDummyVideo(1)];
+
+    const answers = buildStructuredAnswers(draft, 'media');
+    const videoEntry = answers.find((a) => a.questionId === 'can_edit_videos');
+    assert.deepEqual(videoEntry, {
+      questionId: 'can_edit_videos',
+      section: 'Experience & Equipment',
+      label: 'Can you edit videos?',
+      answer: 'Yes',
+    });
+
+    const encoded = buildLegacySafeExperienceField(draft, 'media');
+    const decoded = decodeLegacyExperienceMeta(encoded);
+    assert.equal(decoded.meta?.canEditVideos, 'yes');
+    assert.equal(decoded.meta?.mediaVideos?.length, 1);
+    assert.equal(decoded.meta?.mediaVideos?.[0]?.category, 'video');
   });
 
   it('enforces both Privacy Policy and Terms & Conditions checkboxes independently on Step 4', () => {
@@ -248,6 +300,7 @@ describe('countryCodes and applicationForm helpers', () => {
       draft.experience = 'Served as reporter and coordinator across three school events.';
       if (track === 'media') {
         draft.cameraModel = 'Canon EOS R6';
+        draft.canEditVideos = 'no';
         draft.mediaPhotos = Array.from({ length: 12 }, (_, i) => makeDummyPhoto(i + 1));
       }
 

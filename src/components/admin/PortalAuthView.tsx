@@ -142,8 +142,6 @@ export function PortalAuthView({ portal, onNavigate }: PortalAuthViewProps) {
   return (
     <div className="wm-admin wm-auth-page min-h-[100dvh] lg:grid lg:grid-cols-[1.05fr_1fr]">
       <section className="relative hidden min-h-[100dvh] flex-col justify-between overflow-hidden border-r border-[color:var(--wm-hairline)] bg-[color:var(--wm-rail)] px-10 py-10 lg:flex xl:px-14 xl:py-12">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(640px_420px_at_18%_8%,rgba(45,106,79,0.28),transparent_65%)]" />
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-64 bg-[radial-gradient(500px_260px_at_60%_100%,rgba(116,198,157,0.08),transparent_70%)]" />
 
         <div className="relative flex items-center gap-3">
           <span className="inline-flex h-11 w-11 items-center justify-center overflow-hidden rounded-[8px] border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-inset)]">

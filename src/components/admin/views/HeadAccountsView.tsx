@@ -386,7 +386,7 @@ export function HeadAccountsView() {
 
       {canManage && setupLink && (
         <div
-          className="fixed inset-0 z-[130] grid place-items-center bg-[#030906]/82 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-[130] grid place-items-center bg-[#030906]/84 p-4"
           role="dialog"
           aria-modal="true"
           aria-label="Password setup link"
@@ -394,7 +394,7 @@ export function HeadAccountsView() {
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-lg rounded-xl border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-surface)] p-5 shadow-2xl"
+            className="w-full max-w-lg rounded-xl border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-surface)] p-5"
           >
             <div className="flex items-start justify-between gap-3 border-b border-[color:var(--wm-hairline)] pb-3">
               <div>

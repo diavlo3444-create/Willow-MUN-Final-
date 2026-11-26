@@ -8,6 +8,7 @@ import {
   Check,
   CheckCircle2,
   FileText,
+  Film,
   Loader2,
   Lock,
   ShieldCheck,
@@ -105,7 +106,7 @@ const TRACKS: readonly TrackConfig[] = [
     wing: 'Communications & Creative',
     detail:
       'Photography, videography, committee reels, and visual storytelling across every session of the conference.',
-    deliverable: 'MUN experience details, optional supporting documents & 4 role questions',
+    deliverable: 'Camera & video editing details, optional uploads & 4 role questions',
   },
   {
     id: 'press',
@@ -216,6 +217,7 @@ function loadStoredDrafts(): { drafts: DraftMap; activeTrack: ApplicationTrack }
           ...saved,
           proofFiles: sanitizeRestoredFiles(saved.proofFiles),
           mediaPhotos: sanitizeRestoredFiles(saved.mediaPhotos),
+          mediaVideos: sanitizeRestoredFiles(saved.mediaVideos),
           writingSamples: sanitizeRestoredFiles(saved.writingSamples),
           roleAnswers:
             saved.roleAnswers && typeof saved.roleAnswers === 'object'
@@ -334,6 +336,7 @@ export function ApplySection() {
           ...d,
           proofFiles: compactFiles(d.proofFiles),
           mediaPhotos: compactFiles(d.mediaPhotos),
+          mediaVideos: compactFiles(d.mediaVideos),
           writingSamples: compactFiles(d.writingSamples),
           privacyAccepted: false,
           termsAccepted: false,
@@ -464,7 +467,7 @@ export function ApplySection() {
   };
 
   const updateFilesField = (
-    key: 'proofFiles' | 'mediaPhotos' | 'writingSamples',
+    key: 'proofFiles' | 'mediaPhotos' | 'mediaVideos' | 'writingSamples',
     updater: (prev: UploadedApplicationFile[]) => UploadedApplicationFile[],
   ) => {
     setDrafts((prev) => ({
@@ -611,6 +614,7 @@ export function ApplySection() {
     const usesFallbackFiles = [
       ...currentDraft.proofFiles,
       ...currentDraft.mediaPhotos,
+      ...currentDraft.mediaVideos,
       ...currentDraft.writingSamples,
     ].some((f) => f.uploadStatus === 'fallback_inline');
 
@@ -658,6 +662,8 @@ export function ApplySection() {
       proof_files: toSubmitFileMetadata(currentDraft.proofFiles),
       media_photos:
         selectedTrack === 'media' ? toSubmitFileMetadata(currentDraft.mediaPhotos) : [],
+      media_videos:
+        selectedTrack === 'media' ? toSubmitFileMetadata(currentDraft.mediaVideos) : [],
       writing_samples:
         selectedTrack === 'press' ? toSubmitFileMetadata(currentDraft.writingSamples) : [],
       privacy_policy_accepted: true,
@@ -676,8 +682,9 @@ export function ApplySection() {
       if ((invokeError || data?.error) && !usesFallbackFiles) {
         const msg = String(data?.error || (await extractFunctionError(invokeError)) || '').toLowerCase();
         if (msg.includes('column') || msg.includes('schema') || msg.includes('unexpected')) {
+          const { media_videos: _omittedMediaVideos, ...restPayload } = payloadBody;
           const fallbackBody = {
-            ...payloadBody,
+            ...restPayload,
             experience: buildLegacySafeExperienceField(currentDraft, selectedTrack),
           };
           const retryRes = await supabase.functions.invoke('willow-applications', {
@@ -808,7 +815,9 @@ export function ApplySection() {
             draft.applicant_name.trim() ||
               draft.email.trim() ||
               draft.experience.trim() ||
+              draft.canEditVideos !== '' ||
               draft.mediaPhotos.length > 0 ||
+              draft.mediaVideos.length > 0 ||
               Object.values(draft.roleAnswers).some((v) => v.trim()),
           );
           const trackOpen = isTrackOpen(item.id);
@@ -1450,6 +1459,74 @@ export function ApplySection() {
                             </div>
 
                             <div>
+                              <span
+                                id="apply-can-edit-videos-label"
+                                className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-[#c9c2a6]"
+                              >
+                                <Film className="h-3.5 w-3.5 text-[#a9b47e]" aria-hidden="true" />
+                                <span>Can you edit videos? *</span>
+                              </span>
+                              <div
+                                role="radiogroup"
+                                aria-labelledby="apply-can-edit-videos-label"
+                                className="grid grid-cols-2 gap-2.5"
+                              >
+                                {([
+                                  ['yes', 'Yes'],
+                                  ['no', 'No'],
+                                ] as const).map(([val, label]) => {
+                                  const selected = currentDraft.canEditVideos === val;
+                                  return (
+                                    <button
+                                      key={val}
+                                      type="button"
+                                      role="radio"
+                                      aria-checked={selected}
+                                      onClick={() => updateField('canEditVideos', val)}
+                                      className={`min-h-[44px] rounded-[2px] border px-4 py-2 text-sm font-medium transition-colors duration-150 cursor-pointer flex items-center justify-between ${
+                                        selected
+                                          ? 'border-[#ede6ca] bg-[#ede6ca]/[0.12] text-[#ede6ca]'
+                                          : 'border-[#ede6ca]/22 bg-[#0e1208] text-[#c9c2a6] hover:border-[#ede6ca]/45'
+                                      }`}
+                                    >
+                                      <span>{label}</span>
+                                      <span
+                                        aria-hidden="true"
+                                        className={`h-3 w-3 rounded-full border ${
+                                          selected
+                                            ? 'border-[#ede6ca] bg-[#ede6ca]'
+                                            : 'border-[#ede6ca]/35 bg-transparent'
+                                        }`}
+                                      />
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                              {errors.canEditVideos && (
+                                <p role="alert" className="mt-1.5 text-xs text-rose-300">
+                                  {errors.canEditVideos}
+                                </p>
+                              )}
+                            </div>
+
+                            <ApplicationFileUploader
+                              id="apply-media-videos"
+                              track={selectedTrack}
+                              fieldKind="media_videos"
+                              draftSessionId={draftSessionId}
+                              files={currentDraft.mediaVideos}
+                              onFilesChange={(updater) => updateFilesField('mediaVideos', updater)}
+                              title="Upload your video edits"
+                              description="Optional — share sample reels, highlights, or edited clips for the Media team to watch. Leave this empty if you do not have edits to upload."
+                              accept=".mp4,.mov,.webm,.m4v,video/mp4,video/quicktime,video/webm,video/x-m4v"
+                              acceptedFormatsLabel="MP4, MOV, WEBM, M4V"
+                              category="video"
+                              maxFiles={5}
+                              required={false}
+                              error={errors.mediaVideos}
+                            />
+
+                            <div>
                               <label
                                 htmlFor="apply-portfolio"
                                 className="mb-1.5 block text-xs font-medium text-[#c9c2a6]"
@@ -1794,11 +1871,42 @@ export function ApplySection() {
                             </div>
 
                             {selectedTrack === 'media' && (
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                  <p className="text-[#c9c2a6]/75">Camera Equipment</p>
+                                  <p className="mt-0.5 font-medium text-[#ede6ca]">
+                                    {currentDraft.cameraModel}
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="text-[#c9c2a6]/75">Can you edit videos?</p>
+                                  <p className="mt-0.5 font-medium text-[#ede6ca]">
+                                    {currentDraft.canEditVideos === 'yes'
+                                      ? 'Yes'
+                                      : currentDraft.canEditVideos === 'no'
+                                        ? 'No'
+                                        : 'Not specified'}
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+
+                            {selectedTrack === 'media' && currentDraft.mediaVideos.length > 0 && (
                               <div>
-                                <p className="text-[#c9c2a6]/75">Camera Equipment</p>
-                                <p className="mt-0.5 font-medium text-[#ede6ca]">
-                                  {currentDraft.cameraModel}
+                                <p className="text-[#c9c2a6]/75 mb-1">
+                                  Video Edits ({currentDraft.mediaVideos.length})
                                 </p>
+                                <ul className="space-y-1">
+                                  {currentDraft.mediaVideos.map((f) => (
+                                    <li key={f.id} className="flex items-center gap-2 text-[#ede6ca]">
+                                      <Film className="h-3.5 w-3.5 text-[#a9b47e]" aria-hidden="true" />
+                                      <span className="truncate">{f.name}</span>
+                                      <span className="font-mono text-[10px] text-[#c9c2a6]/70">
+                                        ({f.sizeLabel})
+                                      </span>
+                                    </li>
+                                  ))}
+                                </ul>
                               </div>
                             )}
 

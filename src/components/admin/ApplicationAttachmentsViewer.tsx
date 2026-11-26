@@ -5,6 +5,7 @@ import {
   Download,
   ExternalLink,
   FileText,
+  Film,
   Image as ImageIcon,
   Lock,
   ShieldAlert,
@@ -24,6 +25,12 @@ function isImageDoc(doc: UploadedDocument): boolean {
   if (doc.category === 'photo') return true;
   if (doc.fileType.startsWith('image/')) return true;
   return /\.(jpe?g|png|webp|heic|heif)$/i.test(doc.name);
+}
+
+function isVideoDoc(doc: UploadedDocument): boolean {
+  if (doc.category === 'video') return true;
+  if (doc.fileType.startsWith('video/')) return true;
+  return /\.(mp4|mov|webm|m4v)$/i.test(doc.name);
 }
 
 export function ApplicationAttachmentsViewer({
@@ -70,8 +77,12 @@ export function ApplicationAttachmentsViewer({
     () => application.documents.filter((d) => d.category === 'photo'),
     [application.documents],
   );
+  const videoDocs = useMemo(
+    () => application.documents.filter((d) => d.category !== 'photo' && isVideoDoc(d)),
+    [application.documents],
+  );
   const otherDocs = useMemo(
-    () => application.documents.filter((d) => d.category !== 'photo'),
+    () => application.documents.filter((d) => d.category !== 'photo' && !isVideoDoc(d)),
     [application.documents],
   );
 
@@ -157,6 +168,60 @@ export function ApplicationAttachmentsViewer({
               })}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Media Video Edits Section */}
+      {videoDocs.length > 0 && (
+        <div className="wm-surface-inset p-4 space-y-3">
+          <p className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-[0.14em] text-[color:var(--wm-accent)]">
+            <Film className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>Video Edits ({videoDocs.length})</span>
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {videoDocs.map((doc) => {
+              const url = resolveUrl(doc);
+              return (
+                <div
+                  key={doc.id}
+                  className="rounded border border-[color:var(--wm-hairline)] bg-[color:var(--wm-canvas)] p-3 space-y-2.5"
+                >
+                  {url ? (
+                    <video
+                      controls
+                      preload="metadata"
+                      src={url}
+                      className="w-full max-h-56 rounded bg-black object-contain"
+                    />
+                  ) : (
+                    <div className="flex h-28 items-center justify-center rounded border border-[color:var(--wm-hairline)] bg-[color:var(--wm-inset)] text-xs text-[color:var(--wm-ink-muted)]">
+                      Video preview unavailable
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between gap-2 text-xs">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium text-[color:var(--wm-ink)]">{doc.name}</p>
+                      <p className="font-mono text-[10px] text-[color:var(--wm-ink-muted)]">
+                        Video Edit{doc.sizeLabel ? ` · ${doc.sizeLabel}` : ''}
+                      </p>
+                    </div>
+                    {url && (
+                      <a
+                        href={url}
+                        download={doc.name}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex shrink-0 items-center gap-1 rounded border border-[color:var(--wm-hairline-strong)] px-2.5 py-1 text-[11px] font-medium text-[color:var(--wm-accent)] hover:bg-[color:var(--wm-inset)]"
+                      >
+                        <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                        <span>Open</span>
+                      </a>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 

@@ -15,7 +15,7 @@ export const PUBLIC_APPLICATION_TRACKS: readonly ApplicationTrack[] = [
 export interface UploadedApplicationFile {
   id: string;
   name: string;
-  category: 'photo' | 'cv' | 'portfolio' | 'id_document' | 'other';
+  category: 'photo' | 'video' | 'cv' | 'portfolio' | 'id_document' | 'other';
   fileType: string;
   sizeBytes: number;
   sizeLabel: string;
@@ -199,7 +199,9 @@ export interface TrackDraft {
   experience: string;
   proofFiles: UploadedApplicationFile[];
   cameraModel: string;
+  canEditVideos: 'yes' | 'no' | '';
   mediaPhotos: UploadedApplicationFile[];
+  mediaVideos: UploadedApplicationFile[];
   writingSamples: UploadedApplicationFile[];
   portfolio_url: string;
 
@@ -231,7 +233,9 @@ export function createEmptyDraft(): TrackDraft {
     experience: '',
     proofFiles: [],
     cameraModel: '',
+    canEditVideos: '',
     mediaPhotos: [],
+    mediaVideos: [],
     writingSamples: [],
     portfolio_url: '',
 
@@ -342,6 +346,7 @@ export function validateStep(
     const uploadingAny = [
       ...draft.proofFiles,
       ...draft.mediaPhotos,
+      ...draft.mediaVideos,
       ...draft.writingSamples,
     ].some((f) => f.uploadStatus === 'uploading');
     if (uploadingAny) {
@@ -351,6 +356,7 @@ export function validateStep(
     const errorAny = [
       ...draft.proofFiles,
       ...draft.mediaPhotos,
+      ...draft.mediaVideos,
       ...draft.writingSamples,
     ].some((f) => f.uploadStatus === 'error');
     if (errorAny) {
@@ -360,6 +366,12 @@ export function validateStep(
     if (track === 'media') {
       if (draft.cameraModel.trim().length < 2) {
         errors.cameraModel = 'Please enter the camera model or equipment you will use.';
+      }
+      if (draft.canEditVideos !== 'yes' && draft.canEditVideos !== 'no') {
+        errors.canEditVideos = 'Please indicate whether you can edit videos.';
+      }
+      if (draft.mediaVideos.length > 5) {
+        errors.mediaVideos = 'Please upload a maximum of 5 video edit files.';
       }
     }
 
@@ -458,6 +470,15 @@ export function buildStructuredAnswers(
     });
   }
 
+  if (track === 'media' && (draft.canEditVideos === 'yes' || draft.canEditVideos === 'no')) {
+    items.push({
+      questionId: 'can_edit_videos',
+      section: 'Experience & Equipment',
+      label: 'Can you edit videos?',
+      answer: draft.canEditVideos === 'yes' ? 'Yes' : 'No',
+    });
+  }
+
   const trimmedExperience = draft.experience.trim();
   if (trimmedExperience !== '') {
     items.push({
@@ -518,12 +539,14 @@ export interface EncodedNonMedicalMeta {
   grade: string;
   guardianPhone: string;
   cameraModel?: string | null;
+  canEditVideos?: 'yes' | 'no' | null;
   attendsAllDays?: boolean | null;
   availableDays?: ConferenceDayId[];
   absenceReason?: string | null;
   answers: StructuredAnswerEntry[];
   proofFiles?: UploadedApplicationFile[];
   mediaPhotos?: UploadedApplicationFile[];
+  mediaVideos?: UploadedApplicationFile[];
   writingSamples?: UploadedApplicationFile[];
 }
 
@@ -558,6 +581,10 @@ export function buildLegacySafeExperienceField(
     grade: draft.grade.trim(),
     guardianPhone: guardianPhoneE164,
     cameraModel: track === 'media' ? draft.cameraModel.trim() : null,
+    canEditVideos:
+      track === 'media' && (draft.canEditVideos === 'yes' || draft.canEditVideos === 'no')
+        ? draft.canEditVideos
+        : null,
     attendsAllDays:
       draft.attendsAllDays === 'yes'
         ? true
@@ -575,6 +602,7 @@ export function buildLegacySafeExperienceField(
     answers: buildStructuredAnswers(draft, track),
     proofFiles: stripLocalBlob(draft.proofFiles),
     mediaPhotos: track === 'media' ? stripLocalBlob(draft.mediaPhotos) : [],
+    mediaVideos: track === 'media' ? stripLocalBlob(draft.mediaVideos) : [],
     writingSamples: track === 'press' ? stripLocalBlob(draft.writingSamples) : [],
   };
 

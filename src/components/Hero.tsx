@@ -1,6 +1,5 @@
 import { type MouseEvent } from 'react';
 import { ArrowDownRight, MoveDown } from 'lucide-react';
-import { motion, useReducedMotion, useScroll, useTransform } from 'motion/react';
 import { CONFERENCE_DATA } from '../data/conference';
 import { usePublishedWebsite } from '../utils/usePublishedWebsite';
 import { TbaText } from './TbaText';
@@ -22,13 +21,6 @@ export function Hero({ cursorEffectsActive = false }: HeroProps) {
     0,
   );
 
-  const prefersReduced = useReducedMotion();
-  const { scrollY } = useScroll();
-  const heroLayerY = useTransform(scrollY, [0, 560], [0, -32]);
-  const heroLayerOpacity = useTransform(scrollY, [0, 480], [1, 0.25]);
-  const scrollCueY = useTransform(scrollY, [0, 220], [0, 14]);
-  const scrollCueOpacity = useTransform(scrollY, [0, 180], [0.72, 0]);
-
   const handleSmoothAnchor = (event: MouseEvent<HTMLAnchorElement>, href: string) => {
     if (!href.startsWith('#')) return;
     const target = document.querySelector(href);
@@ -43,17 +35,7 @@ export function Hero({ cursorEffectsActive = false }: HeroProps) {
       aria-label="Willow Model United Nations overview"
       className="mun-hero relative z-[1] isolate flex min-h-[100svh] flex-col justify-end overflow-hidden bg-transparent px-[clamp(18px,5vw,76px)] pb-10 pt-[calc(var(--nav-height,64px)+5vh)] sm:pb-14 lg:pb-16"
     >
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10">
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(13,17,7,0.06)_0%,rgba(13,17,7,0.08)_34%,rgba(13,17,7,0.66)_68%,rgba(13,17,7,0.94)_100%)]" />
-        <div className="absolute inset-y-0 left-0 w-[min(28vw,420px)] bg-[linear-gradient(90deg,rgba(13,17,7,0.34),transparent)]" />
-      </div>
-
-      <motion.div
-        style={
-          !prefersReduced && cursorEffectsActive
-            ? { y: heroLayerY, opacity: heroLayerOpacity }
-            : undefined
-        }
+      <div
         className={`mun-hero-content mx-auto w-full max-w-[1320px] ${
           cursorEffectsActive ? 'mun-hero-ready' : ''
         }`}
@@ -76,7 +58,7 @@ export function Hero({ cursorEffectsActive = false }: HeroProps) {
             <p className="mb-4 font-mono text-[10px] uppercase tracking-[0.2em] text-[#cfc8aa]/85 sm:text-xs">
               An assembly for principled diplomacy
             </p>
-            <h1 className="max-w-[13ch] font-serif text-[clamp(3.65rem,8.2vw,7.7rem)] font-medium leading-[0.88] tracking-[-0.055em] text-[#f1ecd9] [text-wrap:balance] [text-shadow:0_3px_34px_rgba(8,12,4,0.42)]">
+            <h1 className="max-w-[13ch] font-serif text-[clamp(3.65rem,8.2vw,7.7rem)] font-medium leading-[0.88] tracking-[-0.055em] text-[#f1ecd9] [text-wrap:balance]">
               {fullTitle}
             </h1>
           </div>
@@ -141,13 +123,12 @@ export function Hero({ cursorEffectsActive = false }: HeroProps) {
             </p>
           </div>
         </div>
-      </motion.div>
+      </div>
 
-      <motion.a
+      <a
         href="#about"
         onClick={(event) => handleSmoothAnchor(event, '#about')}
         aria-label="Scroll to the conference charter"
-        style={!prefersReduced ? { y: scrollCueY, opacity: scrollCueOpacity } : undefined}
         className="group absolute bottom-7 right-[clamp(18px,5vw,76px)] hidden items-center gap-3 font-mono text-[9px] uppercase tracking-[0.2em] text-[#ede6ca]/70 transition-colors hover:text-[#ede6ca] lg:flex"
       >
         <span>Scroll to explore</span>
@@ -155,7 +136,7 @@ export function Hero({ cursorEffectsActive = false }: HeroProps) {
           className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-y-0.5"
           aria-hidden="true"
         />
-      </motion.a>
+      </a>
     </section>
   );
 }

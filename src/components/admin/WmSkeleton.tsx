@@ -1,12 +1,24 @@
+import { useRef } from 'react';
+import { useInViewPlayState } from '../../utils/useInViewPlayState';
+
 interface WmSkeletonProps {
   variant?: 'table' | 'cards' | 'dossier' | 'qr';
   rows?: number;
 }
 
 export function WmSkeleton({ variant = 'table', rows = 4 }: WmSkeletonProps) {
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const isActive = useInViewPlayState(rootRef);
+  const pauseClass = isActive ? '' : 'willow-anim-paused';
+
   if (variant === 'qr') {
     return (
-      <div className="wm-surface-panel p-6 sm:p-8" aria-busy="true" aria-label="Loading personal QR credential">
+      <div
+        ref={rootRef}
+        className={`wm-surface-panel p-6 sm:p-8 ${pauseClass}`}
+        aria-busy="true"
+        aria-label="Loading personal QR credential"
+      >
         <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-start">
           <div className="wm-skeleton h-44 w-44 shrink-0 rounded-lg" />
           <div className="w-full max-w-sm space-y-3">
@@ -22,7 +34,12 @@ export function WmSkeleton({ variant = 'table', rows = 4 }: WmSkeletonProps) {
 
   if (variant === 'dossier') {
     return (
-      <div className="wm-surface-panel space-y-5 p-6" aria-busy="true" aria-label="Loading applicant dossier">
+      <div
+        ref={rootRef}
+        className={`wm-surface-panel space-y-5 p-6 ${pauseClass}`}
+        aria-busy="true"
+        aria-label="Loading applicant dossier"
+      >
         <div className="flex items-start justify-between gap-4 border-b border-[color:var(--wm-hairline)] pb-5">
           <div className="space-y-2.5">
             <div className="wm-skeleton h-3 w-32 rounded" />
@@ -44,7 +61,12 @@ export function WmSkeleton({ variant = 'table', rows = 4 }: WmSkeletonProps) {
 
   if (variant === 'cards') {
     return (
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" aria-busy="true" aria-label="Loading records">
+      <div
+        ref={rootRef}
+        className={`grid gap-3 sm:grid-cols-2 xl:grid-cols-3 ${pauseClass}`}
+        aria-busy="true"
+        aria-label="Loading records"
+      >
         {Array.from({ length: rows }).map((_, idx) => (
           <div key={idx} className="wm-surface-panel space-y-3 p-4">
             <div className="flex items-center justify-between gap-2">
@@ -61,7 +83,12 @@ export function WmSkeleton({ variant = 'table', rows = 4 }: WmSkeletonProps) {
   }
 
   return (
-    <div className="wm-surface-panel divide-y divide-[color:var(--wm-hairline)] overflow-hidden" aria-busy="true" aria-label="Loading rows">
+    <div
+      ref={rootRef}
+      className={`wm-surface-panel divide-y divide-[color:var(--wm-hairline)] overflow-hidden ${pauseClass}`}
+      aria-busy="true"
+      aria-label="Loading rows"
+    >
       {Array.from({ length: rows }).map((_, idx) => (
         <div key={idx} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5">
           <div className="space-y-2">

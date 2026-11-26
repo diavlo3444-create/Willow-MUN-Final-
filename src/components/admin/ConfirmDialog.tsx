@@ -43,7 +43,7 @@ export function ConfirmDialog({
           role="dialog"
           aria-modal="true"
           aria-labelledby="confirm-dialog-title"
-          className="wm-admin fixed inset-0 z-[120] flex items-center justify-center bg-[#030906]/80 px-4 py-6 backdrop-blur-xs"
+          className="wm-admin fixed inset-0 z-[120] flex items-center justify-center bg-[#030906]/80 px-4 py-6"
           onClick={onCancel}
         >
           <motion.div
@@ -51,7 +51,7 @@ export function ConfirmDialog({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 6, scale: 0.97 }}
             transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-            className="w-full max-w-md rounded-lg border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-overlay)] p-6 text-[color:var(--wm-ink)] shadow-2xl"
+            className="w-full max-w-md rounded-lg border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-overlay)] p-6 text-[color:var(--wm-ink)]"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-4">

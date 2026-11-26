@@ -157,7 +157,7 @@ export interface ApplicationAnswer {
 export interface UploadedDocument {
   id: string;
   name: string;
-  category: 'photo' | 'cv' | 'portfolio' | 'id_document' | 'other';
+  category: 'photo' | 'video' | 'cv' | 'portfolio' | 'id_document' | 'other';
   fileType: string;
   sizeLabel: string;
   previewUrl: string;

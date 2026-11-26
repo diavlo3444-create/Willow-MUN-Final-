@@ -285,7 +285,7 @@ export function ExecutiveBoardPortal({
           </div>
         )}
 
-        <header className="sticky top-0 z-30 border-b border-[color:var(--wm-hairline)] bg-[color:var(--wm-rail)]/95 backdrop-blur-md">
+        <header className="sticky top-0 z-30 border-b border-[color:var(--wm-hairline)] bg-[color:var(--wm-rail)]">
           <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-4 sm:px-6">
             <div>
               <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[color:var(--wm-accent)]">
@@ -724,7 +724,7 @@ export function ExecutiveBoardPortal({
               role="dialog"
               aria-modal="true"
               aria-label="Request shift swap"
-              className="fixed inset-0 z-[120] flex items-center justify-center bg-[#030906]/82 p-4 backdrop-blur-sm"
+              className="fixed inset-0 z-[120] flex items-center justify-center bg-[#030906]/82 p-4"
               onClick={() => setSwapTargetShift(null)}
             >
               <motion.form
@@ -733,7 +733,7 @@ export function ExecutiveBoardPortal({
                 exit={{ opacity: 0, scale: 0.96, y: 6 }}
                 onClick={(e) => e.stopPropagation()}
                 onSubmit={(e) => void submitShiftSwap(e)}
-                className="w-full max-w-md rounded-xl border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-surface)] p-6 shadow-2xl"
+                className="w-full max-w-md rounded-xl border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-surface)] p-6"
               >
                 <div className="flex items-center justify-between gap-2 border-b border-[color:var(--wm-hairline)] pb-3">
                   <h2 className="text-sm font-semibold text-[color:var(--wm-ink)]">

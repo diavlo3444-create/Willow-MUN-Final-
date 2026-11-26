@@ -20,7 +20,6 @@ export function Navbar() {
   );
 
   const [menuOpen, setMenuOpen] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
   const [activeHref, setActiveHref] = useState<string | null>(null);
   const [underline, setUnderline] = useState<{ left: number; width: number } | null>(null);
 
@@ -41,15 +40,6 @@ export function Navbar() {
     const ro = new ResizeObserver(syncNavHeight);
     ro.observe(header);
     return () => ro.disconnect();
-  }, []);
-
-  useEffect(() => {
-    const onScroll = () => {
-      setScrolled((window.scrollY || window.pageYOffset || 0) > 24);
-    };
-    onScroll();
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
   const updateUnderlinePosition = useCallback((href: string | null) => {
@@ -156,11 +146,7 @@ export function Navbar() {
     <>
       <header
         ref={headerRef}
-        className={`chrome fixed top-0 inset-x-0 z-30 pt-[env(safe-area-inset-top)] transition-colors duration-200 ${
-          scrolled
-            ? 'mun-nav-flat border-b border-[#ede6ca]/18'
-            : 'bg-[#14180a]/70 backdrop-blur-[4px] border-b border-[#ede6ca]/10'
-        }`}
+        className="chrome mun-nav-flat fixed top-0 inset-x-0 z-30 border-b border-[#ede6ca]/16 pt-[env(safe-area-inset-top)]"
       >
         <div className="mx-auto flex max-w-[1200px] items-center justify-between gap-4 sm:gap-8 px-[clamp(16px,4vw,48px)] py-2.5">
           {/* Zone 1: Single-line conference wordmark */}

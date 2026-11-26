@@ -847,7 +847,7 @@ export function QrAttendanceView({
       {/* Pass Correction Modal (with Mandatory Audit Reason) */}
       {correctionPass && (
         <div
-          className="fixed inset-0 z-[130] grid place-items-center bg-[#030906]/82 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-[130] grid place-items-center bg-[#030906]/84 p-4"
           role="dialog"
           aria-modal="true"
           aria-label="Correct Check-In Record"
@@ -856,7 +856,7 @@ export function QrAttendanceView({
           <form
             onClick={(e) => e.stopPropagation()}
             onSubmit={(e) => void handleCorrectionSubmit(e)}
-            className="w-full max-w-md space-y-4 rounded-xl border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-surface)] p-5 shadow-2xl"
+            className="w-full max-w-md space-y-4 rounded-xl border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-surface)] p-5"
           >
             <div className="flex items-start justify-between gap-2 border-b border-[color:var(--wm-hairline)] pb-3">
               <div>
@@ -955,7 +955,7 @@ export function QrAttendanceView({
       {/* Revoke / Reactivate Modal */}
       {togglePassTarget && (
         <div
-          className="fixed inset-0 z-[130] grid place-items-center bg-[#030906]/82 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-[130] grid place-items-center bg-[#030906]/84 p-4"
           role="dialog"
           aria-modal="true"
           aria-label={togglePassTarget.active ? 'Revoke QR Pass' : 'Reactivate QR Pass'}
@@ -964,7 +964,7 @@ export function QrAttendanceView({
           <form
             onClick={(e) => e.stopPropagation()}
             onSubmit={(e) => void handleConfirmTogglePass(e)}
-            className="w-full max-w-md space-y-4 rounded-xl border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-surface)] p-5 shadow-2xl"
+            className="w-full max-w-md space-y-4 rounded-xl border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-surface)] p-5"
           >
             <div className="flex items-start gap-3">
               <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-300" aria-hidden="true" />
@@ -1022,7 +1022,7 @@ export function QrAttendanceView({
       {/* View Issued QR Modal */}
       {issuedPass?.token_value && (
         <div
-          className="fixed inset-0 z-[130] grid place-items-center bg-[#030906]/82 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-[130] grid place-items-center bg-[#030906]/84 p-4"
           role="dialog"
           aria-modal="true"
           aria-label="Pass QR Credential"
@@ -1030,7 +1030,7 @@ export function QrAttendanceView({
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-sm rounded-xl border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-surface)] p-6 text-center shadow-2xl"
+            className="w-full max-w-sm rounded-xl border border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-surface)] p-6 text-center"
           >
             <div ref={modalCanvasHostRef} className="sr-only" aria-hidden="true">
               <QRCodeCanvas value={issuedPass.token_value} size={360} level="H" includeMargin={false} />

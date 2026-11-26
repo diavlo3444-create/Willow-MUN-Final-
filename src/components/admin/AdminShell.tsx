@@ -128,9 +128,7 @@ export function AdminShell({
                   ].join(' ')}
                 >
                   {active && (
-                    <motion.span
-                      layoutId={`wm-nav-indicator-${portal}`}
-                      transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                    <span
                       className="absolute inset-y-1.5 left-0 w-[2.5px] rounded-full bg-[color:var(--wm-accent)]"
                       aria-hidden="true"
                     />
@@ -211,7 +209,7 @@ export function AdminShell({
         </aside>
 
         <div className="lg:pl-[17.5rem]">
-          <header className="sticky top-0 z-30 border-b border-[color:var(--wm-hairline)] bg-[color:var(--wm-canvas)]/92 backdrop-blur-md">
+          <header className="sticky top-0 z-30 border-b border-[color:var(--wm-hairline)] bg-[color:var(--wm-canvas)]">
             <div className="flex h-14 items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
               <div className="flex min-w-0 items-center gap-2.5">
                 <button
@@ -311,7 +309,7 @@ export function AdminShell({
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.16 }}
-                className="absolute inset-0 bg-[#030906]/75 backdrop-blur-xs"
+                className="absolute inset-0 bg-[#030906]/78"
                 onClick={() => setMobileOpen(false)}
                 aria-hidden="true"
               />
@@ -320,7 +318,7 @@ export function AdminShell({
                 animate={{ x: 0 }}
                 exit={{ x: '-100%' }}
                 transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-                className="absolute inset-y-0 left-0 flex w-[17.5rem] max-w-[85vw] flex-col border-r border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-rail)] shadow-2xl"
+                className="absolute inset-y-0 left-0 flex w-[17.5rem] max-w-[85vw] flex-col border-r border-[color:var(--wm-hairline-strong)] bg-[color:var(--wm-rail)]"
                 role="dialog"
                 aria-modal="true"
                 aria-label="Navigation"
