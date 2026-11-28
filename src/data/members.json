@@ -171,17 +171,14 @@
       ]
     },
     {
-      "id": "yousef-saifi",
-      "name": "Yousef Saifi",
+      "id": "abdulaziz-edrees",
+      "name": "Abdulaziz Edrees",
       "role": "Head of Media",
       "group": "media",
-      "quote": "Behind every great story is someone who knew where to look",
+      "quote": "",
       "quoteBy": null,
-      "photo": "photos/yousef-saifi.jpg",
-      "focus": [
-        72,
-        35
-      ]
+      "photo": null,
+      "focus": null
     },
     {
       "id": "hala-tellawi",

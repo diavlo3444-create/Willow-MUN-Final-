@@ -112,6 +112,14 @@ test('organizeFamilyTree orders secretariat -> left groups -> right groups canon
   assert.equal(tree.indexById['ahmed-jamiel'], undefined);
   assert.equal(tree.indexById['maria'], undefined);
   assert.equal(tree.indexById['lelas-almadi'], undefined);
+  assert.equal(tree.indexById['yousef-saifi'], undefined);
+
+  const abdulazizIdx = tree.indexById['abdulaziz-edrees'];
+  assert.equal(typeof abdulazizIdx, 'number');
+  assert.equal(tree.orderedMembers[abdulazizIdx].name, 'Abdulaziz Edrees');
+  assert.equal(tree.orderedMembers[abdulazizIdx].displayRole, 'Head of Media');
+  assert.equal(tree.orderedMembers[abdulazizIdx].group, 'media');
+  assert.equal(tree.orderedMembers[abdulazizIdx].photo, null);
 
   const lilyIdx = tree.indexById['lily-rabia'];
   assert.equal(typeof lilyIdx, 'number');
@@ -142,7 +150,7 @@ test('computeDesktopPedigreePaths creates trunk, branches, bracket spines, ticks
       side: 'left' as const,
       labelRect: box(260, 130, 80, 28),
       memberRects: [box(20, 90, 200, 56), box(20, 160, 200, 56)],
-      memberIds: ['alya-ismail', 'yousef-saifi'],
+      memberIds: ['alya-ismail', 'abdulaziz-edrees'],
     },
     {
       groupId: 'security',
